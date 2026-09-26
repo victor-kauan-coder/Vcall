@@ -8,6 +8,9 @@ on:
       frases:
         description: "Quantas frases do LapsBM"
         default: "40"
+      configs:
+        description: "Configurações (vazio = todas)"
+        default: ""
   push:
     paths:
       - "public/js/features/whisper-nucleo.js"
@@ -37,7 +40,7 @@ jobs:
       - name: Medir
         env:
           BENCH_CACHE: /home/runner/.cache/vcall-bench-fala
-        run: node scripts/bench-fala.mjs --frases "${{ github.event.inputs.frases || '40' }}"
+        run: node scripts/bench-fala.mjs --frases "${{ github.event.inputs.frases || '40' }}" --configs "${{ github.event.inputs.configs || 'tiny-q8-curto5,base-q8-curto,base-q8-curto3,base-q8-curto6,small-q8-longo,small-q8-curto,small-q8-curto3,small-q8-curto6' }}"
       - uses: actions/upload-artifact@v4
         with:
           name: bench-fala

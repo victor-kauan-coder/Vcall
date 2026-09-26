@@ -15,7 +15,7 @@ const IDIOMAS = ["pt", "en", "es", "fr", "de", "it", "ja"];
  * @param {object} lib  { Tensor, WhisperTokenizer, AutoFeatureExtractor, WhisperForConditionalGeneration }
  * @param {{repo:string, idioma:string, lerJson:(arq:string)=>Promise<object>, opcoes:object, curto:boolean}} o
  */
-export async function abrirWhisper(lib, { repo, idioma = "pt", lerJson, opcoes = {}, curto = false }) {
+export async function abrirWhisper(lib, { repo, idioma = "pt", lerJson, opcoes = {}, curto = false, folgaS = FOLGA_S }) {
   /*
    * Montado à mão em vez de `pipeline()`: a versão 4 da biblioteca decide
    * se o tokenizador existe consultando o Hugging Face e, com o modelo
@@ -42,7 +42,7 @@ export async function abrirWhisper(lib, { repo, idioma = "pt", lerJson, opcoes =
     if (curto) {
       // Só o tamanho do áudio (+1 s), em vez da janela fixa de 30 s.
       const [, mels, total] = input_features.dims;
-      const t = quadrosPara(audio.length);
+      const t = quadrosPara(audio.length, folgaS);
       if (t < total) {
         const dados = input_features.data;
         const corte = new Float32Array(mels * t);
@@ -71,11 +71,14 @@ export async function abrirWhisper(lib, { repo, idioma = "pt", lerJson, opcoes =
   return { transcrever, modelo };
 }
 
+/** Segundos de silêncio lidos depois da fala (o modelo foi treinado assim). */
+export const FOLGA_S = 1;
+
 /** Quadros de espectrograma (10 ms cada) que o encoder lê para um trecho. */
-export function quadrosPara(amostras) {
-  // A fala inteira + 1 s de folga (o modelo foi treinado com silêncio depois
-  // da fala), em múltiplos de 100 — menos formas diferentes, menos recompilação.
-  const q = Math.ceil(amostras / 160) + 100;
+export function quadrosPara(amostras, folgaS = FOLGA_S) {
+  // A fala inteira + a folga, em múltiplos de 100 — menos formas diferentes,
+  // menos recompilação do grafo.
+  const q = Math.ceil(amostras / 160) + folgaS * 100;
   return Math.min(3000, Math.ceil(q / 100) * 100);
 }
 

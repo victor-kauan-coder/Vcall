@@ -177,6 +177,13 @@ const CONFIGS = {
   "base-q8-curto-contexto": { repo: "Xenova/whisper-base", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: true, contexto: true },
   "small-q8-curto": { repo: "Xenova/whisper-small", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: true },
   "small-fp32-curto": { repo: "Xenova/whisper-small", enc: "encoder_model.onnx", dtype: "fp32", curto: true },
+  "small-q8-longo": { repo: "Xenova/whisper-small", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: false },
+  // Folga maior depois da fala: quanto de precisão volta, e a que custo.
+  "tiny-q8-curto5": { repo: "Xenova/whisper-tiny", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: true, folgaS: 5 },
+  "base-q8-curto3": { repo: "Xenova/whisper-base", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: true, folgaS: 3 },
+  "base-q8-curto6": { repo: "Xenova/whisper-base", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: true, folgaS: 6 },
+  "small-q8-curto3": { repo: "Xenova/whisper-small", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: true, folgaS: 3 },
+  "small-q8-curto6": { repo: "Xenova/whisper-small", enc: "encoder_model_quantized.onnx", dtype: "q8", curto: true, folgaS: 6 },
 };
 
 async function medir(nome, cfg, frases) {
@@ -188,6 +195,7 @@ async function medir(nome, cfg, frases) {
     repo: cfg.repo,
     idioma: "pt",
     curto: cfg.curto,
+    folgaS: cfg.folgaS,
     opcoes: {
       dtype: { encoder_model: cfg.dtype, decoder_model_merged: "q8" },
       device: "cpu",

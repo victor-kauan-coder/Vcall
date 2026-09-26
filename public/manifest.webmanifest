@@ -1,0 +1,17 @@
+{
+  "name": "Vcall",
+  "short_name": "Vcall",
+  "description": "Salas de vídeo criptografadas ponta a ponta, com compartilhamento de tela nítido e quadro branco colaborativo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0722",
+  "theme_color": "#0b0722",
+  "lang": "pt-BR",
+  "categories": ["productivity", "social"],
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

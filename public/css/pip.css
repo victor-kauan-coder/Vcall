@@ -1,0 +1,164 @@
+/* ------------------------------------------------------------------ *
+ * pip.css — a mini-janela flutuante (ui/minicall.js).
+ *
+ * Carregada só dentro da janela, junto com tokens.css e base.css.
+ * ------------------------------------------------------------------ */
+
+/* Janela Document PiP (navegador). */
+.pip-doc,
+.pip-doc body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* App de mesa: a própria janela encolhe; só a mini-chamada fica à vista.
+   A chamada inteira continua viva por baixo — nada é desmontado. */
+.is-mini body > :not(.pip, .win-drag, .toasts) {
+  display: none !important;
+}
+.is-mini .pip {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg);
+  /* Espaço para os botões nativos da janela e para arrastá-la. */
+  padding-top: calc(env(titlebar-area-height, 30px) + 2px);
+}
+.is-mini .win-drag {
+  display: block !important;
+  right: var(--titlebar-controls, 0px);
+  z-index: 91;
+}
+.is-mini .toasts {
+  display: none;
+}
+
+.pip {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 6px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.pip__grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr;
+}
+.pip__grid[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.pip__grid[data-count="3"],
+.pip__grid[data-count="4"] { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; }
+
+.pip__tile {
+  position: relative;
+  margin: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--tile-bg);
+  box-shadow: inset 0 0 0 1px var(--tile-border);
+  transition: box-shadow 160ms ease-out;
+}
+.pip__tile.is-speaking {
+  box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px var(--accent-soft);
+}
+.pip__tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pip__tile video.is-mirrored { scale: -1 1; }
+
+.pip__avatar {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.pip__avatar[hidden] {
+  display: none;
+}
+/* Estilo completo do avatar aqui: na janela PiP do navegador o app.css não
+   é carregado, e sem ele o SVG do avatar não tem tamanho. */
+.pip__avatar .avatar {
+  display: block;
+  width: min(52%, 84px);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-3);
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 160ms ease-out;
+}
+.pip__avatar .avatar > svg,
+.pip__avatar .avatar > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.pip__tile.is-speaking .pip__avatar .avatar {
+  box-shadow:
+    0 0 0 3px var(--brand-pink),
+    0 0 0 6px color-mix(in oklab, var(--brand-orange) 45%, transparent);
+}
+.pip__tile video[hidden] {
+  display: none;
+}
+
+.pip__tile figcaption {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  max-width: calc(100% - 12px);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font: 600 11px/1.5 var(--font-sans);
+  color: #fff;
+  background: rgba(7, 4, 22, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pip__bar {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pip__btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+.pip__btn:hover { background: var(--surface-3); }
+.pip__btn[aria-pressed="false"] {
+  color: #fff;
+  background: var(--danger);
+}
+.pip__btn--hangup {
+  color: #fff;
+  background: var(--danger);
+  width: 48px;
+}
+.pip__btn--hangup:hover { background: var(--danger-hover); }
+.pip__btn .icon {
+  width: 18px;
+  height: 18px;
+}

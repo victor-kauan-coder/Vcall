@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0722" />
+    <meta
+      name="description"
+      content="Vcall — salas de vídeo criptografadas ponta a ponta, com compartilhamento de tela nítido e quadro branco colaborativo."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <title>Vcall</title>
+
+    <link rel="icon" type="image/png" sizes="64x64" href="/assets/favicon-64.png" />
+    <link rel="apple-touch-icon" href="/assets/icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/app.css" />
+    <link rel="stylesheet" href="/css/board.css" />
+    <link rel="stylesheet" href="/css/dashboard.css" />
+    <link rel="stylesheet" href="/css/motion.css" />
+    <link rel="stylesheet" href="/css/call.css" />
+    <!-- Por último de propósito: é a última palavra sobre telas pequenas. -->
+    <link rel="stylesheet" href="/css/mobile.css" />
+  </head>
+
+  <body>
+    <!-- Intro com a logo, animada por ui/motion.js. Fica no HTML, e não é
+         criada pelo script, para cobrir a tela desde o primeiro quadro. -->
+    <div class="intro" id="intro" aria-hidden="true">
+      <div class="intro__halo"></div>
+      <svg class="intro__mark" viewBox="0 0 512 512" width="148" height="148">
+        <defs>
+          <linearGradient id="introPink" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff5c93" />
+            <stop offset="1" stop-color="#e0356e" />
+          </linearGradient>
+          <linearGradient id="introOrange" x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffb070" />
+            <stop offset="1" stop-color="#fe8c55" />
+          </linearGradient>
+        </defs>
+        <rect class="intro__bg" width="512" height="512" rx="112" fill="#110c3a" />
+        <path class="intro__body" d="M350 246 L262 350" stroke="url(#introOrange)" pathLength="1" />
+        <path class="intro__body" d="M162 246 L250 350" stroke="url(#introPink)" pathLength="1" />
+        <circle class="intro__head" cx="148" cy="157" r="41" fill="url(#introPink)" />
+        <circle class="intro__head" cx="364" cy="156" r="41" fill="url(#introOrange)" />
+      </svg>
+      <div class="intro__word"><span>V</span><span>c</span><span>a</span><span>l</span><span>l</span></div>
+      <div class="intro__tag">conversas que chegam direto</div>
+    </div>
+
+    <div class="ambient" aria-hidden="true"></div>
+
+    <div class="app">
+      <!-- ============================ ANTESSALA ============================ -->
+      <section class="lobby" id="lobby" aria-label="Antes de entrar">
+        <div class="lobby__card">
+          <div class="lobby__preview">
+            <video
+              class="lobby__video is-mirrored"
+              id="lobbyVideo"
+              autoplay
+              playsinline
+              muted
+              hidden
+            ></video>
+            <div class="lobby__placeholder" id="lobbyPlaceholder"></div>
+
+            <div class="lobby__previewBar">
+              <button class="ctrl" id="lobbyMic" type="button" aria-pressed="true" aria-label="Microfone">
+                <svg class="icon icon--lg" aria-hidden="true"><use href="/vendor/icons.svg#i-mic" /></svg>
+              </button>
+              <button class="ctrl" id="lobbyCam" type="button" aria-pressed="true" aria-label="Câmera">
+                <svg class="icon icon--lg" aria-hidden="true"><use href="/vendor/icons.svg#i-video" /></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="lobby__form">
+            <div class="row">
+              <img class="brand__mark" src="/assets/logo-mark.png" alt="" width="44" height="44" />
+              <div>
+                <div class="brand__name">Vcall</div>
+                <div class="brand__tag">Conversas diretas entre navegadores, sem intermediário</div>
+              </div>
+              <span class="spacer"></span>
+              <button
+                class="btn btn--icon btn--ghost"
+                id="themeBtn"
+                type="button"
+                aria-label="Tema"
+                data-tip-placement="bottom"
+              >
+                <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-laptop" /></svg>
+              </button>
+            </div>
+
+            <label class="field">
+              <span class="field__label">Como você quer aparecer</span>
+              <input
+                class="input"
+                id="nameInput"
+                type="text"
+                maxlength="32"
+                placeholder="Seu nome"
+                autocomplete="nickname"
+                enterkeyhint="go"
+              />
+            </label>
+
+            <div class="avatarPicker">
+              <div class="row">
+                <span class="field__label">Avatar</span>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost" id="avatarPhoto" type="button" style="min-height: 30px; padding: 0 10px">
+                  <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-image" /></svg>
+                  <span>Usar foto</span>
+                </button>
+                <button class="btn btn--ghost" id="avatarShuffle" type="button" style="min-height: 30px; padding: 0 10px">
+                  <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-shuffle" /></svg>
+                  <span>Sortear</span>
+                </button>
+                <input class="sr-only" id="avatarPhotoInput" type="file" accept="image/*" tabindex="-1" />
+              </div>
+              <div class="avatarPicker__grid" id="avatarGrid" role="radiogroup" aria-label="Escolha um avatar"></div>
+            </div>
+
+            <div class="row" id="lobbyDevices"></div>
+
+            <div class="row" id="lobbyHint" hidden style="color: var(--warn); font-size: var(--text-xs)"></div>
+
+            <span class="spacer"></span>
+
+            <button class="btn btn--primary btn--lg btn--block" id="joinBtn" type="button">
+              <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-video" /></svg>
+              <span>Criar sala</span>
+            </button>
+
+            <p class="field__hint">
+              Áudio, vídeo e tela vão direto de um navegador ao outro, criptografados. O servidor só
+              apresenta os participantes — ele não vê nem guarda nada da conversa.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================= CHAMADA ============================= -->
+      <header class="topbar" id="topbar" hidden>
+        <div class="topbar__brand">
+          <img src="/assets/logo-mark.png" alt="" width="26" height="26" />
+          <span>Vcall</span>
+        </div>
+
+        <div class="topbar__meta">
+          <span class="topbar__room" id="roomName" hidden></span>
+          <span class="badge badge--ok" id="linkBadge">
+            <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-shield-check" /></svg>
+            <span id="linkText">Criptografada ponta a ponta</span>
+          </span>
+          <span class="dot-sep" id="callTimer">00:00</span>
+          <span class="dot-sep" id="peerCount">1 pessoa</span>
+        </div>
+
+        <span class="spacer"></span>
+
+        <button class="btn" id="inviteBtn" type="button">
+          <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-user-plus" /></svg>
+          <span>Convidar</span>
+        </button>
+        <button class="btn btn--icon btn--ghost" id="themeBtn2" type="button" aria-label="Tema" data-tip-placement="bottom">
+          <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-laptop" /></svg>
+        </button>
+      </header>
+
+      <main class="stage" id="stage" hidden>
+        <div class="stage__main" id="stageMain">
+          <div class="spotlight" id="spotlight" hidden></div>
+          <div class="grid" id="grid" data-count="0"></div>
+        </div>
+      </main>
+
+      <nav class="dock" id="dock" aria-label="Controles da chamada" hidden></nav>
+    </div>
+
+    <div class="toasts" role="status" aria-live="polite"></div>
+
+    <!-- =========================== CONVITE =========================== -->
+    <dialog class="modal" id="inviteModal" aria-labelledby="inviteTitle">
+      <form method="dialog" class="modal__card">
+        <div class="modal__head">
+          <h2 class="modal__title" id="inviteTitle">Convidar para a sala</h2>
+          <button class="btn btn--icon btn--ghost" value="close" aria-label="Fechar">
+            <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-x" /></svg>
+          </button>
+        </div>
+        <div class="modal__body">
+          <p class="muted">
+            Quem tiver este link entra na sala. O endereço é o próprio segredo da sala — mande só
+            para quem deve participar.
+          </p>
+          <div class="field">
+            <span class="field__label">Link da sala</span>
+            <div class="row">
+              <input class="input mono" id="inviteLink" type="text" readonly />
+              <button class="btn btn--primary" id="copyLinkBtn" type="button">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-copy" /></svg>
+                <span>Copiar</span>
+              </button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="field__label">Código P2P</span>
+            <div class="row">
+              <input class="input mono" id="inviteCode" type="text" readonly />
+              <button class="btn" id="copyCodeBtn" type="button">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-copy" /></svg>
+                <span>Copiar</span>
+              </button>
+            </div>
+            <span class="field__hint">
+              Seis caracteres para ditar por telefone. Valem enquanto a sala tiver gente.
+            </span>
+          </div>
+
+          <!-- Link que abre no aplicativo. Só serve para quem tem o Vcall
+               instalado, por isso fica separado do link normal. -->
+          <div class="field" id="appLinkBox" hidden>
+            <span class="field__label">Link para quem tem o aplicativo</span>
+            <div class="row">
+              <input class="input mono" id="appLink" type="text" readonly />
+              <button class="btn" id="copyAppLinkBtn" type="button">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-copy" /></svg>
+                <span>Copiar</span>
+              </button>
+            </div>
+            <span class="field__hint" id="appLinkHint">
+              Abre direto no Vcall, sem passar pelo navegador. Quem não tem o
+              aplicativo deve receber o link de cima.
+            </span>
+          </div>
+
+          <!-- Só aparece no aplicativo de mesa; o app web não tem o que ligar. -->
+          <div class="field" id="hostTunnel" hidden>
+            <span class="field__label">Link público pela internet</span>
+            <div class="row">
+              <input class="input mono" id="tunnelLink" type="text" readonly placeholder="Ainda não gerado" />
+              <button class="btn btn--primary" id="tunnelBtn" type="button">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-zap" /></svg>
+                <span id="tunnelBtnText">Gerar link</span>
+              </button>
+            </div>
+            <span class="field__hint" id="tunnelHint">
+              O link acima só funciona nesta rede. Gere um link público para quem está fora dela.
+            </span>
+          </div>
+
+          <div class="row" style="gap: var(--sp-2); align-items: flex-start">
+            <svg class="icon icon--sm" style="color: var(--accent); margin-top: 3px" aria-hidden="true">
+              <use href="/vendor/icons.svg#i-users" />
+            </svg>
+            <p class="field__hint" id="inviteCapacity"></p>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ========================= CONFIGURAÇÕES ========================= -->
+    <dialog class="modal" id="settingsModal" aria-labelledby="settingsTitle">
+      <form method="dialog" class="modal__card">
+        <div class="modal__head">
+          <h2 class="modal__title" id="settingsTitle">Configurações</h2>
+          <button class="btn btn--icon btn--ghost" value="close" aria-label="Fechar">
+            <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-x" /></svg>
+          </button>
+        </div>
+        <div class="modal__body" id="settingsBody"></div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/js/main.js"></script>
+    <noscript>
+      <p style="padding: 2rem; text-align: center">O Vcall precisa de JavaScript para funcionar.</p>
+    </noscript>
+  </body>
+</html>

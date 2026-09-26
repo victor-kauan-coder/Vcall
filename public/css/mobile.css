@@ -1,0 +1,571 @@
+/* ------------------------------------------------------------------ *
+ * mobile.css — a chamada no celular.
+ *
+ * Um telefone não é uma janela pequena: é outra forma de usar. A tela é
+ * alta e estreita, o dedo é impreciso, há um recorte na frente da câmera,
+ * e a barra do navegador aparece e some enquanto a pessoa rola. Cada
+ * regra aqui existe por causa de uma dessas quatro coisas.
+ *
+ * Ordem: do maior para o menor. Tablet primeiro, telefone depois,
+ * telefone deitado por último — porque deitado o que falta é altura, e as
+ * regras de largura não servem.
+ *
+ * Este arquivo entra DEPOIS dos outros na página, de propósito: ele é a
+ * última palavra sobre o que acontece numa tela pequena.
+ * ------------------------------------------------------------------ */
+
+/* ================================================================== *
+ * Até tablet
+ * ================================================================== */
+
+@media (max-width: 820px) {
+  /*
+   * O dock vira a barra do Meet: só o essencial, bem grande.
+   *
+   * Eram dez botões visíveis precisando de 475 px numa tela de 375 — os
+   * últimos ficavam fora do alcance, cortados na borda. Sobram cinco:
+   * microfone, câmera, conversa, mais, e desligar. O resto vive no menu
+   * "mais", que é onde a mão do celular procura de qualquer jeito.
+   */
+  .dock [data-id="deafen"],
+  .dock [data-id="screen"],
+  .dock [data-id="board"],
+  .dock [data-id="captions"],
+  .dock [data-id="record"] {
+    display: none;
+  }
+
+  /* Alvos de 48 px: é o mínimo que um dedo acerta sem errar. */
+  .ctrl {
+    width: 48px;
+    height: 48px;
+  }
+  .ctrl--hangup {
+    width: 64px;
+  }
+
+  .dock {
+    justify-content: center;
+    padding-bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+  }
+}
+
+/* ================================================================== *
+ * Telefone
+ * ================================================================== */
+
+@media (max-width: 560px) {
+  /*
+   * O recorte da câmera e a barra de gestos comem as pontas da tela. Sem
+   * isto, o nome do participante fica atrás do relógio do sistema e o
+   * botão de desligar atrás da barra de início.
+   */
+  .topbar {
+    padding-top: max(var(--sp-2), env(safe-area-inset-top));
+    padding-inline: max(var(--sp-3), env(safe-area-inset-left));
+  }
+
+  .topbar__brand span {
+    display: none; /* o símbolo basta; o nome rouba a largura do resto */
+  }
+
+  .stage__main {
+    padding: var(--sp-2);
+    gap: var(--sp-2);
+  }
+
+  /* -- grade de vídeo -- */
+
+  .grid {
+    gap: var(--sp-2);
+  }
+
+  /*
+   * Uma pessoa só: o vídeo ocupa tudo, como no Meet. Duas: uma em cima da
+   * outra, porque lado a lado em 375 px dá dois selos de 180 px em que
+   * não se reconhece ninguém.
+   */
+  .grid[data-count="1"],
+  .grid[data-count="2"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* De três em diante, duas colunas — o limite do que cabe legível. */
+  .grid[data-count="3"],
+  .grid[data-count="4"],
+  .grid[data-size="md"],
+  .grid[data-size="lg"],
+  .grid[data-size="xl"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --tile-min: 0;
+  }
+
+  .tile {
+    border-radius: var(--radius-md);
+  }
+
+  .tile__label {
+    left: var(--sp-1);
+    right: var(--sp-1);
+    bottom: var(--sp-1);
+    padding: 3px var(--sp-2);
+    font-size: var(--text-2xs);
+  }
+
+  /*
+   * Os botões de fixar, tela cheia e janela flutuante SOMEM no telefone.
+   *
+   * Sem hover eles ficariam permanentes, e três ladrilhos dariam nove
+   * botões cobrindo os rostos — que é o que a tela existe para mostrar.
+   * Fixar continua ao alcance por toque duplo no ladrilho, que é o gesto
+   * que as pessoas já tentam. Tela cheia não faz falta aqui: o celular
+   * já é uma tela cheia.
+   */
+  .tile__actions {
+    display: none;
+  }
+
+  /*
+   * Ladrilhos quadrados, e não esticados na altura da tela.
+   *
+   * Com a grade dividindo a altura em partes iguais, três pessoas num
+   * telefone davam retângulos de 175 por 285: um formato em que o rosto
+   * fica pequeno no meio de um campo vazio. O quadrado aproveita a
+   * largura toda e é o que o Meet usa no celular.
+   */
+  .grid[data-count="3"],
+  .grid[data-count="4"],
+  .grid[data-size="md"],
+  .grid[data-size="lg"],
+  .grid[data-size="xl"] {
+    grid-auto-rows: auto;
+    /*
+     * `safe center` centraliza quando cabe e volta ao topo quando não cabe.
+     * Só `center` empurraria as primeiras linhas para fora da área rolável
+     * numa sala cheia — ficariam inalcançáveis, acima do começo da rolagem.
+     */
+    align-content: safe center;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .grid[data-count="3"] .tile,
+  .grid[data-count="4"] .tile,
+  .grid[data-size="md"] .tile,
+  .grid[data-size="lg"] .tile,
+  .grid[data-size="xl"] .tile {
+    aspect-ratio: 1;
+    min-height: 0;
+  }
+  .grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* -- destaque: o vídeo grande em cima, a faixa embaixo -- */
+
+  .stage--spotlight .grid {
+    flex: 0 0 84px;
+  }
+  .stage--spotlight .grid .tile {
+    aspect-ratio: 1;
+    height: 100%;
+  }
+  .stage--spotlight .grid .tile__label {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+  /* Na faixa o que importa é o rosto; o resto atrapalha. */
+  .stage--spotlight .grid .tile__actions,
+  .stage--spotlight .grid .tile__net {
+    display: none;
+  }
+
+  /* -- painel como folha que sobe -- */
+
+  .panel {
+    height: min(78dvh, 640px);
+  }
+
+  /* A alça diz "isto sobe e desce" sem precisar escrever. */
+  .panel__tabs {
+    position: relative;
+    padding-top: var(--sp-4);
+  }
+  .panel__tabs::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    translate: -50% 0;
+    width: 36px;
+    height: 4px;
+    border-radius: var(--radius-full);
+    background: var(--border);
+  }
+
+  .panel__tab span {
+    display: none; /* só o ícone: três nomes não cabem em 375 px */
+  }
+  .panel__tab {
+    flex: 1;
+    justify-content: center;
+    padding: var(--sp-3);
+  }
+
+  .composer__input {
+    font-size: 16px; /* abaixo disso o iOS dá zoom ao focar o campo */
+  }
+
+  /* -- diálogos viram folhas, de baixo para cima -- */
+
+  /* .share e .perms são grades que cobrem a tela; .modal é o próprio
+     <dialog>, centralizado pelo navegador — por isso vai encostado
+     embaixo pela margem, e não por place-items. */
+  .share,
+  .perms {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .modal {
+    max-width: none;
+    max-height: 92dvh;
+    margin: auto 0 0;
+  }
+
+  .modal__card,
+  .share__card,
+  .perms__card {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    margin: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding-bottom: max(var(--sp-5), env(safe-area-inset-bottom));
+    animation: folhaSobe var(--dur-base) var(--ease-out);
+  }
+
+  @keyframes folhaSobe {
+    from {
+      transform: translateY(100%);
+    }
+  }
+
+  /* Nos cartões de escolha, uma coluna: três lado a lado viram tiras. */
+  .share__grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .share__opcao {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+  .share__opcaoTexto {
+    display: none;
+  }
+
+  /* O selo ao lado do texto espremia o título em duas linhas. */
+  .perms__item {
+    flex-wrap: wrap;
+  }
+  .perms__texto {
+    min-width: 0;
+    flex: 1 1 70%;
+  }
+  .perms__selo,
+  .perms__switch {
+    margin-left: auto;
+  }
+
+  /* -- canvas -- */
+
+  .board__tools {
+    gap: 2px;
+    padding: var(--sp-1);
+    max-width: calc(100% - var(--sp-2));
+  }
+  .board__tool {
+    width: 38px;
+    height: 38px;
+  }
+  /* Espessura e cores recentes saem: no dedo, a paleta principal basta. */
+  .board__sizes,
+  .swatches[aria-label="Cores recentes"] {
+    display: none;
+  }
+
+  .board__nav {
+    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+  }
+
+  /* -- legendas -- */
+
+  .captions {
+    width: calc(100% - var(--sp-4));
+    bottom: var(--sp-2);
+  }
+  .caption {
+    font-size: var(--text-xs);
+    padding: var(--sp-1) var(--sp-2);
+  }
+
+  /* -- conversa -- */
+
+  .msgImg,
+  .fileCard {
+    max-width: 100%;
+  }
+
+  /* -- painel inicial -- */
+
+  /*
+   * O cartão da sala empilhava em ordem embaralhada: avatar e selo numa
+   * linha, botões noutra, o nome por último. Uma grade explícita põe o
+   * nome onde o olho procura primeiro.
+   */
+  .dashRoom {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: var(--sp-2) var(--sp-3);
+    align-items: center;
+  }
+  .dashRoom__info {
+    min-width: 0;
+  }
+  .dashRoom__meta {
+    font-size: var(--text-2xs);
+  }
+
+  .dash__code {
+    flex: 1 1 100%;
+  }
+
+  /* -- antessala -- */
+
+  .lobby {
+    padding: 0;
+    /* Centralizado, um cartão mais alto que a tela fica cortado nas duas
+       pontas e a metade de cima não rola. Começando do topo, ele cresce
+       para baixo e a rolagem alcança tudo. */
+    place-items: start stretch;
+  }
+  .lobby__card {
+    border-radius: 0;
+    border: 0;
+    min-height: 100dvh;
+  }
+  .lobby__preview {
+    min-height: 34dvh;
+  }
+  /*
+   * "Câmera desligada" ficava exatamente atrás dos botões de microfone e
+   * câmera. Subir o texto resolve sem esconder nenhum dos dois.
+   */
+  .lobby__placeholder {
+    padding-bottom: 88px;
+  }
+  .lobby__form {
+    padding: var(--sp-4) var(--sp-4) max(var(--sp-4), env(safe-area-inset-bottom));
+  }
+  .avatarPicker__grid {
+    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  }
+
+  /* -- avisos -- */
+
+  .toasts {
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: calc(var(--dock-height) + var(--sp-2));
+    /* Sem desfazer os dois de baixo, o -50% da base joga a coluna
+       inteira para fora pela esquerda. */
+    translate: none;
+    width: auto;
+  }
+  .toast {
+    max-width: none;
+  }
+}
+
+/* ================================================================== *
+ * Telefone deitado
+ *
+ * Aqui falta ALTURA, não largura. As regras acima não ajudam: o que
+ * sufoca é a barra de controles comendo metade da tela.
+ * ================================================================== */
+
+@media (max-height: 480px) and (orientation: landscape) {
+  :root {
+    --dock-height: 56px;
+  }
+  .ctrl {
+    width: 42px;
+    height: 42px;
+  }
+  .topbar {
+    padding-block: 4px;
+  }
+  /* Deitado há largura sobrando: o painel volta a ser lateral. */
+  .panel {
+    height: 100dvh;
+    width: min(380px, 50%);
+    inset: 0 0 0 auto;
+    border-radius: 0;
+    border-left: 1px solid var(--border);
+    border-top: 0;
+  }
+  .lobby__card {
+    min-height: auto;
+  }
+  .lobby__preview {
+    min-height: 200px;
+  }
+
+  /*
+   * Deitado, o quadrado do retrato vira uma tira: sobra largura e falta
+   * altura. Aqui o número de colunas volta a ser o que o stage.js calcula
+   * pela proporção — é ele que sabe encaixar três pessoas em 740 por 230
+   * sem espremer ninguém.
+   */
+  .grid[data-count],
+  .grid[data-size] {
+    grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+    overflow: hidden;
+  }
+  .grid .tile {
+    aspect-ratio: auto;
+  }
+  .tile__actions {
+    display: none;
+  }
+}
+
+/* ================================================================== *
+ * Toque
+ *
+ * Separado do tamanho de propósito: existe telefone largo e notebook com
+ * tela sensível ao toque. O que muda aqui é a falta de ponteiro, não a
+ * falta de espaço.
+ * ================================================================== */
+
+@media (pointer: coarse) {
+  /* Sem hover, o que dependia dele fica permanente. */
+  .tile__actions,
+  .msgImg__lupa {
+    opacity: 1;
+  }
+
+  /* O brilho de toque nativo aparece azul e atravessado; cada botão já
+     tem o próprio retorno no :active. */
+  button,
+  a,
+  .tile {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* A caixa de 13 px do sistema é menor que a ponta do dedo. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    accent-color: var(--accent);
+  }
+
+  /* Resposta imediata ao dedo: sem isto o toque parece não ter
+     acontecido até a ação terminar. */
+  .ctrl:active,
+  .btn:active,
+  .board__tool:active,
+  .tile__action:active {
+    transform: scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal__card,
+  .share__card,
+  .perms__card {
+    animation: none;
+  }
+  .ctrl:active,
+  .btn:active,
+  .board__tool:active,
+  .tile__action:active {
+    transform: none;
+  }
+}
+
+/* ================================================================== *
+ * Movimento
+ *
+ * O que separa "página" de "aplicativo" é o que acontece ENTRE dois
+ * estados. Um ladrilho que aparece do nada é uma página se redesenhando;
+ * um que cresce do lugar é alguém entrando na sala.
+ *
+ * Tudo aqui anima só `transform` e `opacity` — as duas propriedades que
+ * a GPU compõe sem refazer layout nem pintura. Num celular, animar
+ * qualquer outra coisa é o caminho mais curto para a chamada engasgar.
+ * ================================================================== */
+
+/* Alguém entra: o ladrilho cresce do próprio lugar. */
+.tile {
+  animation: ladrilhoEntra var(--dur-base) var(--ease-out);
+}
+
+@keyframes ladrilhoEntra {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+/*
+ * A troca entre grade e destaque.
+ *
+ * Sem isto, compartilhar uma tela faz todos os ladrilhos saltarem de
+ * posição num quadro só. Com a transição, eles deslizam para a faixa —
+ * e fica claro que são os mesmos, só mudaram de lugar.
+ */
+.stage--spotlight .grid,
+.grid {
+  transition:
+    flex-basis var(--dur-base) var(--ease-in-out),
+    gap var(--dur-base) var(--ease-out);
+}
+
+/* O painel de conversa desliza; não pisca. */
+.panel {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+/* A barra de controles acompanha o teclado do celular subindo. */
+.dock {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+/*
+ * Toque no ladrilho: um afundar curto que confirma que o gesto chegou.
+ * Serve de retorno para o toque duplo que fixa alguém na tela.
+ */
+@media (pointer: coarse) {
+  .tile:active {
+    transform: scale(0.985);
+    transition: transform 90ms var(--ease-out);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .panel,
+  .dock,
+  .grid,
+  .stage--spotlight .grid {
+    animation: none;
+    transition: none;
+  }
+  .tile:active {
+    transform: none;
+  }
+}

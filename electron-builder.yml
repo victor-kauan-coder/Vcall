@@ -1,0 +1,89 @@
+# ------------------------------------------------------------------ #
+# electron-builder.yml — empacotamento do Vcall como app desktop.
+#
+# O que vai no pacote: o servidor (src/, server.js), a interface (public/),
+# o processo principal (desktop/) e o mínimo de dependências de produção.
+# Tudo é empacotado em um arquivo asar, e o executável final não expõe uma
+# árvore de arquivos editável ao usuário.
+#
+# NOTA HONESTA SOBRE "PROIBIR ALTERAÇÃO": asar é empacotamento, não
+# criptografia — quem souber o que está fazendo consegue extrair o conteúdo.
+# Nenhum formato de app desktop impede isso de verdade, porque o código
+# precisa ser executável na máquina do usuário. O que o asar garante é que o
+# código não fica à mão para ser editado por acidente ou por curiosidade.
+# Para elevar a barreira, veja "Proteção do código" no README-DESKTOP.md.
+# ------------------------------------------------------------------ #
+
+appId: com.vcall.desktop
+productName: Vcall
+copyright: Vcall
+
+directories:
+  output: dist
+  buildResources: brand
+
+# O entry point do Electron é outro do entry point do servidor em npm start.
+extraMetadata:
+  main: desktop/main.js
+
+files:
+  - server.js
+  - src/**/*
+  - public/**/*
+  - desktop/**/*
+  - package.json
+  - "!**/*.map"
+  - "!scripts/**"
+  - "!dist/**"
+
+asar: true
+
+protocols:
+  - name: Vcall
+    schemes: [vcall]
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: public/assets/icon-512.png
+  # O cloudflared vai ao lado do Vcall.exe, onde desktop/tunnel.js procura
+  # primeiro: o link público funciona sem baixar nada na hora.
+  extraFiles:
+    - from: .cache-cloudflared/win32-cloudflared.exe
+      to: cloudflared.exe
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Vcall
+  createDesktopShortcut: always
+  runAfterFinish: true
+  artifactName: VcallSetup-${version}.${ext}
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.social-networking
+  icon: public/assets/icon-512.png
+  hardenedRuntime: true
+  entitlements: desktop/entitlements.mac.plist
+  entitlementsInherit: desktop/entitlements.mac.plist
+  extendInfo:
+    NSCameraUsageDescription: O Vcall precisa da câmera para o seu vídeo na chamada.
+    NSMicrophoneUsageDescription: O Vcall precisa do microfone para a sua voz na chamada.
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Network
+  maintainer: Victor Kauan <victor.kufpi@gmail.com>
+  artifactName: Vcall-${version}-${arch}.${ext}
+  icon: public/assets/icon-512.png
+  desktop:
+    MimeType: x-scheme-handler/vcall

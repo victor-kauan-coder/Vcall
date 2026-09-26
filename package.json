@@ -1,0 +1,45 @@
+{
+  "name": "vcall",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Salas de vídeo P2P criptografadas fim a fim, com canvas colaborativo infinito, painel de chamadas ativas e aplicativo desktop.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "vendor": "node scripts/vendor.mjs",
+    "check": "node --check server.js && node scripts/features-test.mjs && node scripts/host-test.mjs && node scripts/security-test.mjs && node scripts/check.mjs",
+    "test": "node scripts/check.mjs && node scripts/e2e.mjs && node scripts/proxy-test.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "desktop": "electron desktop/main.js",
+    "desktop:dev": "NODE_ENV=development electron desktop/main.js",
+    "desktop:build": "electron-builder --config electron-builder.yml",
+    "desktop:build:win": "electron-builder --config electron-builder.yml --win",
+    "desktop:build:mac": "electron-builder --config electron-builder.yml --mac",
+    "desktop:build:linux": "electron-builder --config electron-builder.yml --linux",
+    "icons": "node scripts/icons.mjs",
+    "build:exe": "node scripts/build-exe.mjs",
+    "build:exe:linux": "node scripts/build-exe.mjs --linux",
+    "build:setup": "node scripts/build-exe.mjs && node scripts/build-installer.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@dicebear/collection": "^9.0.0",
+    "@dicebear/core": "^9.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.12",
+    "lucide-static": "^1.47.0",
+    "playwright": "^1.63.0",
+    "postject": "^1.0.0-alpha.6",
+    "rcedit": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "homepage": "https://github.com/victor-kauan-coder",
+  "author": "Victor Kauan <victor.kufpi@gmail.com> (https://github.com/victor-kauan-coder)"
+}

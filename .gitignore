@@ -1,0 +1,20 @@
+node_modules/
+.e2e-*.png
+.shot-*.png
+scripts/.avatars-entry.mjs
+*.log
+.DS_Store
+.tls/
+.tunnel-proof.png
+
+# Executáveis gerados e cache do build
+dist-exe/
+dist-exe-icon/
+.cache-node-linux/
+.cache-cloudflared/
+dist-setup/
+
+dist/
+node_modules/
+.env
+*.log

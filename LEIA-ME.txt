@@ -1,0 +1,197 @@
+===========================================================
+  VCALL — chamadas de vídeo diretas, sem intermediário
+===========================================================
+
+Você recebeu o instalador:
+
+  Windows ... VcallSetup.exe
+  Linux ..... vcall (versão portátil, não precisa instalar)
+
+Não precisa baixar mais nada. Não precisa criar conta.
+Tudo o que o programa usa já está dentro desse arquivo.
+
+
+-----------------------------------------------------------
+COMO USAR
+-----------------------------------------------------------
+
+1. Dê dois cliques em VcallSetup.exe
+
+   A instalação leva poucos segundos e NÃO pede senha de
+   administrador. No fim, o Vcall abre sozinho.
+
+   Depois disso ele fica no menu iniciar e na área de
+   trabalho, como qualquer programa. Para remover:
+   Configurações → Aplicativos → Vcall.
+
+   (No Linux não há instalador: use o arquivo "vcall". Na
+    primeira vez, abra o terminal na pasta e rode
+    "chmod +x vcall". Depois é só dois cliques.)
+
+   O Vcall abre numa janela própria, sem abas nem barra de
+   endereço. Nenhuma janela preta de terminal aparece.
+
+   Na primeira abertura ele mostra uma tela perguntando o que
+   pode usar — microfone, câmera e avisos — com um interruptor
+   para cada um. Ligue o que quiser e clique em "Continuar".
+   Essa tela aparece uma vez só; depois dá para revisar em
+   Configurações.
+
+   Na primeira vez o Windows pode mostrar um aviso azul
+   ("O Windows protegeu o computador"). É o normal para
+   programa sem assinatura paga. Clique em "Mais informações"
+   e depois em "Executar assim mesmo".
+
+   Se aparecer um aviso do Firewall do Windows, marque
+   "Redes privadas" e clique em "Permitir acesso". Sem isso,
+   ninguém da sua casa ou escritório consegue entrar.
+
+2. Escreva seu nome, escolha um avatar e clique em
+   "Criar sala"
+
+   Nenhuma janela do navegador pedindo microfone aparece:
+   o Vcall usa um perfil de navegador próprio, e a permissão
+   já vem liberada nele para o endereço do próprio programa.
+
+   A tela de permissões mostra câmera e microfone como
+   "Liberado". Os avisos do sistema ficam desligados por
+   padrão — ligue o interruptor se quiser, e só então o
+   navegador pergunta uma vez por eles.
+
+3. Clique em "Convidar" (canto superior direito)
+
+   Aparecem duas opções:
+
+   LINK DA SALA
+     Funciona para quem está na MESMA rede que você (mesmo
+     Wi-Fi, mesmo escritório).
+
+   LINK PÚBLICO PELA INTERNET
+     Clique em "Gerar link". Funciona para qualquer pessoa,
+     em qualquer lugar.
+
+     Na primeira vez isso demora uns segundos: o programa
+     baixa um componente do Cloudflare (cerca de 30 MB) que
+     faz a ponte com a internet. Só acontece uma vez.
+
+4. Mande o link para quem você quer chamar
+
+   A pessoa NÃO precisa do Vcall. Ela só abre o link no
+   navegador dela — computador ou celular, tanto faz.
+
+
+LINKS QUE ABREM NO APLICATIVO
+-----------------------------------------------------------
+
+Na janela "Convidar" existem DOIS links, e eles servem para
+pessoas diferentes:
+
+  LINK DA SALA
+    Para quem NÃO tem o Vcall. Abre no navegador.
+
+  LINK PARA QUEM TEM O APLICATIVO
+    Começa com vcall:// e abre direto no Vcall, sem passar
+    pelo navegador. Se o Vcall já estiver aberto, ele só
+    traz a sala para a frente, sem abrir uma segunda cópia.
+
+Na dúvida, mande o link da sala: ele funciona para todo
+mundo. O link do aplicativo é um extra para quem já tem o
+programa instalado.
+
+O registro do vcall:// é feito sozinho, toda vez que o
+programa abre.
+
+
+-----------------------------------------------------------
+PARA ENCERRAR
+-----------------------------------------------------------
+
+Feche a janela do Vcall (o ícone na barra de tarefas).
+
+Quando você fecha o programa, a sala acaba e o link público
+para de funcionar. Nada fica guardado em lugar nenhum.
+
+
+-----------------------------------------------------------
+O QUE PRECISA FUNCIONAR
+-----------------------------------------------------------
+
+- Windows 10 ou 11
+- Chrome, Edge, Firefox ou Opera atualizado
+- Câmera e microfone (opcionais: dá para entrar só ouvindo)
+
+Para o link público, internet liberada. Algumas redes de
+empresa bloqueiam; nesse caso use o link da sala na rede
+local, ou peça para liberarem trycloudflare.com.
+
+
+-----------------------------------------------------------
+O QUE DÁ PARA FAZER NA CHAMADA
+-----------------------------------------------------------
+
+- Até 16 pessoas ao mesmo tempo
+- Compartilhar a tela
+- Canvas colaborativo (tecla Q) para desenhar junto
+- Imagens no canvas entram como fundo: a borracha apaga
+  o que voce escreveu em cima, e nao a imagem
+- Conversa por texto, imagens e arquivos (até 25 MB)
+- Imagem aparece na conversa e amplia com um clique;
+  video, PDF e texto abrem sem precisar baixar
+- Cole uma captura de tela direto no campo de mensagem
+- Legendas ao vivo do que você fala (tecla T)
+- Gravar a chamada no seu computador
+- Levantar a mão, reagir, fixar alguém na tela
+
+Aperte a tecla ? dentro da chamada para ver todos os atalhos.
+
+
+-----------------------------------------------------------
+PRIVACIDADE
+-----------------------------------------------------------
+
+Áudio, vídeo e tela vão DIRETO do navegador de uma pessoa
+para o da outra, criptografados. Eles não passam por nenhum
+servidor no meio — nem pelo seu, nem pelo de ninguém.
+
+O programa no seu computador só apresenta os participantes
+uns aos outros. Ele não vê nem guarda nada da conversa.
+
+Se você gerar o link público, o Cloudflare funciona como um
+túnel: o tráfego passa por ele criptografado, e ele não tem
+como ler o conteúdo das chamadas.
+
+
+-----------------------------------------------------------
+PROBLEMAS COMUNS
+-----------------------------------------------------------
+
+"A pessoa entrou mas não vejo nem ouço ela"
+  Quase sempre é rede de empresa ou 4G bloqueando a conexão
+  direta. Tente os dois no Wi-Fi comum.
+
+"Não abre nada quando clico"
+  O endereço fica anotado num arquivo de registro:
+
+    Windows ... a pasta .vcall dentro da sua pasta de usuario,
+                no arquivo vcall.log
+    Linux ..... ~/.vcall/vcall.log
+
+  Abra esse arquivo, copie o endereço da última linha e cole
+  no navegador. Ele também mostra o erro, se houve algum.
+
+"Não consigo gerar o link público"
+  Precisa de internet liberada. Se a sua rede bloqueia,
+  baixe o cloudflared.exe do site oficial do Cloudflare e
+  coloque na mesma pasta do Vcall.exe.
+
+"Ninguém me ouve"
+  Verifique se o microfone certo está escolhido em
+  Configurações (a engrenagem na barra de baixo). Lá tem um
+  "Diagnóstico do áudio" que diz exatamente onde o som está
+  parando.
+
+
+-----------------------------------------------------------
+
+Desenvolvido por Victor Kauan
+github.com/victor-kauan-coder

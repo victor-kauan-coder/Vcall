@@ -1,0 +1,148 @@
+/* ------------------------------------------------------------------ *
+ * motion.css — o que o movimento precisa de estilo.
+ *
+ * As animações em si estão em js/ui/motion.js; aqui ficam só os estados
+ * iniciais e as peças que não existem sem movimento (intro, onda do clique).
+ * ------------------------------------------------------------------ */
+
+/* ============================== Intro ============================== */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  cursor: default;
+  user-select: none;
+}
+/* O véu é um pseudo-elemento para poder sumir sem levar a logo junto. */
+.intro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60% 50% at 50% 42%, #1c1356 0%, transparent 70%),
+    #0b0722;
+}
+
+.intro__halo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 380px;
+  height: 380px;
+  margin: -250px 0 0 -190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(253, 77, 135, 0.35) 0%, rgba(254, 156, 95, 0.15) 40%, transparent 68%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.intro__mark {
+  overflow: visible;
+  filter: drop-shadow(0 24px 40px rgba(253, 77, 135, 0.35));
+}
+.intro__bg,
+.intro__head {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.intro__body {
+  fill: none;
+  stroke-width: 94;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+}
+
+.intro__word {
+  display: flex;
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #f3f0ff;
+  line-height: 1;
+}
+.intro__word span {
+  display: inline-block;
+}
+.intro__tag {
+  font-size: 0.8rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #8d85b8;
+}
+
+/* Sem JavaScript, ou com movimento reduzido, a intro não pode prender a tela. */
+@media (prefers-reduced-motion: reduce) {
+  .intro {
+    display: none;
+  }
+}
+
+/* ======================== Onda do clique ========================= */
+
+.btn,
+.ctrl {
+  position: relative;
+}
+.fx-ink {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.fx-ink i {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  scale: 0;
+}
+
+/* ===================== Fundo que segue o ponteiro ==================== */
+
+.ambient::before {
+  translate: calc(var(--mx, 0) * 6vmax) calc(var(--my, 0) * 6vmax);
+}
+.ambient::after {
+  translate: calc(var(--mx, 0) * -5vmax) calc(var(--my, 0) * -5vmax);
+}
+
+/* ===================== Transições entre telas ===================== */
+
+/* A logo de cada tela tem o mesmo nome: o navegador a leva voando de um
+   lugar para o outro quando a tela troca. Só uma está visível por vez. */
+.brand__mark,
+.topbar__brand img {
+  view-transition-name: vcall-logo;
+}
+
+::view-transition-old(root) {
+  animation: vtOut 260ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+::view-transition-new(root) {
+  animation: vtIn 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+::view-transition-group(vcall-logo) {
+  animation-duration: 560ms;
+  animation-timing-function: cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+
+@keyframes vtOut {
+  to {
+    opacity: 0;
+    scale: 0.97;
+    filter: blur(6px);
+  }
+}
+@keyframes vtIn {
+  from {
+    opacity: 0;
+    scale: 1.03;
+    filter: blur(8px);
+  }
+}

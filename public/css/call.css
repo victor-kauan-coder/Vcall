@@ -1,0 +1,408 @@
+/* ------------------------------------------------------------------ *
+ * call.css — a chamada com a cara do Vcall.
+ *
+ * A ideia que amarra a tela: A VOZ É VISÍVEL. O anel rosa→laranja da logo
+ * contorna quem fala, gira na velocidade da voz e acende com o volume (os
+ * valores vêm do detector de fala, quadro a quadro — ui/stage.js). O mesmo
+ * anel aparece no botão do microfone quando é você falando, e no sinal da
+ * sala de espera. Um único material, usado só onde carrega estado.
+ *
+ * Carregado depois de app.css: aqui só se sobrescreve a aparência; a mecânica
+ * de layout (grade, destaque, painel) continua lá.
+ * ------------------------------------------------------------------ */
+
+/* ======================= Superfícies do navegador ======================= */
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 32%, transparent);
+  color: var(--text);
+}
+input,
+textarea {
+  caret-color: var(--accent);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* ============================== Topo ============================== */
+
+.topbar {
+  border-bottom: 0;
+  background: transparent;
+  backdrop-filter: none;
+  padding-block: var(--sp-3) 0;
+}
+.topbar__brand {
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+}
+.topbar__brand img {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.topbar__room {
+  font-size: var(--text-md);
+  color: var(--text);
+  padding-left: var(--sp-3);
+  margin-left: var(--sp-1);
+  border-left: 1px solid var(--border);
+}
+#callTimer,
+#peerCount {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================ Ladrilhos ============================ */
+
+.tile {
+  border-radius: 22px;
+  border-color: transparent;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 16px 36px -22px rgba(0, 0, 0, 0.7);
+}
+
+/* O anel da marca. `--spin` e `--lv` chegam do JS a cada quadro; a máscara
+   recorta só a borda de 2,5px, então o vídeo nunca é coberto. */
+.tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-tile-overlay);
+  padding: 2.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--spin, 0deg),
+    var(--brand-pink),
+    var(--brand-orange),
+    #ffd1e1,
+    var(--brand-pink)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 220ms var(--ease-out);
+  pointer-events: none;
+}
+.tile.is-speaking {
+  border-color: transparent;
+}
+.tile.is-speaking::before {
+  opacity: calc(0.6 + var(--lv, 0) * 0.4);
+}
+/* O brilho de fora respira com o volume — sombra com deslocamento zero é
+   enfeite, então ela só existe enquanto há voz para mostrar. */
+.tile.is-speaking::after {
+  box-shadow: 0 0 36px -8px color-mix(in oklab, var(--brand-pink) 80%, transparent);
+  opacity: var(--lv, 0);
+}
+.tile.is-speaking .tile__label {
+  box-shadow: none;
+}
+
+.tile__label {
+  left: var(--sp-3);
+  bottom: var(--sp-3);
+  right: auto;
+  max-width: calc(100% - 2 * var(--sp-3));
+  padding: 5px 10px 5px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(7, 4, 22, 0.72);
+  backdrop-filter: none;
+}
+
+/* Faíscas das reações (ui/motion.js → burst). */
+.fx-burst {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  z-index: calc(var(--z-tile-overlay) + 1);
+  pointer-events: none;
+}
+.fx-burst i {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* ======================= Barra de controles ======================= */
+
+/* Uma ilha flutuante no pé do palco, e não uma faixa de lado a lado: o vídeo
+   ganha a altura inteira, e os controles leem como um objeto só. */
+.dock {
+  align-self: center;
+  gap: var(--sp-1);
+  min-height: 0;
+  margin: var(--sp-2) auto var(--sp-4);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  background: var(--bg-elevated);
+  backdrop-filter: none;
+  box-shadow:
+    0 22px 48px -22px rgba(0, 0, 0, 0.65),
+    0 2px 6px -2px rgba(0, 0, 0, 0.3);
+}
+.dock__group {
+  gap: 6px;
+}
+.dock__group + .dock__group {
+  margin-left: var(--sp-2);
+  padding-left: var(--sp-2);
+}
+
+.ctrl {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  border-color: transparent;
+  background: var(--surface-2);
+  transform-origin: 50% 100%;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    scale 160ms var(--ease-out),
+    translate 160ms var(--ease-out),
+    box-shadow 90ms linear;
+}
+.ctrl--hangup {
+  width: 58px;
+}
+
+/* A sua voz acende o botão do microfone (nível vindo do JS, quadro a quadro). */
+.ctrl[data-id="mic"][aria-pressed="true"] {
+  box-shadow: 0 0 0 calc(var(--lv, 0) * 6px) color-mix(in oklab, var(--brand-pink) 40%, transparent);
+}
+
+/* ========================= Sala de espera ========================= */
+
+.waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  max-width: 460px;
+  padding: var(--sp-6);
+}
+.waiting[hidden] {
+  display: none;
+}
+
+.stage--alone .stage__main {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(var(--sp-6), 4vw, var(--sp-12));
+  padding-inline: clamp(var(--sp-6), 5vw, var(--sp-16));
+}
+.stage--alone .grid {
+  align-self: center;
+  aspect-ratio: 16 / 10;
+  max-height: 100%;
+}
+
+.waiting__signal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  margin-bottom: var(--sp-2);
+}
+.waiting__mark {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  box-shadow: 0 16px 36px -14px rgba(253, 77, 135, 0.6);
+}
+.waiting__ring {
+  position: absolute;
+  inset: 12px;
+  border-radius: 24px;
+  border: 2px solid var(--brand-pink);
+  opacity: 0;
+}
+.waiting__ring:nth-child(2) {
+  border-color: var(--brand-orange);
+}
+
+.waiting__title {
+  margin: 0;
+  font-size: clamp(1.6rem, 1rem + 1.6vw, 2.3rem);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  font-weight: 800;
+  text-wrap: balance;
+}
+.waiting__lead {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.waiting__codeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px 16px 10px 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.waiting__codeBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.waiting__code {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.waiting__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* ========================== Você saiu ========================== */
+
+.leave {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(var(--sp-8), 6vw, var(--sp-16));
+  width: min(1100px, 100%);
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: var(--sp-8) clamp(var(--sp-4), 5vw, var(--sp-12));
+}
+.leave__art {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  max-height: 70vh;
+  padding: 14%;
+  border-radius: 32px;
+  background:
+    radial-gradient(55% 55% at 8% 4%, rgba(253, 77, 135, 0.55), transparent 70%),
+    radial-gradient(55% 55% at 96% 100%, rgba(254, 156, 95, 0.5), transparent 70%),
+    radial-gradient(rgba(255, 255, 255, 0.09) 1.2px, transparent 1.6px) 0 0 / 18px 18px,
+    linear-gradient(160deg, #1c1455 0%, #110c3a 100%);
+  box-shadow: 0 40px 80px -40px rgba(17, 12, 58, 0.6);
+}
+.leave__art img {
+  width: 100%;
+  height: auto;
+  padding: 10% 8%;
+  border-radius: 24px;
+  background: #fdf5f9;
+}
+.leave__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+.leave__title {
+  margin: 0;
+  font-size: clamp(2rem, 1rem + 2.6vw, 3.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+}
+.leave__lead {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+.leave__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* ============================ Telas estreitas ============================ */
+
+@media (max-width: 820px) {
+  .stage--alone .stage__main {
+    grid-template-columns: 1fr;
+    align-content: center;
+    padding-inline: var(--sp-4);
+  }
+  .stage--alone .grid {
+    order: -1;
+    width: min(100%, 360px);
+    justify-self: center;
+  }
+  .waiting {
+    padding: 0;
+  }
+  .dock {
+    margin: 0;
+    width: 100%;
+    padding: 8px 6px max(8px, env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
+    border-bottom: 0;
+  }
+  .dock__group + .dock__group {
+    margin-left: 4px;
+    padding-left: 4px;
+  }
+  .ctrl {
+    width: 44px;
+    height: 44px;
+  }
+  .ctrl--hangup {
+    width: 52px;
+  }
+  .leave {
+    grid-template-columns: 1fr;
+    align-content: center;
+  }
+  .leave__art {
+    width: min(260px, 70%);
+    justify-self: center;
+  }
+}
+
+/* ============================ Voz dos títulos ============================ */
+
+/* A Bricolage tem desenho próprio em peso alto; a compressão de espaço que a
+   fonte do sistema pedia (-0.045em) aperta demais aqui. */
+.dash__headline,
+.waiting__title,
+.leave__title,
+.modal__title,
+.brand__name,
+.topbar__brand span,
+.intro__word {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+}
+.dash__headline,
+.leave__title,
+.waiting__title {
+  letter-spacing: -0.03em;
+}

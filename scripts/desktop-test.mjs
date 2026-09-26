@@ -17,12 +17,10 @@
  *
  *   xvfb-run -a sh -c 'openbox & node scripts/desktop-test.mjs'
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { _electron as electron, chromium } from "playwright";
-import { montarTar } from "../desktop/fala.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const resultados = [];
@@ -32,7 +30,17 @@ const check = (nome, ok, detalhe = "") => {
 };
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const app = await electron.launch({ args: ["--no-sandbox", "desktop/main.js"], cwd: root });
+// O microfone do app é um .wav com uma frase falada: a legenda é testada
+// com fala de verdade, do microfone até o texto.
+const app = await electron.launch({
+  args: [
+    "--no-sandbox",
+    "--use-fake-device-for-media-stream",
+    `--use-file-for-fake-audio-capture=${path.join(root, "scripts", "fixtures", "fala-teste.wav")}`,
+    "desktop/main.js",
+  ],
+  cwd: root,
+});
 const win = await app.firstWindow();
 const erros = [];
 win.on("pageerror", (e) => erros.push(process.env.DEBUG_STACK ? e.stack : e.message));
@@ -98,6 +106,27 @@ try {
       .then(() => true)
       .catch(() => false);
     check("a janela compartilhada aparece para o outro participante", chegou);
+
+    // Trocar para a tela inteira SEM parar: quem assiste não perde o ladrilho.
+    await web.evaluate(() => {
+      window.__saiu = 0;
+      new MutationObserver((ms) => {
+        for (const m of ms) for (const n of m.removedNodes) if (n.dataset?.kind === "screen") window.__saiu++;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    await win.click('.tile[data-tile="self:screen"] [aria-label="Trocar o que estou mostrando"]', { force: true });
+    await win.waitForSelector(".share__fontes", { timeout: 5000 });
+    await espera(1500);
+    await win.click('.share__pilula[data-tipo="screen"]');
+    await espera(200);
+    await win.click(".share__acoes .btn--primary");
+    await espera(3500);
+    const depois = await win.evaluate(() => ({
+      ativo: window.vcall.screen.active,
+      tipo: window.vcall.screen.videoTrack?.getSettings?.().displaySurface,
+    }));
+    const saiu = await web.evaluate(() => window.__saiu);
+    check("troca de janela para tela inteira sem parar a transmissão", depois.ativo && depois.tipo === "monitor" && saiu === 0, JSON.stringify({ ...depois, saiu }));
     await win.evaluate(() => window.vcall.screen.stop("user"));
     await espera(1500);
   } else {
@@ -120,29 +149,46 @@ try {
   check("compartilhar não derruba a chamada", conectado);
   await win.evaluate(() => window.vcall.screen.stop("user"));
 
-  /* -- legenda offline: o caminho inteiro, com um modelo falso -- */
+  /* -- legendas com Whisper: microfone de verdade (um .wav com fala) -- */
+  // O modelo "rápido" (tiny). No CI ele é baixado do Hugging Face como seria
+  // para qualquer pessoa; sem rede, VCALL_WHISPER_LOCAL aponta uma cópia.
   const userData = await app.evaluate(({ app }) => app.getPath("userData"));
-  const tar = montarTar([
-    { nome: "vosk-model-falso/", dados: Buffer.alloc(0), pasta: true },
-    { nome: "vosk-model-falso/am/final.mdl", dados: Buffer.alloc(1_500_000, 7), pasta: false },
-  ]);
-  mkdirSync(path.join(userData, "fala"), { recursive: true });
-  // Sem compressão: o app considera "não baixado" um arquivo abaixo de 1 MB.
-  writeFileSync(path.join(userData, "fala", "pt-BR.tar.gz"), gzipSync(tar, { level: 0 }));
-  const logs = [];
-  win.on("console", (m) => logs.push(m.text()));
-  await win.click('[aria-label="Legendar minha fala"]');
-  let aviso2 = "";
-  for (let i = 0; i < 20 && !/interrompidas|ligadas/.test(aviso2); i++) {
-    await espera(500);
-    aviso2 = await win.evaluate(() => [...document.querySelectorAll(".toast span")].map((x) => x.textContent).join(" | "));
+  if (process.env.VCALL_WHISPER_LOCAL) {
+    const destino = path.join(userData, "fala", "whisper", "Xenova", "whisper-tiny");
+    mkdirSync(destino, { recursive: true });
+    cpSync(process.env.VCALL_WHISPER_LOCAL, destino, { recursive: true });
   }
-  const voskCarregou = await win.evaluate(() => typeof window.Vosk === "object");
-  const extraiu = logs.some((l) => /vosk-model-falso\/am\/final\.mdl ->/.test(l));
-  check("legenda no app: o reconhecedor offline carrega (sem eval, dentro da CSP)", voskCarregou);
-  check("legenda no app: o modelo chega pelo esquema interno e é descompactado", extraiu);
-  const msg = aviso2.split(" | ").find((t) => /interrompidas/.test(t)) || aviso2;
-  check("modelo inválido gera aviso claro, sem travar em 'Preparando'", /modelo de fala não abriu/.test(msg), msg.slice(0, 90));
+  await win.evaluate(() => {
+    localStorage.setItem("vcall:captions:nivel", JSON.stringify("rapida"));
+    window.vcall.captions.nivel = "rapida";
+  });
+  const isolada = await win.evaluate(() => self.crossOriginIsolated);
+  check("app isolado (COOP/COEP): o Whisper pode usar vários núcleos", isolada === true);
+  if (!(await win.evaluate(() => window.vcall.media.micEnabled))) await win.keyboard.press("m");
+  await win.click('[aria-label="Legendar minha fala"]');
+  const inicio = Date.now();
+  let fala = null;
+  while (Date.now() - inicio < 150_000 && !fala) {
+    await espera(1000);
+    fala = await win.evaluate(() => window.vcall.captions.transcript.find((t) => /\w{3}/.test(t.text))?.text || null);
+  }
+  const avisos = await win.evaluate(() => [...document.querySelectorAll(".toast span")].map((x) => x.textContent).join(" | "));
+  check(
+    "legenda no app: o Whisper reconhece a fala do microfone (sem sair do computador)",
+    !!fala && /dia|todos|reuni|come/i.test(fala),
+    fala ? `"${fala}" em ${Math.round((Date.now() - inicio) / 1000)} s` : avisos.slice(0, 120),
+  );
+  const naTela = await win.evaluate(() => !!document.querySelector(".caption .caption__text")?.textContent);
+  const naAba = await win.evaluate(() => window.vcall.captions.transcript.length);
+  check("a legenda aparece na tela e entra na transcrição", naTela || naAba > 0, `${naAba} fala(s)`);
+  const chegou = fala
+    ? await web
+        .waitForFunction((t) => window.vcall.captions.transcript.some((x) => x.text === t), fala, { timeout: 10_000 })
+        .then(() => true)
+        .catch(() => false)
+    : false;
+  check("o outro participante recebe a legenda como texto", chegou);
+  await win.click('[aria-label="Parar de legendar minha fala"]').catch(() => {});
 
   /* -- visualizador de imagem: o X não pode ficar sob os botões da janela -- */
   const geo = await win.evaluate(async () => {
@@ -170,6 +216,9 @@ try {
   check("visualizador: o X fecha", !(await win.evaluate(() => !!document.querySelector(".lightbox"))));
 
   /* -- modo jogo: sobreposição transparente com quem está na chamada -- */
+  // Começa desligado (a preferência sobrevive entre execuções do teste).
+  await win.evaluate(() => window.vcall.setModoJogo(false, { avisar: false }));
+  await espera(500);
   const antes = app.windows().length;
   await win.evaluate(() => localStorage.setItem("vcall:modo-jogo:canto", JSON.stringify("tr")));
   await win.evaluate(() => window.vcall.setModoJogo(true, { avisar: false }));
@@ -179,7 +228,7 @@ try {
     await espera(250);
     sobre = app.windows().find((w) => w.url().endsWith("/sobreposicao.html")) || null;
   }
-  check("modo jogo abre a sobreposição por cima dos jogos", !!sobre && app.windows().length > antes);
+  check("modo jogo abre a sobreposição por cima dos jogos", !!sobre, `${antes} → ${app.windows().length} janelas`);
   check("modo jogo registra os atalhos globais (ou avisa que não deu)", atalhos && typeof atalhos.mic === "boolean", JSON.stringify(atalhos));
   if (sobre) {
     const nomes = await sobre

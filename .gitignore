@@ -18,3 +18,7 @@ dist/
 node_modules/
 .env
 *.log
+
+# Gerado por npm run vendor (grande demais para o git)
+public/vendor/whisper/
+scripts/.whisper-entry.mjs

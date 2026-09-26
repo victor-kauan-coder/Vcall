@@ -23,7 +23,9 @@
 import { Emitter } from "../lib/emitter.js";
 import { el, clear } from "../lib/dom.js";
 import { formatClock } from "../lib/util.js";
+import { avatarEl } from "../ui/avatars.js";
 import { FalaOffline, falaOfflineDisponivel } from "./fala-offline.js";
+import { FalaWhisper, whisperDisponivel } from "./fala-whisper.js";
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -31,6 +33,17 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const HOLD_MS = 5000;
 /** Quantas falas simultâneas cabem sem virar parede de texto. */
 const MAX_LINES = 3;
+/** Caracteres de uma fala mostrados na tela (~duas linhas). */
+const CAUDA = 150;
+
+/** O fim de um texto longo, começando numa palavra inteira. */
+export function cauda(texto, max = CAUDA) {
+  const t = String(texto || "").trim();
+  if (t.length <= max) return t;
+  const corte = t.slice(-max);
+  const espaco = corte.indexOf(" ");
+  return `\u2026${espaco > 0 && espaco < 30 ? corte.slice(espaco + 1) : corte}`;
+}
 /** Falas guardadas na transcrição. Acima disso, as mais antigas saem. */
 const TRANSCRICAO_MAX = 5000;
 
@@ -67,9 +80,14 @@ export class Captions extends Emitter {
   /** Quem fornece a trilha do microfone da chamada (motor offline). */
   micTrack = null;
 
-  constructor({ lang = "pt-BR" } = {}) {
+  /** Tamanho do modelo Whisper no app: "rapida", "equilibrada" ou "maxima". */
+  nivel = "equilibrada";
+  usarWhisper = true;
+
+  constructor({ lang = "pt-BR", nivel = "equilibrada" } = {}) {
     super();
     this.lang = lang;
+    this.nivel = nivel;
   }
 
   /** Monta a camada de legendas sobre o palco. */
@@ -196,17 +214,38 @@ export class Captions extends Emitter {
     this.emit("local", { text, final: true });
   }
 
+  /**
+   * No app de mesa: Whisper primeiro (acerta frases inteiras, com
+   * pontuação); se ele não abrir — modelo que não baixou, máquina sem
+   * WebAssembly moderno —, o Vosk entra no lugar e a legenda não morre.
+   */
   #startOffline() {
     this.#engine = "offline";
     this.#wantsRunning = true;
     this.enabled = true;
-    this.#offline = new FalaOffline({ lang: this.lang, trilha: () => this.micTrack?.() || null });
-    this.#offline.on("result", ({ text, final }) => this.emit("local", { text, final }));
-    this.#offline.on("status", (st) => this.emit("status", st));
-    this.#offline.start().catch((err) => {
-      this.emit("error", err?.message || "offline");
-      this.stop();
-    });
+    const trilha = () => this.micTrack?.() || null;
+    const ligar = (motor, reserva) => {
+      this.#offline = motor;
+      motor.on("result", ({ text, final }) => this.emit("local", { text, final }));
+      motor.on("status", (st) => this.emit("status", st));
+      motor.on("falando", (on) => this.emit("falando", on));
+      motor.start().catch((err) => {
+        if (this.#offline !== motor) return;
+        if (reserva && this.#wantsRunning) {
+          console.warn("[legendas] Whisper não abriu; usando o Vosk", err);
+          this.emit("status", { fase: "reserva", motivo: err?.message || "" });
+          ligar(reserva(), null);
+          return;
+        }
+        this.emit("error", err?.message || "offline");
+        this.stop();
+      });
+    };
+    if (whisperDisponivel() && this.usarWhisper) {
+      ligar(new FalaWhisper({ lang: this.lang, nivel: this.nivel, trilha }), () => new FalaOffline({ lang: this.lang, trilha }));
+    } else {
+      ligar(new FalaOffline({ lang: this.lang, trilha }), null);
+    }
     this.emit("state", true);
     return true;
   }
@@ -248,14 +287,14 @@ export class Captions extends Emitter {
    * Mostra (ou atualiza) a fala de alguém. Uma pessoa ocupa sempre a mesma
    * linha: o palpite se reescreve no lugar em vez de empilhar repetições.
    */
-  show(peerId, { name, text, final = false, color = null }) {
+  show(peerId, { name, text, final = false, color = null, avatar = null }) {
     if (!this.#root || !text) return;
 
     let line = this.#lines.get(peerId);
     if (!line) {
-      const node = el("div.caption", {}, [
-        el("span.caption__who", { text: name || "", style: color ? { color } : {} }),
-        el("span.caption__text"),
+      const node = el("div.caption", { style: color ? { "--cor": color } : {} }, [
+        el("span.caption__avatar", { "aria-hidden": "true" }, [avatar ? avatarEl(avatar, { title: name || "" }) : null].filter(Boolean)),
+        el("div.caption__corpo", {}, [el("span.caption__who", { text: name || "" }), el("p.caption__text")]),
       ]);
       line = { node, timer: 0 };
       this.#lines.set(peerId, line);
@@ -273,18 +312,28 @@ export class Captions extends Emitter {
       }
     }
 
-    line.node.querySelector(".caption__text").textContent = text;
+    /*
+     * Só o FIM da fala fica na tela, em até duas linhas. Uma frase longa
+     * crescia até virar um bloco de texto cobrindo o vídeo; legenda boa é a
+     * que se lê de relance — como na TV, o texto antigo sai por cima.
+     */
+    line.node.querySelector(".caption__text").textContent = cauda(text, CAUDA);
     line.node.dataset.final = String(final);
+    line.node.classList.remove("is-ouvindo");
 
     clearTimeout(line.timer);
     // Um palpite sem continuação some mais rápido: quase sempre é ruído.
     line.timer = setTimeout(() => {
-      line.node.remove();
-      this.#lines.delete(peerId);
+      line.node.classList.add("is-saindo");
+      setTimeout(() => {
+        line.node.remove();
+        if (this.#lines.get(peerId) === line) this.#lines.delete(peerId);
+      }, 260);
     }, final ? HOLD_MS : HOLD_MS * 1.6);
 
     if (final) {
-      this.transcript.push({ at: Date.now(), name: name || "Participante", text });
+      const item = { at: Date.now(), name: name || "Participante", text, color };
+      this.transcript.push(item);
       /*
        * Teto na transcrição. Numa reunião de horas, com várias pessoas
        * legendando, a lista cresceria sem limite nenhum dentro da aba. O
@@ -295,7 +344,15 @@ export class Captions extends Emitter {
         this.transcript.splice(0, this.transcript.length - TRANSCRICAO_MAX);
       }
       this.emit("transcript", this.transcript.length);
+      this.emit("linha", item);
     }
+  }
+
+  /** "Ouvindo…": a pessoa começou a falar e o texto ainda está a caminho. */
+  ouvindo(peerId, { name, color = null, avatar = null }) {
+    if (!this.#root || this.#lines.has(peerId)) return;
+    this.show(peerId, { name, text: "\u2026", final: false, color, avatar });
+    this.#lines.get(peerId)?.node.classList.add("is-ouvindo");
   }
 
   clear() {
@@ -307,5 +364,29 @@ export class Captions extends Emitter {
   /** A transcrição como texto corrido, pronta para salvar ou colar. */
   asText() {
     return this.transcript.map((t) => `[${formatClock(t.at)}] ${t.name}: ${t.text}`).join("\n");
+  }
+
+  /**
+   * A transcrição como legenda .srt (abre em qualquer player junto da
+   * gravação da reunião). Cada fala dura até a próxima começar, no máximo 6 s.
+   */
+  asSrt() {
+    const t0 = this.transcript[0]?.at || Date.now();
+    const tempo = (ms) => {
+      const h = Math.floor(ms / 3_600_000);
+      const m = Math.floor((ms % 3_600_000) / 60_000);
+      const s = Math.floor((ms % 60_000) / 1000);
+      const r = ms % 1000;
+      const p = (n, k = 2) => String(n).padStart(k, "0");
+      return `${p(h)}:${p(m)}:${p(s)},${p(r, 3)}`;
+    };
+    return this.transcript
+      .map((t, i) => {
+        const ini = t.at - t0;
+        const prox = this.transcript[i + 1]?.at;
+        const fim = Math.min(ini + 6000, prox ? prox - t0 : ini + 6000);
+        return `${i + 1}\n${tempo(ini)} --> ${tempo(Math.max(fim, ini + 800))}\n${t.name}: ${t.text}\n`;
+      })
+      .join("\n");
   }
 }

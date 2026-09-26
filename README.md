@@ -29,15 +29,15 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Windows 10/11 | `VcallSetup-3.2.0.exe` |
-| Fedora, openSUSE, RHEL | `Vcall-3.2.0-x86_64.rpm` |
-| Arch, Manjaro, EndeavourOS | `Vcall-3.2.0-x64.pacman` |
-| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.2.0-amd64.deb` |
-| Qualquer Linux | `Vcall-3.2.0-x86_64.AppImage` ou `.tar.gz` |
+| Windows 10/11 | `VcallSetup-3.3.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.3.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.3.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.3.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.3.0-x86_64.AppImage` ou `.tar.gz` |
 
 Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
-o que mudou em **[Novidades da 3.1](docs/wiki/Novidades-3.1.md)**.
+o que mudou em **[Novidades da 3.3](docs/wiki/Novidades-3.3.md)**.
 
 ## Recursos
 
@@ -45,7 +45,9 @@ o que mudou em **[Novidades da 3.1](docs/wiki/Novidades-3.1.md)**.
 - Compartilhar **uma janela** ou a tela inteira, com nitidez ou fluidez
 - Canvas colaborativo infinito e anotação sobre a tela
 - Chat com arquivos de até 25 MB, entregues inteiros
-- Legendas da própria fala — no app, reconhecidas no seu computador
+- Legendas com **Whisper** no app (no seu computador) e **transcrição ao vivo** com busca e .srt
+- **Supressão de ruído por IA** e sensibilidade de entrada, como no Discord
+- Trocar a janela compartilhada **sem parar** a transmissão
 - Moderação: silenciar, remover, trancar a sala, **sala de espera**, fila de mãos
 - Convite clicável no **WhatsApp** que abre direto no app
 - **Foco na voz** (quem fala acende, quem está calado apaga) e **modo jogo** com sobreposição e atalhos globais
@@ -347,7 +349,7 @@ Ele não vê o conteúdo de nada.
 npm run check                 # estático + servidor + correções da 3.1 (segundos)
 node scripts/fixes-test.mjs   # servidor real: senha, reconexão, moderação, sala de espera…
 node scripts/e2e.mjs          # dois navegadores de verdade
-node scripts/ui-test.mjs      # 39 verificações clicando na interface
+node scripts/ui-test.mjs      # 49 verificações clicando na interface
 node scripts/proxy-test.mjs   # atrás de um túnel HTTPS
 xvfb-run -a sh -c 'openbox & node scripts/desktop-test.mjs'   # app de mesa (Linux)
 CHROMIUM_PATH=/caminho/do/chrome node scripts/e2e.mjs

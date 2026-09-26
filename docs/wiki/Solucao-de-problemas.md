@@ -26,6 +26,12 @@ no Linux uma falha que travava a captura. Se ainda acontecer:
 3. Se a janela do app caiu, ela volta sozinha para a mesma sala; mande o
    `vcall.log`.
 
+## A tela de alguém some e volta sem parar
+
+Corrigido na 3.3 (atualize os **dois** lados). A captura do Linux só manda
+imagem quando a tela muda. Parada, a transmissão parecia ter caído e o
+ladrilho sumia. Agora a última imagem é repetida enquanto a tela está parada.
+
 ## Linux: não consigo compartilhar a tela
 
 - **Wayland (Fedora, Ubuntu 22.04+, Arch com GNOME/KDE):** a lista é do
@@ -44,12 +50,12 @@ Em distribuições que bloqueiam o isolamento do Chromium para programas comuns
 assim. Se ainda falhar:
 
 ```bash
-./Vcall-3.2.0-x86_64.AppImage --no-sandbox
+./Vcall-3.3.0-x86_64.AppImage --no-sandbox
 ```
 
 Ou instale o pacote da sua distro (`.deb`, `.rpm`, `pacman`), que configura o
 isolamento do jeito certo. Sem FUSE instalado:
-`./Vcall-3.2.0-x86_64.AppImage --appimage-extract-and-run`.
+`./Vcall-3.3.0-x86_64.AppImage --appimage-extract-and-run`.
 
 ## O link do WhatsApp não abre o aplicativo
 
@@ -57,6 +63,12 @@ isolamento do jeito certo. Sem FUSE instalado:
 - **Linux com AppImage:** abra o AppImage uma vez — ele se registra.
 - O navegador pergunta "Abrir o Vcall?": marque **Sempre permitir**.
 - Sem o app, use **Entrar pelo navegador** na mesma página.
+
+## Legendas erradas ou lentas no app
+
+Em Configurações → Legendas e avisos → **Precisão das legendas**, use a
+**Equilibrada** ou a **Máxima** (mais precisas). Em computadores lentos, a
+**Rápida** responde mais depressa. Confira também o **idioma das legendas**.
 
 ## Legendas não funcionam
 

@@ -58,7 +58,11 @@ const mesh = new Mesh({ signaling, media, screen });
 const audio = new RemoteAudio();
 
 /** Legendas ao vivo, gravação local e anexos: recursos da chamada, não da mídia. */
-const captions = new Captions({ lang: idiomaPadrao(prefs.get("captions:lang", null)) });
+const captions = new Captions({
+  lang: idiomaPadrao(prefs.get("captions:lang", null)),
+  nivel: prefs.get("captions:nivel", "equilibrada"),
+});
+document.documentElement.dataset.legenda = prefs.get("captions:tamanho", "m");
 // O motor offline (app de mesa) ouve o MESMO microfone da chamada.
 captions.micTrack = () => media.micTrack;
 const recorder = new CallRecorder();
@@ -343,6 +347,39 @@ function buildPanel() {
   });
   $("#stage").append(panel.node);
   panel.animate = (fn) => (stage ? stage.animateChange(fn) : fn());
+
+  // Transcrição ao vivo: o que já foi dito nesta chamada, e o que vier.
+  for (const t of captions.transcript) panel.addTranscript(t);
+  panel.setTranscriptActions([
+    {
+      iconName: "copy",
+      label: "Copiar tudo",
+      onClick: () => {
+        const texto = captions.asText();
+        if (!texto) return toast("Nada foi legendado nesta chamada ainda.", { tone: "info" });
+        copy(texto, "Transcrição copiada");
+      },
+    },
+    { iconName: "download", label: "Baixar (.txt)", onClick: () => baixarTranscricao("txt") },
+    { iconName: "captions", label: "Baixar como legenda (.srt)", onClick: () => baixarTranscricao("srt") },
+  ]);
+}
+
+/** Salva a transcrição: texto corrido (.txt) ou legenda para vídeo (.srt). */
+function baixarTranscricao(formato = "txt") {
+  const texto = formato === "srt" ? captions.asSrt() : captions.asText();
+  if (!texto) {
+    toast("Nada foi legendado nesta chamada ainda.", { tone: "info" });
+    return;
+  }
+  const blob = new Blob([texto], { type: formato === "srt" ? "application/x-subrip" : "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const carimbo = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  const a = el("a", { href: url, download: `vcall-transcricao-${carimbo}.${formato}` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 /* ================================================================== *
@@ -390,6 +427,8 @@ function renderPeopleNow(lista = mesh.roster()) {
           toast("Todos foram silenciados", { tone: "ok", ms: 2200, key: "mod" });
         },
         onLock: (fechar) => mesh.moderate(fechar ? "lock" : "unlock"),
+        banned: mesh.banned,
+        onUnban: (b) => mesh.moderate("unban", b.id),
       }
     : null;
   panel.renderPeople(roster, mod);
@@ -405,7 +444,7 @@ function confirmKick(p) {
       el("div.modal__head", {}, [el("h2.modal__title", { text: `Remover ${p.name || "participante"}?` })]),
       el("div.modal__body", {}, [
         el("p.muted", {
-          text: "A pessoa sai da chamada na hora e não consegue voltar para esta sala pelo mesmo aparelho enquanto ela existir.",
+          text: "A pessoa sai da chamada na hora e não consegue voltar pelo mesmo aparelho — até você deixar, em Pessoas → Removidos.",
         }),
         el("div.row", { style: { justifyContent: "flex-end", gap: "var(--sp-2)" } }, [cancelar, remover]),
       ]),
@@ -447,6 +486,24 @@ function wireModeration() {
     } else if (m.action === "kicked") {
       panel.addSystem(`${m.name || "Alguém"} foi removido da sala por ${por}`);
     }
+  });
+
+  mesh.on("banned", ({ list, readmitted }) => {
+    if (readmitted) {
+      toast(`${readmitted} pode voltar: é só abrir o link da sala de novo`, { tone: "ok", ms: 4000, key: "unban" });
+    } else if (mesh.isHost && list.length) {
+      // Recém-removido: um "desfazer" na hora, para o clique errado.
+      const ultimo = [...list].sort((a, b) => b.at - a.at)[0];
+      if (ultimo && Date.now() - ultimo.at < 5000) {
+        toast(`${ultimo.name || "A pessoa"} foi removido da sala`, {
+          tone: "info",
+          ms: 6000,
+          key: "kick-undo",
+          action: { label: "Deixar voltar", onClick: () => mesh.moderate("unban", ultimo.id) },
+        });
+      }
+    }
+    if (panel.open && panel.tab === "people") renderPeopleNow();
   });
 
   mesh.on("room-closed", ({ closed, by }) => {
@@ -543,6 +600,23 @@ async function setModoJogo(on, { avisar = true } = {}) {
     toast("Modo jogo desligado", { tone: "info", ms: 2000, key: "modo-jogo" });
   }
   return app.modoJogo;
+}
+
+/**
+ * Janela escondida (minimizada, outra aba, jogo em tela cheia) por mais de
+ * alguns segundos: os outros param de mandar câmera para cá. Voz e tela
+ * continuam. Com a mini-janela aberta a pessoa ainda está assistindo: nada muda.
+ */
+function wireEconomia() {
+  let timer = 0;
+  const avaliar = () => {
+    clearTimeout(timer);
+    const assistindo = !document.hidden || !!app.mini?.open;
+    if (assistindo) mesh.verVideo(true);
+    else timer = setTimeout(() => mesh.verVideo(!!app.mini?.open), 5000);
+  };
+  document.addEventListener("visibilitychange", avaliar);
+  avaliar();
 }
 
 function wireModoJogo() {
@@ -917,6 +991,7 @@ function openMoreMenu() {
     }
     item("hand", app.hand ? "Baixar a mão" : "Levantar a mão", toggleHand, app.hand);
     item("eye", "Foco na voz · G", () => setFocoVoz(!app.focoVoz), !!app.focoVoz);
+    item("captions", "Transcrição ao vivo", () => panel.setOpen(true, "transcript"));
     if (window.vcallDesktop?.modoJogo) item("zap", "Modo jogo (sobreposição)", () => setModoJogo(!app.modoJogo), !!app.modoJogo);
     item("smile", "Reagir", () => {
       // Reabre como menu de reações, ancorado no mesmo botão.
@@ -1132,6 +1207,28 @@ async function toggleScreen(opts = {}) {
   }
 }
 
+/**
+ * Troca o que está sendo mostrado — outra janela, outra tela, com ou sem som —
+ * sem parar a transmissão: quem assiste continua no mesmo ladrilho.
+ */
+async function trocarFonte() {
+  if (!screen.active) return toggleScreen();
+  const desktop = window.vcallDesktop?.fontes ? window.vcallDesktop : null;
+  const escolha = await escolherCompartilhamento({ podeAudio: true, desktop, trocando: true });
+  if (!escolha) return;
+  try {
+    if (desktop) await desktop.escolherFonte(escolha.fonte || "", escolha.withAudio);
+    await screen.switchSource({
+      quality: escolha.quality || screen.quality,
+      mode: escolha.mode || screen.mode,
+      withAudio: escolha.withAudio,
+      surface: escolha.surface || null,
+    });
+  } catch (err) {
+    if (err?.name !== "NotAllowedError") toast(describeScreenError(err), { tone: "warn" });
+  }
+}
+
 function openScreenMenu(ownerId = "screenOpts") {
   dock.openPopover(ownerId, (pop, close) => {
     pop.append(el("div.popover__label", { text: "Qualidade" }));
@@ -1180,6 +1277,14 @@ function openScreenMenu(ownerId = "screenOpts") {
       pop.append(
         el("div.popover__sep"),
         Dock.item({
+          iconName: "refresh-cw",
+          label: "Trocar o que estou mostrando…",
+          onClick: () => {
+            close();
+            trocarFonte();
+          },
+        }),
+        Dock.item({
           iconName: "screen-share-off",
           label: "Parar de compartilhar",
           onClick: () => {
@@ -1207,6 +1312,9 @@ screen.on("start", () => {
   tile.setStream(screen.stream);
   tile.setMic(true);
   tile.setQuality("good");
+  if (!tile.botaoTrocar) {
+    tile.botaoTrocar = tile.addAction({ iconName: "refresh-cw", label: "Trocar o que estou mostrando", onClick: () => trocarFonte() });
+  }
   // Tela inteira: nada de prévia ao vivo (efeito espelho). Janela: a prévia
   // fica, porque não tem como a janela conter a chamada.
   const superficie = screen.videoTrack?.getSettings?.().displaySurface || screen.surface;
@@ -1226,6 +1334,18 @@ screen.on("start", () => {
       { tone: "info", ms: 6000, key: "screen-audio" },
     );
   }
+});
+
+screen.on("switch", () => {
+  const tile = stage.get("self", "screen");
+  if (tile) {
+    tile.setStream(screen.stream);
+    const superficie = screen.videoTrack?.getSettings?.().displaySurface || screen.surface;
+    tile.setPresenting(superficie === "monitor");
+  }
+  const s = screen.settings;
+  const detalhe = s?.width ? ` · ${s.width}×${s.height}` : "";
+  toast(`Transmissão trocada, sem interromper${detalhe}`, { tone: "ok", ms: 2600, key: "screen-switch" });
 });
 
 screen.on("stop", ({ reason }) => {
@@ -1409,12 +1529,19 @@ function wireCaptions() {
       text,
       final,
       color: colorFor(mesh.selfId || "self"),
+      avatar: app.profile.avatar,
     });
     // A frase encerrada vai inteira e com direito ao plano B: é ela que entra
     // na transcrição de quem está do outro lado.
     if (final) mesh.broadcastBoard({ type: "caption", text: text.slice(0, 300), final: true });
     else sendInterim(text);
   });
+
+  // Whisper: enquanto a frase é reconhecida, a pessoa vê que está sendo ouvida.
+  captions.on("falando", (on) => {
+    if (on) captions.ouvindo(mesh.selfId || "self", { name: `${app.profile.name} (você)`, color: colorFor(mesh.selfId || "self"), avatar: app.profile.avatar });
+  });
+  captions.on("linha", (item) => panel?.addTranscript(item));
 
   captions.on("state", (on) => {
     dock?.update("captions", {
@@ -1446,6 +1573,8 @@ function wireCaptions() {
       });
     } else if (fase === "carregando") {
       toast("Preparando as legendas…", { tone: "info", key: "fala", ms: 30_000 });
+    } else if (fase === "reserva") {
+      toast("O reconhecedor principal não abriu; usando o reserva, menos preciso.", { tone: "warn", key: "fala", ms: 5000 });
     } else if (fase === "pronto") {
       toast("Legendas ligadas. A sua fala é reconhecida aqui mesmo, sem sair do computador.", {
         tone: "ok",
@@ -1688,6 +1817,7 @@ function wireMesh() {
 
   wireModeration();
   wireModoJogo();
+  wireEconomia();
 
   /**
    * As trilhas recebidas e o estado anunciado chegam em ordens diferentes, e o
@@ -1739,8 +1869,18 @@ function wireMesh() {
       return;
     }
     if (role !== "cam" && role !== "screen") return;
+    /*
+     * `mute` NÃO é "parou de compartilhar". A trilha recebida silencia sempre
+     * que os pacotes param de chegar por alguns segundos — e a captura de tela
+     * do Linux (PipeWire e X11) só entrega quadro quando algo muda na tela.
+     * Tela parada = trilha muda = o ladrilho sumia e voltava sem parar, com o
+     * aviso "está compartilhando" pulando a cada volta. Quem diz se a pessoa
+     * está compartilhando é o estado anunciado por ela; aqui só guardamos o
+     * stream enquanto ele existir, e o <video> segura o último quadro.
+     */
     const got = remoteMedia.get(id) || {};
-    got[role] = live ? stream : null;
+    if (stream) got[role] = stream;
+    else if (!live) got[role] = null;
     remoteMedia.set(id, got);
     syncTiles(id);
   });
@@ -1867,6 +2007,7 @@ function wireMesh() {
         text: String(op.text || "").slice(0, 300),
         final: !!op.final,
         color: colorFor(from),
+        avatar: profile.avatar,
       });
       return;
     }
@@ -2191,6 +2332,76 @@ on($("#copyCodeBtn"), "click", () => {
  * Configurações
  * ================================================================== */
 
+/**
+ * Supressão de ruído por IA e sensibilidade de entrada, como no Discord: um
+ * medidor mostra o seu volume ao vivo e a marca do limiar; o que fica abaixo
+ * dela não é transmitido.
+ */
+function linhasVoz() {
+  const ia = el("input", { type: "checkbox", checked: !!media.voz.ruido });
+  ia.addEventListener("change", async () => {
+    await media.setVoz({ ruido: ia.checked });
+    toast(ia.checked ? "Supressão de ruído por IA ligada" : "Supressão de ruído por IA desligada", { tone: "info", ms: 2000, key: "voz" });
+  });
+
+  const limiar = media.voz.limiar;
+  const modo = el("select.input", { "aria-label": "Sensibilidade de entrada" });
+  for (const [v, t] of [
+    ["auto", "Automática — a IA decide o que é voz"],
+    ["manual", "Manual — eu escolho o volume mínimo"],
+    ["off", "Desligada — o microfone transmite sempre"],
+  ]) {
+    modo.append(el("option", { value: v, text: t, selected: (typeof limiar === "number" ? "manual" : limiar) === v }));
+  }
+  const valor = typeof limiar === "number" ? limiar : -50;
+  const faixa = el("input.medidor__faixa", { type: "range", min: "-80", max: "-10", step: "1", value: String(valor), "aria-label": "Volume mínimo para transmitir (dB)" });
+  const nivel = el("span.medidor__nivel");
+  const marca = el("span.medidor__marca");
+  const rotulo = el("span.mono", { text: `${valor} dB` });
+  const medidor = el("div.medidor", {}, [el("div.medidor__trilho", {}, [nivel, marca]), faixa]);
+  const pos = (db) => `${Math.max(0, Math.min(100, ((db + 80) / 70) * 100))}%`;
+  const pintarMarca = () => {
+    marca.style.left = pos(Number(faixa.value));
+    rotulo.textContent = `${faixa.value} dB`;
+  };
+  const linhaManual = el("div.row", { hidden: modo.value !== "manual" }, [medidor, rotulo]);
+  pintarMarca();
+  modo.addEventListener("change", () => {
+    linhaManual.hidden = modo.value !== "manual";
+    media.setVoz({ limiar: modo.value === "manual" ? Number(faixa.value) : modo.value });
+  });
+  faixa.addEventListener("input", () => {
+    pintarMarca();
+    media.setVoz({ limiar: Number(faixa.value) });
+  });
+  const aoNivel = ({ db, aberto }) => {
+    if (!medidor.isConnected) return media.off?.("voz-nivel", aoNivel);
+    nivel.style.width = pos(db);
+    medidor.classList.toggle("is-aberto", !!aberto);
+  };
+  media.on("voz-nivel", aoNivel);
+
+  return [
+    el("label.row", {}, [
+      ia,
+      el("div", {}, [
+        el("div", { text: "Supressão de ruído por IA" }),
+        el("div.field__hint", {
+          text: "Uma rede neural (RNNoise) tira teclado, ventilador e barulho de fundo da sua voz — no seu computador, sem enviar áudio a ninguém.",
+        }),
+      ]),
+    ]),
+    el("label.field", {}, [
+      el("span.field__label", { text: "Sensibilidade de entrada" }),
+      modo,
+      linhaManual,
+      el("div.field__hint", {
+        text: "Entre uma frase e outra o microfone fecha sozinho: a sala não ouve o que sobra do ambiente. A barra acende quando a sua voz está passando.",
+      }),
+    ]),
+  ];
+}
+
 /** Nome ou avatar trocados no meio da chamada: vale aqui e para os outros. */
 function applyProfile(profile) {
   app.profile = { ...app.profile, ...profile };
@@ -2310,6 +2521,7 @@ function openSettings() {
         }),
       ]),
     ]),
+    ...linhasVoz(),
   ]);
 
   // -- jogos e voz --
@@ -2399,6 +2611,32 @@ function openSettings() {
         captions.start();
       }
     });
+    if (window.vcallDesktop?.prepararWhisper) {
+      const niveis = [
+        ["rapida", "Rápida — 40 MB, para computadores modestos"],
+        ["equilibrada", "Equilibrada — 80 MB (recomendada)"],
+        ["maxima", "Máxima — 250 MB, a mais precisa (pede um computador forte)"],
+      ];
+      const selN = el("select.input", { "aria-label": "Precisão das legendas" });
+      for (const [v, t] of niveis) selN.append(el("option", { value: v, text: t, selected: captions.nivel === v }));
+      selN.addEventListener("change", () => {
+        captions.nivel = selN.value;
+        prefs.set("captions:nivel", selN.value);
+        if (captions.enabled) {
+          captions.stop();
+          captions.start();
+        }
+      });
+      capRows.push(
+        el("label.field", {}, [
+          el("span.field__label", { text: "Precisão das legendas" }),
+          selN,
+          el("div.field__hint", {
+            text: "Reconhecimento com o Whisper, no seu próprio computador: nenhum áudio sai daqui. O modelo é baixado uma vez.",
+          }),
+        ]),
+      );
+    }
     capRows.push(
       el("label.field", {}, [
         el("span.field__label", { text: "Idioma das legendas" }),
@@ -2419,21 +2657,17 @@ function openSettings() {
   const saveTranscript = el("button.btn", {
     type: "button",
     text: "Baixar a transcrição",
-    onClick: () => {
-      const text = captions.asText();
-      if (!text) {
-        toast("Nada foi legendado nesta chamada ainda.", { tone: "info" });
-        return;
-      }
-      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = el("a", { href: url, download: `vcall-transcricao-${Date.now()}.txt` });
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    },
+    onClick: () => baixarTranscricao("txt"),
   });
+  const selT = el("select.input", { "aria-label": "Tamanho das legendas" });
+  for (const [v, t] of [["p", "Pequena"], ["m", "Média"], ["g", "Grande"]]) {
+    selT.append(el("option", { value: v, text: t, selected: (prefs.get("captions:tamanho", "m")) === v }));
+  }
+  selT.addEventListener("change", () => {
+    prefs.set("captions:tamanho", selT.value);
+    document.documentElement.dataset.legenda = selT.value;
+  });
+  capRows.push(el("label.field", {}, [el("span.field__label", { text: "Tamanho das legendas na tela" }), selT]));
   capRows.push(
     el("div.row", {}, [
       saveTranscript,
@@ -2706,18 +2940,18 @@ function leaveCall({ motivo = null, por = "" } = {}) {
       el("p.leave__lead", {
         text:
           motivo === "kicked"
-            ? `${por || "O anfitrião"} removeu você desta chamada. Se foi um engano, peça um novo convite.`
+            ? `${por || "O anfitrião"} removeu você desta chamada. Se foi um engano, peça para ele deixar você voltar e tente de novo.`
             : motivo === "room-locked"
               ? "O anfitrião trancou a sala ou não liberou a sua entrada. Combine com quem te convidou e tente de novo."
               : `Foram ${minutos} de conversa. A sala continua aberta enquanto alguém estiver nela — dá para voltar pelo mesmo link.`,
       }),
       el("div.leave__actions", {}, [
-        motivo === "kicked"
-          ? null
-          : el("button.btn.btn--primary.btn--lg", { type: "button", onClick: () => location.reload() }, [
-              icon("rotate-ccw"),
-              el("span", { text: motivo === "room-locked" ? "Tentar de novo" : "Voltar para a sala" }),
-            ]),
+        el("button.btn.btn--primary.btn--lg", { type: "button", onClick: () => location.reload() }, [
+          icon("rotate-ccw"),
+          el("span", {
+            text: motivo === "kicked" ? "Tentar entrar de novo" : motivo === "room-locked" ? "Tentar de novo" : "Voltar para a sala",
+          }),
+        ]),
         el("button.btn.btn--lg", { type: "button", onClick: inicio }, [
           icon("layout-grid"),
           el("span", { text: "Ir para o início" }),

@@ -21,13 +21,13 @@ em qualquer distribuição Linux e no navegador.
 | Mandar o convite pelo WhatsApp | [Convidar e WhatsApp](Convidar-e-WhatsApp) |
 | Mostrar uma janela ou a tela inteira | [Compartilhar a tela](Compartilhar-a-tela) |
 | Desenhar junto e mandar arquivos | [Canvas e arquivos](Canvas-e-arquivos) |
-| Ligar legendas da minha fala | [Legendas](Legendas) |
+| Ligar legendas e baixar a transcrição | [Legendas](Legendas) |
 | Jogar junto: foco na voz, volume, sobreposição | [Jogos e voz](Jogos-e-voz) |
 | Silenciar, remover, trancar a sala | [Moderação e sala de espera](Moderacao-e-sala-de-espera) |
 | Algo não funciona | [Solução de problemas](Solucao-de-problemas) |
 | Entender o que é privado | [Segurança e privacidade](Seguranca-e-privacidade) |
 | Mexer no código, rodar os testes | [Para desenvolvedores](Para-desenvolvedores) |
-| Ver o que mudou | [Novidades da 3.1](Novidades-3.1) |
+| Ver o que mudou | [Novidades da 3.3](Novidades-3.3) |
 
 ## O que o Vcall faz
 

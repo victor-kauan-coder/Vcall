@@ -27,6 +27,34 @@ da marca. Arraste ou use as setas do teclado:
 
 ![Rampa de volume](imagens/volume.png)
 
+## Supressão de ruído por IA
+
+Configurações → Áudio → **Supressão de ruído por IA** (ligada por padrão).
+Uma rede neural (RNNoise) separa a sua voz do resto: teclado mecânico, mouse,
+ventilador, ar-condicionado, cachorro. Parecido com o Krisp do Discord, mas
+roda **no seu computador**, sem mandar áudio para servidor nenhum.
+
+## Sensibilidade de entrada
+
+Configurações → Áudio → **Sensibilidade de entrada**. Entre uma frase e outra
+o microfone fecha sozinho: a sala não ouve respiração nem o barulho que sobrou.
+
+- **Automática** (padrão): a IA decide o que é voz.
+- **Manual**: você escolhe o volume mínimo, em dB. A barra mostra o seu volume
+  ao vivo e acende em rosa/laranja quando a voz está passando, como no Discord.
+- **Desligada**: o microfone transmite sempre.
+
+O começo das frases não é cortado: o portão abre 30 ms antes de a voz passar.
+
+![Configurações de voz](imagens/voz.png)
+
+## Economia de banda
+
+Quando a sua janela fica minimizada ou escondida (outra aba, jogo em tela
+cheia) por mais de 5 segundos, os outros param de enviar **câmera** para você.
+Voz e tela compartilhada continuam. Ao voltar, a câmera volta na hora. Com a
+mini-janela aberta nada muda, porque você ainda está assistindo.
+
 ## Modo jogo (app de mesa)
 
 Só no aplicativo de Windows e Linux. Em **⋯ → Modo jogo** ou

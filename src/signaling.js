@@ -437,6 +437,7 @@ function concluirEntrada(ctx, socket, room, msg, { anterior = null, ehDono = fal
     room.broadcast({ t: S2C.HOST, id: me.id }, me.id);
     // Quem já estava esperando na porta aparece para o anfitrião que chegou.
     for (const [id, w] of room.waiting) me.send({ t: S2C.KNOCK, id, name: w.name, avatar: w.avatar });
+    if (room.banned.size) me.send({ t: S2C.BANNED, list: room.bannedList() });
   }
 
   log.info("participante entrou", {
@@ -470,12 +471,19 @@ function handleModerate(me, room, msg, fail) {
     case "kick": {
       const alvo = room.get(msg.target);
       if (!alvo || alvo === me) return;
-      if (alvo.device) room.banned.add(alvo.device);
+      room.ban(alvo);
       alvo.send({ t: S2C.MODERATED, action: "kick", by });
       room.broadcast({ t: S2C.MODERATED, action: "kicked", target: alvo.id, name: alvo.profile.name, by }, alvo.id);
       // 1008 + motivo "kicked": o cliente entende como definitivo e não
       // tenta reconectar sozinho.
       alvo.socket.close(1008, ERRORS.KICKED);
+      room.toHosts({ t: S2C.BANNED, list: room.bannedList() });
+      break;
+    }
+    case "unban": {
+      const e = room.unban(msg.target);
+      if (!e) return;
+      room.toHosts({ t: S2C.BANNED, list: room.bannedList(), readmitted: e.name });
       break;
     }
     case "lock":
@@ -557,6 +565,7 @@ function teardown(ctx, registry) {
   const newHost = room.remove(me.id);
   room.broadcast({ t: S2C.PEER_LEAVE, id: me.id, newHost: newHost?.id || null });
   if (newHost) for (const [id, w] of room.waiting) newHost.send({ t: S2C.KNOCK, id, name: w.name, avatar: w.avatar });
+  if (newHost && room.banned.size) newHost.send({ t: S2C.BANNED, list: room.bannedList() });
 
   log.info("participante saiu", {
     room: redactRoom(room.id),

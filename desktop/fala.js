@@ -225,6 +225,8 @@ export async function responderModelo(pasta, url) {
   } catch {
     return new Response("pedido inválido", { status: 400 });
   }
+  const whisper = await responderWhisper(pasta, nome);
+  if (whisper) return whisper;
   if (!/^[A-Za-z]{2}-[A-Za-z]{2}\.tar\.gz$/.test(nome)) return new Response("não encontrado", { status: 404 });
   const arquivo = path.join(pasta, nome);
   try {
@@ -235,6 +237,134 @@ export async function responderModelo(pasta, url) {
         "Content-Type": "application/gzip",
         "Content-Length": String(s.size),
         "Access-Control-Allow-Origin": "*",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+      },
+    });
+  } catch {
+    return new Response("modelo ainda não baixado", { status: 404 });
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Whisper: o reconhecimento de verdade
+ * ------------------------------------------------------------------ */
+
+/*
+ * O Vosk pequeno (acima) cabe em 31 MB, mas erra muito em português: era a
+ * razão de as legendas no app serem "horríveis". O Whisper (OpenAI, MIT),
+ * convertido para ONNX, roda no próprio computador (public/js/features/
+ * whisper-worker.js) e acerta frases inteiras, com pontuação. O Vosk
+ * continua aqui só como reserva, se o Whisper não abrir.
+ *
+ * Três tamanhos, escolhidos nas Configurações:
+ */
+export const WHISPER = {
+  rapida: { repo: "Xenova/whisper-tiny", mb: 41, nome: "Rápida" },
+  equilibrada: { repo: "Xenova/whisper-base", mb: 77, nome: "Equilibrada" },
+  maxima: { repo: "Xenova/whisper-small", mb: 250, nome: "Máxima" },
+};
+export const WHISPER_PADRAO = "equilibrada";
+
+/** Os arquivos de cada modelo — e só eles podem ser servidos à página. */
+export const ARQUIVOS_WHISPER = [
+  "config.json",
+  "generation_config.json",
+  "preprocessor_config.json",
+  "tokenizer.json",
+  "tokenizer_config.json",
+  "onnx/encoder_model_quantized.onnx",
+  "onnx/decoder_model_merged_quantized.onnx",
+];
+
+const HF = "https://huggingface.co";
+
+/** Pasta de um modelo Whisper dentro da pasta de fala. */
+export function pastaWhisper(pasta, nivel) {
+  const m = WHISPER[nivel] || WHISPER[WHISPER_PADRAO];
+  return path.join(pasta, "whisper", ...m.repo.split("/"));
+}
+
+/**
+ * Garante o modelo Whisper no disco. Cada arquivo é baixado ao lado e
+ * renomeado no fim: um download interrompido nunca deixa um arquivo pela
+ * metade que depois pareça completo.
+ *
+ * @param {{pasta:string, nivel:string, baixar:(url:string)=>Promise<Response>, progresso?:(p:number)=>void}} o
+ * @returns {Promise<{repo:string}>}
+ */
+export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => {} }) {
+  const m = WHISPER[nivel] || WHISPER[WHISPER_PADRAO];
+  const destino = pastaWhisper(pasta, nivel);
+  const faltam = [];
+  for (const arq of ARQUIVOS_WHISPER) {
+    try {
+      const s = await stat(path.join(destino, arq));
+      if (s.size > 0) continue;
+    } catch {
+      /* ainda não baixado */
+    }
+    faltam.push(arq);
+  }
+  if (!faltam.length) {
+    progresso(1);
+    return { repo: m.repo };
+  }
+
+  const total = m.mb * 1024 * 1024;
+  let recebido = 0;
+  for (const arq of faltam) {
+    const resp = await baixar(`${HF}/${m.repo}/resolve/main/${arq}`);
+    if (!resp.ok) throw new Error(`o servidor do modelo respondeu ${resp.status} (${arq})`);
+    const pedacos = [];
+    const leitor = resp.body.getReader();
+    for (;;) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      pedacos.push(Buffer.from(value));
+      recebido += value.length;
+      progresso(Math.min(0.97, recebido / total));
+    }
+    const final = path.join(destino, arq);
+    await mkdir(path.dirname(final), { recursive: true });
+    await writeFile(`${final}.parcial`, Buffer.concat(pedacos));
+    await rename(`${final}.parcial`, final);
+  }
+  progresso(1);
+  return { repo: m.repo };
+}
+
+/** Apaga um modelo Whisper (corrompido): a próxima vez baixa de novo. */
+export async function descartarWhisper(pasta, nivel) {
+  const { rm } = await import("node:fs/promises");
+  await rm(pastaWhisper(pasta, nivel), { recursive: true, force: true });
+}
+
+const TIPOS = { ".json": "application/json", ".onnx": "application/octet-stream" };
+
+/**
+ * `vcall-fala://modelo/whisper/<org>/<repo>/<arquivo>`: só modelos da lista,
+ * só arquivos da lista. Um nome montado para escapar da pasta ("../") nunca
+ * casa com a lista, então nunca chega ao disco.
+ */
+export async function responderWhisper(pasta, caminho) {
+  const m = caminho.match(/^whisper\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/(.+)$/);
+  if (!m) return null;
+  const [, repo, arq] = m;
+  if (!Object.values(WHISPER).some((w) => w.repo === repo) || !ARQUIVOS_WHISPER.includes(arq)) {
+    return new Response("não encontrado", { status: 404 });
+  }
+  const arquivo = path.join(pasta, "whisper", ...repo.split("/"), ...arq.split("/"));
+  try {
+    const s = await stat(arquivo);
+    return new Response(Readable.toWeb(createReadStream(arquivo)), {
+      status: 200,
+      headers: {
+        "Content-Type": TIPOS[path.extname(arq)] || "application/octet-stream",
+        "Content-Length": String(s.size),
+        "Access-Control-Allow-Origin": "*",
+        // A página roda isolada (COOP/COEP, para o Whisper usar várias
+        // threads): recurso de outra origem precisa dizer que pode ser lido.
+        "Cross-Origin-Resource-Policy": "cross-origin",
       },
     });
   } catch {

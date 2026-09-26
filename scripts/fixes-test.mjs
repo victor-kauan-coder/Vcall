@@ -167,6 +167,23 @@ const TOK = (n) => `token-${n}-abcdefghijklmnop`;
   assert.equal((await volta.entrar(id, { nome: "Guest", device: TOK("dg") })).error, "kicked", "removido não volta pelo mesmo aparelho");
   ok("moderação: silenciar, baixar a mão e remover só pelo anfitrião; removido não volta");
 
+  // Readmitir: o anfitrião vê a lista (sem o id do aparelho) e deixa voltar.
+  const lista = await host.esperar((m) => m.t === "banned" && m.list.length === 1);
+  assert.equal(lista.list[0].name, "Guest");
+  assert.ok(!JSON.stringify(lista).includes(TOK("dg")), "o anfitrião não vê o identificador do aparelho");
+  const intruso = cliente();
+  await intruso.entrar(id, { nome: "Intruso" });
+  intruso.send({ t: "moderate", action: "unban", target: lista.list[0].id });
+  assert.ok(await intruso.esperar((m) => m.t === "error" && m.error === "not-host"), "só o anfitrião readmite");
+  host.send({ t: "moderate", action: "unban", target: lista.list[0].id });
+  const depois = await host.esperar((m) => m.t === "banned" && m.readmitted === "Guest");
+  assert.equal(depois.list.length, 0);
+  const voltou = cliente();
+  assert.ok((await voltou.entrar(id, { nome: "Guest", device: TOK("dg") })).you, "readmitido entra pelo mesmo aparelho");
+  voltou.ws.close();
+  intruso.ws.close();
+  ok("moderação: o anfitrião deixa voltar quem removeu (e só ele)");
+
   // O anfitrião cai e volta com a chave: recupera o papel.
   const outro = cliente();
   const wo = await outro.entrar(id, { nome: "Outro" });

@@ -132,12 +132,13 @@ export function preferCodecs(transceiver, mimes) {
 /**
  * Ordem de preferência para conteúdo de tela.
  * VP9 vence por larga margem em texto — o mesmo quadro custa cerca de metade
- * da banda de VP8/H264 a 1080p. AV1 é melhor ainda por bit, mas o encoder é
- * caro demais numa malha, onde codificamos uma vez para cada par.
+ * da banda de VP8/H264 a 1080p. AV1 ficou de fora de propósito: sem
+ * aceleração de hardware (a regra no Linux), o encoder por software a 1080p
+ * satura a CPU de máquinas modestas, os quadros atrasam, a trilha recebida
+ * silencia e a tela "cai e volta" do outro lado.
  */
-export function screenCodecPreference(peerCount) {
+export function screenCodecPreference(_peerCount) {
   const list = [];
-  if (peerCount <= 1 && supportsCodec("video/AV1")) list.push("video/AV1");
   if (supportsCodec("video/VP9")) list.push("video/VP9");
   list.push("video/VP8");
   return list;

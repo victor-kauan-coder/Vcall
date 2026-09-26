@@ -17,6 +17,7 @@
 - [Segurança e privacidade](Seguranca-e-privacidade)
 
 **Projeto**
+- [Novidades da 3.3](Novidades-3.3)
 - [Novidades da 3.1](Novidades-3.1)
 - [Para desenvolvedores](Para-desenvolvedores)
 - [Baixar](https://github.com/victor-kauan-coder/Vcall/releases/latest)

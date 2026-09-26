@@ -80,7 +80,7 @@ const MODOS = [
  *
  * @returns {Promise<{surface:string, quality:string, mode:string, withAudio:boolean}|null>}
  */
-export function escolherCompartilhamento({ podeAudio = true, desktop = null } = {}) {
+export function escolherCompartilhamento({ podeAudio = true, desktop = null, trocando = false } = {}) {
   return new Promise((resolve) => {
     const escolha = {
       surface: prefs.get("share:surface", "window"),
@@ -101,8 +101,12 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null } = 
       el("div.share__head", {}, [
         el("span.share__icone", {}, [icon("screen-share", { size: "lg" })]),
         el("div", {}, [
-          el("h2.share__titulo", { id: "shareTitulo", text: "Compartilhar sua tela" }),
-          el("p.share__sub", { text: "Escolha o que mostrar e como. Nada é gravado nem sai daqui." }),
+          el("h2.share__titulo", { id: "shareTitulo", text: trocando ? "Trocar o que você está mostrando" : "Compartilhar sua tela" }),
+          el("p.share__sub", {
+            text: trocando
+              ? "A transmissão continua: quem está assistindo passa a ver a nova escolha, sem cair."
+              : "Escolha o que mostrar e como. Nada é gravado nem sai daqui.",
+          }),
         ]),
       ]),
     );
@@ -215,8 +219,8 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null } = 
     const cancelar = el("button.btn.btn--ghost", { type: "button", text: "Cancelar" });
     const confirmar = el("button.btn.btn--primary.btn--lg", { type: "button" });
     confirmar.append(
-      icon("screen-share", { size: "sm" }),
-      el("span", { text: fontesPedido ? "Compartilhar" : "Escolher o que mostrar" }),
+      icon(trocando ? "refresh-cw" : "screen-share", { size: "sm" }),
+      el("span", { text: trocando ? "Trocar agora" : fontesPedido ? "Compartilhar" : "Escolher o que mostrar" }),
     );
     confirmarRef.node = confirmar;
 

@@ -1,6 +1,6 @@
 {
   "name": "vcall",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "private": true,
   "type": "module",
   "description": "Salas de vídeo P2P criptografadas fim a fim, com canvas colaborativo infinito, painel de chamadas ativas e aplicativo desktop.",
@@ -33,6 +33,8 @@
   "devDependencies": {
     "@dicebear/collection": "^9.0.0",
     "@dicebear/core": "^9.0.0",
+    "@huggingface/transformers": "^4.3.0",
+    "@jitsi/rnnoise-wasm": "^0.2.1",
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.25.12",

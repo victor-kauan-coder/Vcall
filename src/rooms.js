@@ -93,8 +93,12 @@ export class Room {
     this.hostKeyHash = null;
     /** Trancada pelo anfitrião: ninguém novo entra. */
     this.closed = false;
-    /** Aparelhos removidos pelo anfitrião. Some junto com a sala. */
-    this.banned = new Set();
+    /**
+     * Aparelhos removidos pelo anfitrião: aparelho -> { id, name, avatar, at }.
+     * O `id` é um apelido aleatório — o anfitrião nunca vê o identificador do
+     * aparelho, só o bastante para dizer "deixar voltar". Some junto com a sala.
+     */
+    this.banned = new Map();
     /** Sala de espera: id -> { socket, msg, ctx, name, avatar, at }. */
     this.waiting = new Map();
   }
@@ -129,6 +133,32 @@ export class Room {
 
   isBanned(device) {
     return !!device && this.banned.has(device);
+  }
+
+  /** Remove o aparelho de `p` desta sala. */
+  ban(p) {
+    if (!p?.device) return null;
+    const entry = { id: randomUUID(), name: p.profile?.name || "", avatar: p.profile?.avatar || null, at: Date.now() };
+    this.banned.set(p.device, entry);
+    // Uma sala não precisa lembrar de centenas de removidos.
+    while (this.banned.size > 100) this.banned.delete(this.banned.keys().next().value);
+    return entry;
+  }
+
+  /** Deixa voltar quem foi removido. Devolve a entrada, ou null. */
+  unban(id) {
+    for (const [device, e] of this.banned) {
+      if (e.id === id) {
+        this.banned.delete(device);
+        return e;
+      }
+    }
+    return null;
+  }
+
+  /** O que o anfitrião vê: sem o identificador do aparelho. */
+  bannedList() {
+    return [...this.banned.values()].map((e) => ({ id: e.id, name: e.name, avatar: e.avatar, at: e.at }));
   }
 
   get locked() {

@@ -32,7 +32,7 @@ import { Tunnel } from "./tunnel.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
 import { descreverFontes, montarResposta, sessaoWayland } from "./captura.js";
 import { executavelParaRegistrar, precisaSemSandbox } from "./linux.js";
-import { ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, responderModelo } from "./fala.js";
+import { descartarWhisper, ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, prepararWhisper, responderModelo, WHISPER, WHISPER_PADRAO } from "./fala.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ICON = path.join(__dirname, "..", "public", "assets", "icon-512.png");
@@ -467,7 +467,21 @@ function semCache() {
   });
   ses.webRequest.onHeadersReceived(filtro, ({ responseHeaders }, cb) => {
     for (const k of Object.keys(responseHeaders)) if (k.toLowerCase() === "cache-control") delete responseHeaders[k];
-    cb({ responseHeaders: { ...responseHeaders, "Cache-Control": ["no-store"] } });
+    cb({
+      responseHeaders: {
+        ...responseHeaders,
+        "Cache-Control": ["no-store"],
+        /*
+         * Isolamento de origem: libera o SharedArrayBuffer, e com ele o
+         * Whisper (legendas) usa vários núcleos em vez de um — a legenda sai
+         * em uma fração do tempo. `credentialless` em vez de `require-corp`:
+         * nada de fora é carregado com credenciais, e nada do que já funciona
+         * deixa de carregar por falta de um cabeçalho CORP.
+         */
+        "Cross-Origin-Opener-Policy": ["same-origin"],
+        "Cross-Origin-Embedder-Policy": ["credentialless"],
+      },
+    });
   });
   // O que ficou guardado por versões anteriores também sai.
   return ses.clearCache().catch(() => {});
@@ -554,6 +568,39 @@ function permissoes() {
       preparando.set(idioma, tarefa);
     }
     return preparando.get(idioma);
+  });
+
+  /*
+   * Whisper: o reconhecedor bom. Um download por tamanho de modelo, com
+   * progresso; depois, só leitura do disco pelo esquema interno.
+   */
+  const preparandoWhisper = new Map();
+  ipcMain.handle("vcall:whisper-preparar", async (e, nivel) => {
+    if (!doApp(e)) throw new Error("origem não autorizada");
+    const n = WHISPER[nivel] ? nivel : WHISPER_PADRAO;
+    if (!preparandoWhisper.has(n)) {
+      const tarefa = prepararWhisper({
+        pasta: pastaFala,
+        nivel: n,
+        baixar: (url) => net.fetch(url),
+        progresso: (p) => {
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send("vcall:fala-progresso", { whisper: n, p });
+        },
+      })
+        .then(({ repo }) => ({ base: `${ESQUEMA_FALA}://modelo/whisper/`, modelo: repo, nivel: n }))
+        .catch((err) => {
+          registrar("whisper-falhou", { nivel: n, erro: String(err?.message || err) });
+          throw err;
+        })
+        .finally(() => preparandoWhisper.delete(n));
+      preparandoWhisper.set(n, tarefa);
+    }
+    return preparandoWhisper.get(n);
+  });
+  ipcMain.handle("vcall:whisper-descartar", async (e, nivel) => {
+    if (!doApp(e)) return false;
+    await descartarWhisper(pastaFala, WHISPER[nivel] ? nivel : WHISPER_PADRAO).catch(() => {});
+    return true;
   });
 
   ipcMain.handle("vcall:fala-descartar", async (e, lang) => {

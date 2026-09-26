@@ -31,6 +31,9 @@ const outDir = path.join(root, "public", "vendor");
 const ICONS = [
   // Moderação e anexos (3.1)
   "user-x",
+  "user-check",
+  "captions",
+  "search",
   "lock-open",
   "paperclip",
   "mic",
@@ -315,6 +318,65 @@ async function copyVosk() {
   console.log(`  ✓ vosk.js (${(final.length / 1024 / 1024).toFixed(1)} MB, worker sem eval)`);
 }
 
+/**
+ * Legendas no app de mesa com Whisper (transformers.js + ONNX Runtime, ambos
+ * Apache-2.0/MIT). Tudo servido pelo próprio app: a CSP não deixa buscar
+ * script de CDN, e o reconhecimento tem que funcionar sem depender de
+ * terceiros além do download único do modelo.
+ *
+ *   public/vendor/whisper/transformers.js     — só o necessário para o Whisper
+ *   public/vendor/whisper/ort-wasm-*.{mjs,wasm} — o motor (WebAssembly/WebGPU)
+ */
+async function buildWhisper() {
+  const pasta = path.join(outDir, "whisper");
+  const ort = path.join(root, "node_modules", "onnxruntime-web", "dist");
+  if (!existsSync(path.join(root, "node_modules", "@huggingface", "transformers")) || !existsSync(ort)) {
+    console.warn("  ! @huggingface/transformers não instalado (npm install --include=dev); legendas do app ficam no Vosk");
+    return;
+  }
+  await mkdir(pasta, { recursive: true });
+  const entrada = path.join(root, "scripts", ".whisper-entry.mjs");
+  await writeFile(entrada, 'export { env, WhisperTokenizer, WhisperProcessor, AutoFeatureExtractor, WhisperForConditionalGeneration, AutomaticSpeechRecognitionPipeline } from "@huggingface/transformers";\n');
+  const result = await esbuild.build({
+    entryPoints: [entrada],
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    minify: true,
+    target: ["es2022"],
+    outfile: path.join(pasta, "transformers.js"),
+    banner: { js: "/* transformers.js (Apache-2.0) + onnxruntime-web (MIT) — bundle gerado por scripts/vendor.mjs */" },
+    logLevel: "error",
+  });
+  await import("node:fs").then((fs) => fs.promises.unlink(entrada));
+  if (result.errors.length) throw new Error("falha no bundle do Whisper");
+  let total = 0;
+  for (const nome of ["ort-wasm-simd-threaded.asyncify.mjs", "ort-wasm-simd-threaded.asyncify.wasm"]) {
+    const dados = await readFile(path.join(ort, nome));
+    total += dados.length;
+    await writeFile(path.join(pasta, nome), dados);
+  }
+  const { size } = await import("node:fs").then((fs) => fs.promises.stat(path.join(pasta, "transformers.js")));
+  console.log(`  ✓ whisper/ (transformers.js ${(size / 1024).toFixed(0)} kB + motor ${(total / 1024 / 1024).toFixed(1)} MB)`);
+}
+
+/**
+ * Supressão de ruído por IA (RNNoise, BSD; build do Jitsi, Apache-2.0). A
+ * versão "sync" traz o WebAssembly embutido e abre sem rede nem `await` —
+ * é o que um AudioWorklet precisa. Sem eval: passa pela CSP.
+ */
+async function copyRnnoise() {
+  const src = path.join(root, "node_modules", "@jitsi", "rnnoise-wasm", "dist", "rnnoise-sync.js");
+  if (!existsSync(src)) {
+    console.warn("  ! @jitsi/rnnoise-wasm não instalado; mantendo o rnnoise-sync.js atual");
+    return;
+  }
+  const codigo = await readFile(src, "utf8");
+  if (/new Function|\beval\(/.test(codigo)) throw new Error("rnnoise: geração de código não passa pela CSP");
+  await writeFile(path.join(outDir, "rnnoise-sync.js"), codigo);
+  console.log(`  ✓ rnnoise-sync.js (${(codigo.length / 1024 / 1024).toFixed(1)} MB)`);
+}
+
 /* ------------------------------------------------------------------ */
 
 await mkdir(outDir, { recursive: true });
@@ -322,4 +384,6 @@ console.log("Vendorizando dependências de UI...");
 await buildSprite();
 await buildAvatars();
 await copyVosk();
+await buildWhisper();
+await copyRnnoise();
 console.log("Pronto.");

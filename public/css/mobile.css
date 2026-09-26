@@ -303,9 +303,12 @@
     width: calc(100% - var(--sp-4));
     bottom: var(--sp-2);
   }
+  .captions {
+    --legenda-tam: 0.95rem;
+  }
   .caption {
-    font-size: var(--text-xs);
-    padding: var(--sp-1) var(--sp-2);
+    padding: 8px 12px 9px 10px;
+    gap: 8px;
   }
 
   /* -- conversa -- */

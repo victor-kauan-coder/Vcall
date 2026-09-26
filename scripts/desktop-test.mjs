@@ -168,15 +168,19 @@ try {
   await win.click('[aria-label="Legendar minha fala"]');
   const inicio = Date.now();
   let fala = null;
+  // O .wav toca em laço e a legenda liga num ponto qualquer dele: a primeira
+  // frase pode ser só o fim da gravação. Vale a primeira frase inteira.
+  let todas = [];
   while (Date.now() - inicio < 150_000 && !fala) {
     await espera(1000);
-    fala = await win.evaluate(() => window.vcall.captions.transcript.find((t) => /\w{3}/.test(t.text))?.text || null);
+    todas = await win.evaluate(() => window.vcall.captions.transcript.map((t) => t.text));
+    fala = todas.find((t) => /dia|todos|reuni|come/i.test(t)) || null;
   }
   const avisos = await win.evaluate(() => [...document.querySelectorAll(".toast span")].map((x) => x.textContent).join(" | "));
   check(
     "legenda no app: o Whisper reconhece a fala do microfone (sem sair do computador)",
-    !!fala && /dia|todos|reuni|come/i.test(fala),
-    fala ? `"${fala}" em ${Math.round((Date.now() - inicio) / 1000)} s` : avisos.slice(0, 120),
+    !!fala,
+    fala ? `"${fala}" em ${Math.round((Date.now() - inicio) / 1000)} s (${todas.length} frase(s))` : `${JSON.stringify(todas)} ${avisos.slice(0, 120)}`,
   );
   const naTela = await win.evaluate(() => !!document.querySelector(".caption .caption__text")?.textContent);
   const naAba = await win.evaluate(() => window.vcall.captions.transcript.length);

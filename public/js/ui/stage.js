@@ -93,22 +93,43 @@ class Tile {
       step: "5",
       value: String(Math.round(value * 100)),
       "aria-label": `Volume de ${name} em porcento`,
-      onInput: (e) => onChange(Number(e.target.value) / 100),
+      onInput: (e) => {
+        this.#pintarVolume(Number(e.target.value));
+        onChange(Number(e.target.value) / 100);
+      },
       onClick: (e) => e.stopPropagation(),
       onPointerdown: (e) => e.stopPropagation(),
       onDblclick: (e) => e.stopPropagation(),
     });
 
-    wrap.append(btn, slider);
+    // A rampa: barras que sobem da esquerda para a direita, pintadas no
+    // degradê da marca até o volume atual. Acima de 100% é ganho — as barras
+    // do fim acendem em laranja. O <input> continua por baixo (teclado, leitor
+    // de tela); a rampa é o desenho dele.
+    const rampa = el("span.vol__rampa", { "aria-hidden": "true" });
+    for (let i = 0; i < 10; i += 1) rampa.append(el("i", { style: { "--i": String(i) } }));
+    const pct = el("span.vol__pct", { "aria-hidden": "true" });
+    const trilho = el("span.vol__trilho", {}, [rampa, slider]);
+    wrap.append(btn, trilho, pct);
     this.volumeEl = wrap;
     this.node.append(wrap);
     this.setVolume(value);
     return wrap;
   }
 
+  #pintarVolume(pct) {
+    if (!this.volumeEl) return;
+    // 10 barras para 0–150%: cada uma vale 15%.
+    this.volumeEl.style.setProperty("--acesas", String(Math.round(pct / 15)));
+    this.volumeEl.classList.toggle("is-boost", pct > 100);
+    const rotulo = this.volumeEl.querySelector(".vol__pct");
+    if (rotulo) rotulo.textContent = pct === 0 ? "mudo" : `${pct}%`;
+  }
+
   setVolume(value) {
     if (!this.volumeEl) return;
     const pct = Math.round(value * 100);
+    this.#pintarVolume(pct);
     const slider = this.volumeEl.querySelector(".vol__slider");
     if (slider && document.activeElement !== slider) slider.value = String(pct);
     const btn = this.volumeEl.querySelector(".vol__btn");

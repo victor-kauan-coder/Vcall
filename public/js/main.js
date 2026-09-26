@@ -483,6 +483,93 @@ function wireModeration() {
   });
 }
 
+/* ================================================================== *
+ * Foco na voz e modo jogo
+ * ================================================================== */
+
+/** Quem está falando agora (ids do mesh, inclusive o próprio). */
+const falandoAgora = new Set();
+
+/**
+ * Foco na voz: quem está calado fica apagadinho e quem fala acende — como o
+ * overlay do Discord, dentro da própria chamada. Vale para qualquer um, no
+ * navegador ou no app. Tecla G.
+ */
+function setFocoVoz(on) {
+  app.focoVoz = !!on;
+  prefs.set("foco-voz", app.focoVoz);
+  $("#stage")?.classList.toggle("stage--foco", app.focoVoz);
+  return app.focoVoz;
+}
+
+/** Monta e manda à sobreposição (app de mesa) o retrato da sala. */
+const enviarSobreposicao = throttle(() => {
+  if (!app.modoJogo || !window.vcallDesktop?.estadoSobreposicao || !mesh.selfId) return;
+  const pessoas = mesh.roster().map((p) => ({
+    id: p.id,
+    nome: p.name || "Convidado",
+    avatar: p.avatar || null,
+    falando: falandoAgora.has(p.id),
+    mudo: !p.state?.mic,
+    eu: !!p.self,
+  }));
+  window.vcallDesktop.estadoSobreposicao({ pessoas });
+}, 80);
+
+/**
+ * Modo jogo (app de mesa): a sobreposição transparente por cima do jogo e os
+ * atalhos globais Ctrl+Shift+M (microfone) e Ctrl+Shift+O (sobreposição).
+ */
+async function setModoJogo(on, { avisar = true } = {}) {
+  const desktop = window.vcallDesktop;
+  if (!desktop?.modoJogo) return false;
+  app.modoJogo = !!on;
+  prefs.set("modo-jogo", app.modoJogo);
+  const r = await desktop.modoJogo(app.modoJogo, prefs.get("modo-jogo:canto", "tl")).catch(() => null);
+  if (app.modoJogo) {
+    // A janela nova precisa do retrato completo logo de cara.
+    setTimeout(() => enviarSobreposicao(), 400);
+    setTimeout(() => enviarSobreposicao(), 1200);
+    if (avisar) {
+      const semAtalho = r && (!r.mic || !r.sobreposicao);
+      toast(
+        semAtalho
+          ? "Modo jogo ligado. Algum programa já usa Ctrl+Shift+M ou O — os atalhos globais não foram registrados."
+          : "Modo jogo ligado · Ctrl+Shift+M liga/desliga o microfone e Ctrl+Shift+O mostra/esconde a sobreposição, mesmo dentro do jogo.",
+        { tone: semAtalho ? "warn" : "ok", ms: 6500, key: "modo-jogo" },
+      );
+    }
+  } else if (avisar) {
+    toast("Modo jogo desligado", { tone: "info", ms: 2000, key: "modo-jogo" });
+  }
+  return app.modoJogo;
+}
+
+function wireModoJogo() {
+  setFocoVoz(prefs.get("foco-voz", false));
+
+  mesh.on("speaking", ({ id, speaking }) => {
+    if (speaking) falandoAgora.add(id);
+    else falandoAgora.delete(id);
+    enviarSobreposicao();
+  });
+  mesh.on("roster", () => enviarSobreposicao());
+  mesh.on("self-state", () => enviarSobreposicao());
+  mesh.on("peer-removed", ({ id }) => falandoAgora.delete(id));
+
+  const desktop = window.vcallDesktop;
+  if (!desktop?.modoJogo) return;
+  mesh.on("joined", ({ reconnected }) => {
+    if (!reconnected && prefs.get("modo-jogo", false)) setModoJogo(true, { avisar: false });
+  });
+  desktop.aoAtalho?.((acao) => {
+    if (acao !== "mic" || !app.joined || app.left) return;
+    media.toggleMic();
+    syncDockMedia();
+    toast(media.micEnabled ? "Microfone ligado" : "Microfone mudo", { tone: "info", ms: 1200, key: "atalho-mic" });
+  });
+}
+
 /** Tela de "aguardando o anfitrião" por cima do palco. */
 function mostrarEspera(on) {
   let tela = $(".waitRoom");
@@ -829,6 +916,8 @@ function openMoreMenu() {
       pop.append(el("div.popover__sep"));
     }
     item("hand", app.hand ? "Baixar a mão" : "Levantar a mão", toggleHand, app.hand);
+    item("eye", "Foco na voz · G", () => setFocoVoz(!app.focoVoz), !!app.focoVoz);
+    if (window.vcallDesktop?.modoJogo) item("zap", "Modo jogo (sobreposição)", () => setModoJogo(!app.modoJogo), !!app.modoJogo);
     item("smile", "Reagir", () => {
       // Reabre como menu de reações, ancorado no mesmo botão.
       setTimeout(() => dock.openPopover("more", (p2, c2) => {
@@ -886,6 +975,9 @@ const SHORTCUTS = [
     ["P", "Pessoas"],
     ["L", "Alternar o layout"],
     ["J", "Mini-janela flutuante, por cima dos outros programas"],
+    ["G", "Foco na voz: apagar quem está calado"],
+    ["Ctrl+Shift+M", "Microfone, mesmo dentro de um jogo (app, modo jogo)"],
+    ["Ctrl+Shift+O", "Mostrar/esconder a sobreposição (app, modo jogo)"],
     ["Q", "Abrir e fechar o canvas"],
     ["?", "Esta lista"],
     ["Esc", "Fechar o que estiver aberto"],
@@ -1595,6 +1687,7 @@ function wireMesh() {
   });
 
   wireModeration();
+  wireModoJogo();
 
   /**
    * As trilhas recebidas e o estado anunciado chegam em ordens diferentes, e o
@@ -2219,6 +2312,51 @@ function openSettings() {
     ]),
   ]);
 
+  // -- jogos e voz --
+  const foco = el("input", { type: "checkbox", checked: !!app.focoVoz });
+  foco.addEventListener("change", () => setFocoVoz(foco.checked));
+  const linhasJogo = [
+    el("label.row", {}, [
+      foco,
+      el("div", {}, [
+        el("div", { text: "Foco na voz — apagar quem está calado" }),
+        el("div.field__hint", {
+          text: "Quem não está falando fica apagadinho e sem cor; quem fala acende com o anel da marca. Ótimo para jogar junto e para salas cheias. Tecla G.",
+        }),
+      ]),
+    ]),
+  ];
+  if (window.vcallDesktop?.modoJogo) {
+    const jogo = el("input", { type: "checkbox", checked: !!app.modoJogo });
+    jogo.addEventListener("change", () => setModoJogo(jogo.checked));
+    const canto = el("select.input", { "aria-label": "Canto da sobreposição" });
+    for (const [v, t] of [
+      ["tl", "Canto superior esquerdo"],
+      ["tr", "Canto superior direito"],
+      ["bl", "Canto inferior esquerdo"],
+      ["br", "Canto inferior direito"],
+    ]) {
+      canto.append(el("option", { value: v, text: t, selected: prefs.get("modo-jogo:canto", "tl") === v }));
+    }
+    canto.addEventListener("change", () => {
+      prefs.set("modo-jogo:canto", canto.value);
+      if (app.modoJogo) setModoJogo(true, { avisar: false });
+    });
+    linhasJogo.push(
+      el("label.row", {}, [
+        jogo,
+        el("div", {}, [
+          el("div", { text: "Modo jogo — sobreposição por cima dos outros programas" }),
+          el("div.field__hint", {
+            text: "Uma janelinha transparente mostra quem está na chamada e acende quem fala, por cima do jogo (use o jogo em modo janela ou tela cheia sem bordas). Os cliques passam direto. Atalhos que valem dentro do jogo: Ctrl+Shift+M microfone, Ctrl+Shift+O mostra/esconde.",
+          }),
+        ]),
+      ]),
+      el("label.field", {}, [el("span.field__label", { text: "Onde a sobreposição fica" }), canto]),
+    );
+  }
+  section("Jogos e voz", linhasJogo);
+
   // -- legendas, transcrição e avisos --
   const notifyToggle = el("input", { type: "checkbox", checked: app.notify });
   notifyToggle.addEventListener("change", async () => {
@@ -2480,6 +2618,13 @@ function bindShortcuts() {
       case "j":
         dock.get("mini")?.click();
         break;
+      case "g":
+        toast(setFocoVoz(!app.focoVoz) ? "Foco na voz: quem está calado fica apagado" : "Foco na voz desligado", {
+          tone: "info",
+          ms: 2200,
+          key: "foco",
+        });
+        break;
       case "escape":
         // Com algo selecionado, Escape desfaz a seleção — fechar o canvas
         // inteiro por causa de um clique errado seria um exagero. O próprio
@@ -2524,6 +2669,8 @@ function bindShortcuts() {
 function leaveCall({ motivo = null, por = "" } = {}) {
   if (app.left) return;
   app.left = true;
+  // A sobreposição e os atalhos globais só fazem sentido dentro da chamada.
+  if (app.modoJogo) window.vcallDesktop?.modoJogo?.(false).catch?.(() => {});
   clearInterval(app.timerId);
   app.mini?.close();
   closeBoard();
@@ -2618,6 +2765,8 @@ window.vcall = {
   get stats() {
     return mesh.stats.samples;
   },
+  setFocoVoz,
+  setModoJogo,
 };
 console.info(
   "%cVcall%c — mídia ponto a ponto, criptografada. `window.vcall` expõe o estado para depuração." +

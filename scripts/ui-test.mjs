@@ -341,6 +341,60 @@ try {
   }
 
   /* ================================================================ *
+   * 5b. Foco na voz e volume por pessoa
+   * ================================================================ */
+  console.log("\nFoco na voz");
+  {
+    const sala = novaSala("foco");
+    const a = await participante("Alice", sala);
+    await noDock(a);
+    const b = await participante("Bruno", sala);
+    await noDock(b);
+    const c = await participante("Carla", sala);
+    await noDock(c);
+    await conectados(a, 2);
+    for (const p of [a, b, c]) await p.keyboard.press("m");
+    await espera(1500);
+    await a.keyboard.press("g");
+    await espera(500);
+    const [id1, id2] = await a.evaluate(() => [...window.vcall.mesh.peers.keys()]);
+    await a.evaluate((id) => window.vcall.stage.get(id, "cam").setSpeaking(true), id1);
+    await espera(500);
+    const op = await a.evaluate(
+      ([x, y]) => ({
+        foco: document.querySelector("#stage").classList.contains("stage--foco"),
+        fala: +getComputedStyle(document.querySelector(`.tile[data-tile="${x}:cam"]`)).opacity,
+        quieto: +getComputedStyle(document.querySelector(`.tile[data-tile="${y}:cam"]`)).opacity,
+        eu: +getComputedStyle(document.querySelector('.tile[data-tile="self:cam"]')).opacity,
+      }),
+      [id1, id2],
+    );
+    check("G liga o foco na voz: quem fala acende, quem está quieto fica apagado", op.foco && op.fala > 0.95 && op.quieto < 0.6, JSON.stringify(op));
+    check("o próprio ladrilho não fica 'falando' com o microfone mudo", op.eu < 0.6);
+    const lembra = await a.evaluate(() => JSON.parse(localStorage.getItem("vcall:foco-voz")));
+    check("a preferência do foco fica guardada", lembra === true);
+
+    const vol = await a.evaluate((id) => {
+      const t = window.vcall.stage.get(id, "cam");
+      const ler = () => {
+        const v = document.querySelector(`.tile[data-tile="${id}:cam"] .vol`);
+        return { acesas: v.style.getPropertyValue("--acesas") || getComputedStyle(v).getPropertyValue("--acesas"), boost: v.classList.contains("is-boost"), pct: v.querySelector(".vol__pct").textContent };
+      };
+      t.setVolume(1.5);
+      const alto = ler();
+      t.setVolume(0);
+      const mudo = ler();
+      return { alto, mudo, barras: document.querySelectorAll(`.tile[data-tile="${id}:cam"] .vol__rampa i`).length };
+    }, id2);
+    check("volume: rampa de barras própria acende conforme o nível", vol.barras === 10 && +vol.alto.acesas === 10 && vol.alto.boost && vol.alto.pct === "150%", JSON.stringify(vol));
+    check("volume: no zero a rampa apaga e mostra 'mudo'", +vol.mudo.acesas === 0 && vol.mudo.pct === "mudo");
+    await a.keyboard.press("g");
+    await espera(300);
+    check("G de novo desliga o foco", !(await a.evaluate(() => document.querySelector("#stage").classList.contains("stage--foco"))));
+    for (const p of [a, b, c]) await p.context().close();
+  }
+
+  /* ================================================================ *
    * 6. Legendas (Web Speech simulado)
    * ================================================================ */
   console.log("\nLegendas da própria fala");

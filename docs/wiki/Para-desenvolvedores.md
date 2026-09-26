@@ -59,7 +59,7 @@ app de mesa (Ubuntu + Xvfb + openbox) e os testes rápidos no Windows.
 - **Windows:** instalador NSIS com o `cloudflared` embutido
 - `SHA256SUMS.txt` com as somas de verificação
 
-Dispara com uma tag (`git tag v3.1.1 && git push origin v3.1.1`) ou à mão em
+Dispara com uma tag (`git tag v3.2.0 && git push origin v3.2.0`) ou à mão em
 **Actions → Release → Run workflow**. As notas vêm de
 `docs/release/v<versão>.md`.
 

@@ -5,6 +5,7 @@
  * encaminhar SDP/ICE entre eles. Áudio, vídeo e tela nunca passam por aqui —
  * vão direto entre os navegadores, criptografados por DTLS-SRTP.
  */
+import { randomUUID } from "node:crypto";
 import { WebSocketServer } from "ws";
 import { config } from "./config.js";
 import { log, redactRoom } from "./logger.js";
@@ -209,6 +210,12 @@ export function attachSignaling(httpServer, { registry = new RoomRegistry() } = 
       const msg = parsed.msg;
 
       if (msg.t === C2S.JOIN) return handleJoin(ctx, socket, registry, msg, fail);
+      // O batimento vale também para quem está na sala de espera.
+      if (msg.t === C2S.PING && !ctx.participant) {
+        if (socket.readyState === 1) socket.send(JSON.stringify({ t: S2C.PONG, n: msg.n, at: Date.now() }));
+        return;
+      }
+      if (ctx.waitingId) return; // na porta: nada além de esperar
       if (!ctx.participant) return fail(ERRORS.NOT_JOINED);
 
       const me = ctx.participant;
@@ -311,7 +318,7 @@ export function attachSignaling(httpServer, { registry = new RoomRegistry() } = 
 }
 
 function handleJoin(ctx, socket, registry, msg, fail) {
-  if (ctx.participant) return fail(ERRORS.ALREADY_JOINED);
+  if (ctx.participant || ctx.waitingId) return fail(ERRORS.ALREADY_JOINED);
 
   // Os metadados só valem para quem cria a sala. Para quem entra depois, eles
   // são ignorados: ninguém renomeia nem abre ao público a sala dos outros.
@@ -329,8 +336,6 @@ function handleJoin(ctx, socket, registry, msg, fail) {
   // Ela é substituída agora, e por isso não conta como "vaga ocupada".
   const anterior = room.bySession(msg.session);
 
-  // Sala trancada: só entra quem já estava (reconexão) ou o dono.
-  if (room.closed && !anterior && !ehDono) return fail(ERRORS.ROOM_LOCKED, true);
   if (room.isFull && !anterior) return fail(ERRORS.ROOM_FULL, true);
 
   /*
@@ -351,6 +356,38 @@ function handleJoin(ctx, socket, registry, msg, fail) {
     ctx.passGuard.succeed(ctx.ip);
   }
 
+  /*
+   * Sala trancada: quem já estava (reconexão) e o dono entram direto. Os
+   * demais vão para a sala de espera e o anfitrião decide — em vez de
+   * simplesmente dar com a porta na cara. Sem anfitrião presente para
+   * decidir, a porta continua fechada.
+   */
+  if (room.closed && !anterior && !ehDono) {
+    if (!room.host) return fail(ERRORS.ROOM_LOCKED, true);
+    return esperar(ctx, socket, room, msg);
+  }
+
+  concluirEntrada(ctx, socket, room, msg, { anterior, ehDono });
+}
+
+/** Põe na sala de espera e avisa o anfitrião. */
+function esperar(ctx, socket, room, msg) {
+  if (room.waiting.size >= 20) {
+    socket.send(JSON.stringify({ t: S2C.ERROR, error: ERRORS.ROOM_LOCKED }));
+    socket.close(1008, ERRORS.ROOM_LOCKED);
+    return;
+  }
+  const id = randomUUID().slice(0, 12);
+  const entrada = { socket, msg, ctx, name: msg.profile.name, avatar: msg.profile.avatar, at: Date.now() };
+  room.waiting.set(id, entrada);
+  ctx.waitingId = id;
+  ctx.room = room;
+  socket.send(JSON.stringify({ t: S2C.WAITING, name: room.name || "" }));
+  room.toHosts({ t: S2C.KNOCK, id, name: entrada.name, avatar: entrada.avatar });
+  log.info("bateu à porta", { room: redactRoom(room.id), waiting: room.waiting.size });
+}
+
+function concluirEntrada(ctx, socket, room, msg, { anterior = null, ehDono = false } = {}) {
   const me = new Participant(socket, msg);
   ctx.participant = me;
   ctx.room = room;
@@ -393,7 +430,11 @@ function handleJoin(ctx, socket, registry, msg, fail) {
 
   room.broadcast({ t: S2C.PEER_JOIN, peer: me.publicView(), replaces: anterior?.id || null }, me.id);
   // O anfitrião mudou (o dono voltou): todos atualizam a marca.
-  if (me.host) room.broadcast({ t: S2C.HOST, id: me.id }, me.id);
+  if (me.host) {
+    room.broadcast({ t: S2C.HOST, id: me.id }, me.id);
+    // Quem já estava esperando na porta aparece para o anfitrião que chegou.
+    for (const [id, w] of room.waiting) me.send({ t: S2C.KNOCK, id, name: w.name, avatar: w.avatar });
+  }
 
   log.info("participante entrou", {
     room: redactRoom(room.id),
@@ -438,6 +479,33 @@ function handleModerate(me, room, msg, fail) {
     case "unlock": {
       room.closed = msg.action === "lock";
       room.broadcast({ t: S2C.ROOM, closed: room.closed, by });
+      // Destrancou: quem esperava na porta entra.
+      if (!room.closed) for (const id of [...room.waiting.keys()]) admitir(room, id);
+      break;
+    }
+    case "lower-hand": {
+      const alvo = room.get(msg.target);
+      if (!alvo) return;
+      alvo.send({ t: S2C.MODERATED, action: "lower-hand", by });
+      break;
+    }
+    case "admit": {
+      admitir(room, msg.target);
+      break;
+    }
+    case "deny": {
+      const w = room.waiting.get(msg.target);
+      if (!w) return;
+      room.waiting.delete(msg.target);
+      w.ctx.waitingId = null;
+      w.ctx.room = null;
+      room.toHosts({ t: S2C.KNOCK_GONE, id: msg.target, admitted: false });
+      try {
+        w.socket.send(JSON.stringify({ t: S2C.ERROR, error: ERRORS.ROOM_LOCKED }));
+        w.socket.close(1008, ERRORS.ROOM_LOCKED);
+      } catch {
+        /* já fechado */
+      }
       break;
     }
   }
@@ -445,7 +513,33 @@ function handleModerate(me, room, msg, fail) {
   log.info("moderação", { room: redactRoom(room.id), by: me.id, action: msg.action });
 }
 
+/** Tira da sala de espera e completa a entrada. */
+function admitir(room, id) {
+  const w = room.waiting.get(id);
+  if (!w) return;
+  room.waiting.delete(id);
+  w.ctx.waitingId = null;
+  room.toHosts({ t: S2C.KNOCK_GONE, id, admitted: true });
+  if (w.socket.readyState !== 1) return;
+  if (room.isFull) {
+    w.socket.send(JSON.stringify({ t: S2C.ERROR, error: ERRORS.ROOM_FULL }));
+    w.socket.close(1008, ERRORS.ROOM_FULL);
+    return;
+  }
+  concluirEntrada(w.ctx, w.socket, room, w.msg);
+}
+
 function teardown(ctx, registry) {
+  // Desistiu de esperar na porta: some da lista do anfitrião.
+  if (ctx.waitingId && ctx.room) {
+    const room = ctx.room;
+    room.waiting.delete(ctx.waitingId);
+    room.toHosts({ t: S2C.KNOCK_GONE, id: ctx.waitingId, admitted: false });
+    ctx.waitingId = null;
+    ctx.room = null;
+    registry.dropIfEmpty(room.id);
+    return;
+  }
   const me = ctx.participant;
   if (!me || !ctx.room) return;
   const room = ctx.room;
@@ -459,6 +553,7 @@ function teardown(ctx, registry) {
 
   const newHost = room.remove(me.id);
   room.broadcast({ t: S2C.PEER_LEAVE, id: me.id, newHost: newHost?.id || null });
+  if (newHost) for (const [id, w] of room.waiting) newHost.send({ t: S2C.KNOCK, id, name: w.name, avatar: w.avatar });
 
   log.info("participante saiu", {
     room: redactRoom(room.id),

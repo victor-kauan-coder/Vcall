@@ -48,6 +48,11 @@ export const S2C = Object.freeze({
   HOST: "host",
   /** A sala foi trancada ou destrancada pelo anfitrião. */
   ROOM: "room",
+  /** Você está na sala de espera: o anfitrião decide se entra. */
+  WAITING: "waiting",
+  /** (Para o anfitrião) alguém bateu à porta / desistiu de esperar. */
+  KNOCK: "knock",
+  KNOCK_GONE: "knock-gone",
   ERROR: "error",
   PONG: "pong",
 });
@@ -70,9 +75,19 @@ export const ERRORS = Object.freeze({
 });
 
 /** Ações que só o anfitrião pode pedir. */
-export const MOD_ACTIONS = new Set(["mute", "mute-all", "cam-off", "kick", "lock", "unlock"]);
+export const MOD_ACTIONS = new Set([
+  "mute",
+  "mute-all",
+  "cam-off",
+  "kick",
+  "lock",
+  "unlock",
+  "lower-hand",
+  "admit",
+  "deny",
+]);
 /** As que miram uma pessoa específica. */
-const MOD_TARGETED = new Set(["mute", "cam-off", "kick"]);
+const MOD_TARGETED = new Set(["mute", "cam-off", "kick", "lower-hand", "admit", "deny"]);
 
 /** IDs de sala são segredos de 22+ caracteres gerados no cliente. */
 const ROOM_RE = /^[A-Za-z0-9_-]{16,64}$/;

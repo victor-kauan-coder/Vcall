@@ -338,6 +338,11 @@
   position: relative;
   display: flex;
 }
+/* O destaque ocupa a área inteira: antes ele ficava com a largura da
+   proporção do vídeo, encostado à esquerda, com uma faixa vazia à direita. */
+.spotlight > .tile {
+  flex: 1 1 auto;
+}
 
 /* -- ladrilho de participante -- */
 
@@ -2492,4 +2497,217 @@ body.is-recording .topbar::after {
 .btn--whatsapp:hover:not(:disabled) {
   background: #1a9448;
   border-color: #1a9448;
+}
+
+/* ------------------------------------------------------------------ *
+ * Chamada a dois: você vira um balão flutuante (ui/stage.js)
+ *
+ * A outra pessoa ocupa o palco inteiro; o seu vídeo fica num balão que se
+ * arrasta para qualquer canto e desliza até o mais próximo, com mola.
+ * ------------------------------------------------------------------ */
+
+.stage--duo .grid {
+  display: none;
+}
+.floatSelf {
+  --float-gap: var(--sp-4);
+  position: absolute;
+  z-index: 6;
+  width: clamp(132px, 22%, 280px);
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 18px 40px -12px rgba(8, 4, 30, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: box-shadow var(--dur-base) var(--ease-out), scale var(--dur-fast) var(--ease-out);
+}
+.floatSelf[hidden] {
+  display: none;
+}
+.floatSelf[data-corner="tl"] {
+  top: var(--float-gap);
+  left: var(--float-gap);
+}
+.floatSelf[data-corner="tr"] {
+  top: var(--float-gap);
+  right: var(--float-gap);
+}
+.floatSelf[data-corner="bl"] {
+  bottom: var(--float-gap);
+  left: var(--float-gap);
+}
+.floatSelf[data-corner="br"] {
+  bottom: var(--float-gap);
+  right: var(--float-gap);
+}
+.floatSelf.is-dragging {
+  cursor: grabbing;
+  scale: 1.04;
+  box-shadow:
+    0 28px 60px -14px rgba(8, 4, 30, 0.65),
+    0 0 0 2px var(--accent);
+}
+.floatSelf > .tile {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+/* No balão cabem só o nome e o microfone: o resto são controles do palco. */
+.floatSelf .tile__actions,
+.floatSelf .vol,
+.floatSelf .tile__net {
+  display: none;
+}
+.floatSelf .tile__label {
+  font-size: var(--text-2xs);
+}
+@media (max-width: 720px) {
+  .floatSelf {
+    --float-gap: var(--sp-2);
+    width: 34%;
+    aspect-ratio: 3 / 4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .floatSelf {
+    transition: none;
+  }
+}
+
+/* Fila de mãos levantadas: a posição de cada um ao lado da mão. */
+.person__mao {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px 1px 4px;
+  border-radius: 999px;
+  background: var(--accent-2-soft);
+  color: var(--accent-2);
+  font-size: var(--text-2xs);
+}
+.person__mao b {
+  font-weight: var(--weight-semibold);
+}
+
+/* ------------------------------------------------------------------ *
+ * Sala de espera
+ * ------------------------------------------------------------------ */
+
+.waitRoom {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+.waitRoom__card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-6);
+  text-align: center;
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.waitRoom__card h2 {
+  margin: 0;
+  font-family: var(--font-display);
+}
+.waitRoom__card p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.waitRoom__pulse {
+  display: flex;
+  gap: 6px;
+  margin: var(--sp-2) 0;
+}
+.waitRoom__pulse i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: esperaPulso 1.2s var(--ease-out) infinite;
+}
+.waitRoom__pulse i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.waitRoom__pulse i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes esperaPulso {
+  0%,
+  100% {
+    opacity: 0.3;
+    translate: 0 0;
+  }
+  40% {
+    opacity: 1;
+    translate: 0 -5px;
+  }
+}
+
+.knocks {
+  position: fixed;
+  top: 64px;
+  right: var(--sp-4);
+  z-index: calc(var(--z-modal) - 1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(360px, calc(100vw - 2 * var(--sp-4)));
+}
+.knock {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  animation: shareEntra var(--dur-base) var(--ease-out);
+  transition: opacity 200ms ease, translate 200ms ease;
+}
+.knock.is-leaving {
+  opacity: 0;
+  translate: 24px 0;
+}
+.knock .avatar {
+  width: 40px;
+  height: 40px;
+}
+.knock__texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.knock__texto span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.knock__acoes {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .waitRoom__pulse i,
+  .knock {
+    animation: none;
+  }
 }

@@ -95,6 +95,8 @@ export class Room {
     this.closed = false;
     /** Aparelhos removidos pelo anfitrião. Some junto com a sala. */
     this.banned = new Set();
+    /** Sala de espera: id -> { socket, msg, ctx, name, avatar, at }. */
+    this.waiting = new Map();
   }
 
   /** Grava a chave de quem cria a sala. Só o primeiro define. */
@@ -118,6 +120,11 @@ export class Room {
     if (!session) return null;
     for (const p of this.members.values()) if (p.session === session) return p;
     return null;
+  }
+
+  /** Manda para todos os anfitriões presentes (normalmente um só). */
+  toHosts(payload) {
+    for (const p of this.members.values()) if (p.host) p.send(payload);
   }
 
   isBanned(device) {
@@ -264,6 +271,16 @@ export class RoomRegistry {
   dropIfEmpty(id) {
     const r = this.rooms.get(id);
     if (r && !r.size) {
+      // Quem esperava na porta de uma sala que acabou é dispensado.
+      for (const w of r.waiting.values()) {
+        try {
+          w.socket.send(JSON.stringify({ t: "error", error: "room-locked" }));
+          w.socket.close(1008, "room-locked");
+        } catch {
+          /* já fechado */
+        }
+      }
+      r.waiting.clear();
       this.rooms.delete(id);
       this.codes.delete(r.code);
       return true;

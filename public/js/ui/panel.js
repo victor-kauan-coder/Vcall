@@ -187,7 +187,13 @@ export class Panel {
     return tab;
   }
 
+  /** Quem anima a mudança de tamanho do palco (ui/stage.js). */
+  animate = (fn) => fn();
+
   setOpen(open, tab = null) {
+    // Abrir ou fechar o painel muda a largura do palco: os ladrilhos
+    // deslizam para o lugar novo em vez de pular.
+    if (open !== this.open) this.animate(() => (this.node.hidden = !open));
     this.open = open;
     this.node.hidden = !open;
     if (open && tab) this.show(tab);
@@ -433,7 +439,19 @@ export class Panel {
       );
     }
 
-    for (const p of roster) {
+    // Mãos levantadas primeiro, na ordem em que subiram (a fila da reunião).
+    const fila = roster
+      .filter((p) => p.state?.hand)
+      .sort((a, b) => (a.handAt || 0) - (b.handAt || 0))
+      .map((p) => p.id);
+    const ordenado = [...roster].sort((a, b) => {
+      const ia = fila.indexOf(a.id);
+      const ib = fila.indexOf(b.id);
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 1e9 : ia) - (ib === -1 ? 1e9 : ib);
+      return 0;
+    });
+
+    for (const p of ordenado) {
       const icons = el("div.person__icons");
       icons.append(
         icon(p.state?.mic ? "mic" : "mic-off", {
@@ -448,13 +466,23 @@ export class Panel {
         }),
       );
       if (p.state?.screen) icons.append(icon("screen-share", { size: "sm", label: "Compartilhando a tela" }));
-      if (p.state?.hand) icons.append(icon("hand", { size: "sm", label: "Mão levantada" }));
+      if (p.state?.hand) {
+        const pos = fila.indexOf(p.id) + 1;
+        icons.append(
+          el("span.person__mao", { title: `Mão levantada — ${pos}º da fila` }, [
+            icon("hand", { size: "sm", label: "Mão levantada" }),
+            el("b", { text: `${pos}º` }),
+          ]),
+        );
+      }
 
       const sub = [];
       if (p.self) sub.push("Você");
       if (p.host) sub.push("Anfitrião");
       if (!p.self && p.connection !== "connected") sub.push("conectando…");
       else if (!p.self) sub.push(QUALITY_LABEL[p.quality] || "");
+      // Tempo de fala: quem já falou quanto (só a partir de meio minuto).
+      if (p.falaMs >= 30_000) sub.push(`falou ${formatarFala(p.falaMs)}`);
 
       const nome = p.name || "Convidado";
       const conteudo = [
@@ -498,10 +526,11 @@ export class Panel {
           );
         linha.append(
           el("div.person__acoes", {}, [
+            p.state?.hand ? acao("hand", "Baixar a mão", mod.onLowerHand) : null,
             acao("mic-off", "Silenciar", mod.onMute, { desligado: !p.state?.mic }),
             acao("video-off", "Desligar câmera", mod.onCamOff, { desligado: !p.state?.cam }),
             acao("user-x", "Remover da sala", mod.onKick, { perigo: true }),
-          ]),
+          ].filter(Boolean)),
         );
       }
       this.peopleList.append(linha);
@@ -641,4 +670,12 @@ function sparkline(values) {
 
   svg.append(area, line);
   return svg;
+}
+
+/** "2 min", "1 h 05 min" — o suficiente para comparar quem falou mais. */
+export function formatarFala(ms) {
+  const min = Math.round(ms / 60_000);
+  if (min < 1) return "menos de 1 min";
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
 }

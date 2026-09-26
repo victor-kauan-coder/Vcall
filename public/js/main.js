@@ -20,7 +20,7 @@ import { Stage } from "./ui/stage.js";
 import { Panel } from "./ui/panel.js";
 import { Dock, REACTIONS } from "./ui/dock.js";
 import { toast, chime } from "./ui/toast.js";
-import { colorFor } from "./ui/avatars.js";
+import { avatarEl, colorFor } from "./ui/avatars.js";
 import { RemoteAudio } from "./ui/audio.js";
 import { closeAudio } from "./core/audio-graph.js";
 import { InfiniteCanvas } from "./features/canvas.js";
@@ -342,16 +342,39 @@ function buildPanel() {
     },
   });
   $("#stage").append(panel.node);
+  panel.animate = (fn) => (stage ? stage.animateChange(fn) : fn());
 }
 
 /* ================================================================== *
  * Moderação (anfitrião)
  * ================================================================== */
 
+/**
+ * Tempo de fala de cada um, medido pelo mesmo detector de voz que acende o
+ * contorno de quem fala. Fica só nesta tela: não trafega pela rede.
+ */
+const falas = new Map(); // id -> { total, desde }
+function marcarFala(id, falando) {
+  const f = falas.get(id) || { total: 0, desde: 0 };
+  if (falando && !f.desde) f.desde = performance.now();
+  if (!falando && f.desde) {
+    f.total += performance.now() - f.desde;
+    f.desde = 0;
+  }
+  falas.set(id, f);
+}
+function tempoDeFala(id) {
+  const f = falas.get(id);
+  if (!f) return 0;
+  return f.total + (f.desde ? performance.now() - f.desde : 0);
+}
+
 /** Desenha a lista de pessoas, com os controles de anfitrião quando cabe. */
-function renderPeopleNow(roster = mesh.roster()) {
+function renderPeopleNow(lista = mesh.roster()) {
+  const roster = lista.map((p) => ({ ...p, falaMs: tempoDeFala(p.id) }));
   const mod = mesh.isHost
     ? {
+        onLowerHand: (p) => mesh.moderate("lower-hand", p.id),
         closed: !!mesh.roomInfo?.closed,
         onMute: (p) => {
           mesh.moderate("mute", p.id);
@@ -416,6 +439,9 @@ function wireModeration() {
     } else if (m.action === "cam-off") {
       if (media.camEnabled) media.setCam(false).then(syncDockMedia);
       toast(`${por} desligou a sua câmera.`, { tone: "info", ms: 5000, key: "mod-cam" });
+    } else if (m.action === "lower-hand") {
+      if (app.hand) toggleHand();
+      toast(`${por} baixou a sua mão.`, { tone: "info", ms: 3000, key: "mod-hand" });
     } else if (m.action === "kick") {
       leaveCall({ motivo: "kicked", por });
     } else if (m.action === "kicked") {
@@ -436,6 +462,69 @@ function wireModeration() {
     if (self) toast("Você é o anfitrião desta sala", { tone: "ok", ms: 2600, key: "host" });
     if (panel.open && panel.tab === "people") renderPeopleNow();
   });
+
+  mesh.on("speaking", ({ id, speaking }) => marcarFala(id, speaking));
+
+  /* -- sala de espera: quem espera -- */
+  mesh.on("waiting", () => mostrarEspera(true));
+  mesh.on("joined", () => mostrarEspera(false));
+
+  /* -- sala de espera: o anfitrião decide -- */
+  mesh.on("knock", (k) => {
+    mostrarBatida(k);
+    chime("join");
+    notify("Alguém quer entrar", `${k.name} está na sala de espera`);
+  });
+  mesh.on("knock-gone", ({ id }) => {
+    const card = document.querySelector(`.knock[data-id="${CSS.escape(id)}"]`);
+    if (!card) return;
+    card.classList.add("is-leaving");
+    setTimeout(() => card.remove(), 200);
+  });
+}
+
+/** Tela de "aguardando o anfitrião" por cima do palco. */
+function mostrarEspera(on) {
+  let tela = $(".waitRoom");
+  if (!on) {
+    tela?.remove();
+    return;
+  }
+  if (tela) return;
+  tela = el("div.waitRoom", { role: "status", "aria-live": "polite" }, [
+    el("div.waitRoom__card", {}, [
+      el("img.brand__mark", { src: "/assets/logo-mark.png", alt: "", width: 56, height: 56 }),
+      el("h2", { text: "Aguardando o anfitrião" }),
+      el("p", { text: "A sala está trancada. O anfitrião já sabe que você chegou e vai decidir se você entra." }),
+      el("div.waitRoom__pulse", { "aria-hidden": "true" }, [el("i"), el("i"), el("i")]),
+      el("button.btn.btn--ghost", { type: "button", onClick: () => leaveCall() }, [icon("log-out", { size: "sm" }), el("span", { text: "Desistir" })]),
+    ]),
+  ]);
+  document.body.append(tela);
+}
+
+/** Cartão "Fulano quer entrar" para o anfitrião, com as duas respostas. */
+function mostrarBatida(k) {
+  let pilha = $(".knocks");
+  if (!pilha) {
+    pilha = el("div.knocks", { "aria-live": "polite" });
+    document.body.append(pilha);
+  }
+  if (pilha.querySelector(`[data-id="${CSS.escape(k.id)}"]`)) return;
+  const responder = (acao) => {
+    mesh.moderate(acao, k.id);
+    card.classList.add("is-leaving");
+    setTimeout(() => card.remove(), 200);
+  };
+  const card = el("div.knock", { dataset: { id: k.id }, role: "alertdialog", "aria-label": `${k.name} quer entrar` }, [
+    avatarEl(k.avatar, { title: k.name }),
+    el("div.knock__texto", {}, [el("strong.truncate", { text: k.name || "Convidado" }), el("span", { text: "quer entrar na sala" })]),
+    el("div.knock__acoes", {}, [
+      el("button.btn.btn--ghost", { type: "button", onClick: () => responder("deny") }, [el("span", { text: "Recusar" })]),
+      el("button.btn.btn--primary", { type: "button", onClick: () => responder("admit") }, [el("span", { text: "Deixar entrar" })]),
+    ]),
+  ]);
+  pilha.append(card);
 }
 
 /* ================================================================== *
@@ -457,21 +546,34 @@ async function sendFiles(files) {
     }
     const sent = await transfer.send(f);
     if (!sent) continue;
+    const { envio, ...arquivo } = sent;
     panel.addFile({
       id: mesh.selfId || "self",
       name: app.profile.name,
       avatar: app.profile.avatar,
-      file: sent,
+      file: arquivo,
       self: true,
     });
-    panel.setFileProgress(sent.id, 1);
+    panel.setFileProgress(arquivo.id, 0.02);
+    // O próximo arquivo espera este terminar: dois ao mesmo tempo só dividem
+    // a mesma rede e deixam os dois mais lentos.
+    const { falhou } = await envio;
+    panel.setFileProgress(arquivo.id, 1);
+    if (falhou.length) {
+      const nomes = falhou.map((id) => mesh.profiles.get(id)?.name || "um participante").join(", ");
+      toast(`“${arquivo.name}” não chegou para ${nomes} — a conexão direta caiu no meio. Tente de novo.`, {
+        tone: "warn",
+        ms: 7000,
+      });
+    }
   }
 }
 
 function wireTransfer() {
   // O arquivo segue o mesmo caminho das imagens do canvas: canal de carga
   // pesada, fatiado, com espera de buffer entre os pedaços.
-  transfer.on("blob", (payload) => mesh.broadcastBlob(payload));
+  // `sender` espera cada pedaço sair antes do próximo (fila por participante).
+  transfer.sender = (payload) => mesh.broadcastBlob(payload);
 
   transfer.on("start", ({ id, from, meta }) => {
     const profile = mesh.profiles.get(from) || {};
@@ -485,8 +587,8 @@ function wireTransfer() {
     panel.setFileProgress(id, 0.02);
   });
 
-  transfer.on("progress", ({ id, sent, total, outgoing }) => {
-    if (!outgoing) panel.setFileProgress(id, sent / total);
+  transfer.on("progress", ({ id, sent, total }) => {
+    panel.setFileProgress(id, Math.max(0.02, sent / total));
   });
 
   transfer.on("file", (file) => {
@@ -2459,7 +2561,7 @@ function leaveCall({ motivo = null, por = "" } = {}) {
           motivo === "kicked"
             ? `${por || "O anfitrião"} removeu você desta chamada. Se foi um engano, peça um novo convite.`
             : motivo === "room-locked"
-              ? "O anfitrião trancou a sala e ninguém novo pode entrar agora. Peça para destrancarem e tente de novo."
+              ? "O anfitrião trancou a sala ou não liberou a sua entrada. Combine com quem te convidou e tente de novo."
               : `Foram ${minutos} de conversa. A sala continua aberta enquanto alguém estiver nela — dá para voltar pelo mesmo link.`,
       }),
       el("div.leave__actions", {}, [

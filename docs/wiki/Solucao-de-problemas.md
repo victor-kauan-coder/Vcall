@@ -44,12 +44,12 @@ Em distribuições que bloqueiam o isolamento do Chromium para programas comuns
 assim. Se ainda falhar:
 
 ```bash
-./Vcall-3.1.0-x86_64.AppImage --no-sandbox
+./Vcall-3.1.1-x86_64.AppImage --no-sandbox
 ```
 
 Ou instale o pacote da sua distro (`.deb`, `.rpm`, `pacman`), que configura o
 isolamento do jeito certo. Sem FUSE instalado:
-`./Vcall-3.1.0-x86_64.AppImage --appimage-extract-and-run`.
+`./Vcall-3.1.1-x86_64.AppImage --appimage-extract-and-run`.
 
 ## O link do WhatsApp não abre o aplicativo
 

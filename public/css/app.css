@@ -2337,6 +2337,27 @@ body.is-recording .topbar::after {
   flex: none;
 }
 
+/*
+ * App de mesa: o topo da janela tem os botões nativos (minimizar, maximizar,
+ * fechar) desenhados por cima da página e uma faixa de arrastar que engole
+ * cliques. A barra do visualizador ficava ali — o X sumia embaixo do botão
+ * de fechar do Windows e clicar nele só arrastava a janela. Agora a barra
+ * desce abaixo da área da janela, recua dos botões nativos e nada no
+ * visualizador conta como área de arrastar.
+ */
+.is-desktop .lightbox,
+.is-desktop .lightbox * {
+  -webkit-app-region: no-drag;
+}
+.is-desktop .lightbox__barra {
+  padding-top: calc(env(titlebar-area-height, 40px) + var(--sp-2));
+  padding-right: calc(var(--sp-4) + var(--titlebar-controls, 0px));
+}
+.is-desktop .lightbox ~ .win-drag,
+.is-desktop:has(.lightbox) .win-drag {
+  display: none;
+}
+
 .lightbox__nome {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);

@@ -1767,6 +1767,9 @@ button.person__main:focus-visible {
   background: var(--cor);
   animation: captionCursor 1s steps(2) infinite;
 }
+.caption__prov {
+  color: rgb(255 255 255 / 0.6);
+}
 .caption.is-ouvindo .caption__text {
   color: rgb(255 255 255 / 0.55);
 }

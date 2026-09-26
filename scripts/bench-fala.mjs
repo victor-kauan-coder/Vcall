@@ -83,9 +83,17 @@ async function prepararFrases() {
         texto: readFileSync(path.join(dir, a.replace(/\.wav$/, ".txt")), "utf8").trim(),
       }));
   }
-  const r = await fetch(`${HF}/api/datasets/falabrasil/lapsbm/tree/main?recursive=true`);
-  if (!r.ok) throw new Error(`LapsBM: ${r.status}`);
-  const lista = (await r.json()).map((x) => x.path);
+  // A API lista uma pasta por vez: primeiro os falantes, depois os arquivos.
+  const listar = async (pasta) => {
+    const r = await fetch(`${HF}/api/datasets/falabrasil/lapsbm/tree/main/${pasta}`);
+    if (!r.ok) throw new Error(`LapsBM (${pasta}): ${r.status}`);
+    return r.json();
+  };
+  const falantes = (await listar("data/test")).filter((x) => x.type === "directory").map((x) => x.path);
+  const lista = [];
+  for (const f of falantes.slice(0, Math.max(6, Math.ceil(N_FRASES / 4)))) {
+    for (const x of await listar(f)) lista.push(x.path);
+  }
   const wavs = lista.filter((p) => /\.wav$/i.test(p)).sort();
   const txts = new Set(lista.filter((p) => /\.txt$/i.test(p)));
   const pares = wavs.map((w) => [w, w.replace(/\.wav$/i, ".txt")]).filter(([, t]) => txts.has(t));

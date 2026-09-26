@@ -169,6 +169,31 @@ try {
   await espera(300);
   check("visualizador: o X fecha", !(await win.evaluate(() => !!document.querySelector(".lightbox"))));
 
+  /* -- modo jogo: sobreposição transparente com quem está na chamada -- */
+  const antes = app.windows().length;
+  await win.evaluate(() => localStorage.setItem("vcall:modo-jogo:canto", JSON.stringify("tr")));
+  await win.evaluate(() => window.vcall.setModoJogo(true, { avisar: false }));
+  const atalhos = await win.evaluate(() => window.vcallDesktop.modoJogo(true, "tr"));
+  let sobre = null;
+  for (let i = 0; i < 20 && !sobre; i++) {
+    await espera(250);
+    sobre = app.windows().find((w) => w.url().endsWith("/sobreposicao.html")) || null;
+  }
+  check("modo jogo abre a sobreposição por cima dos jogos", !!sobre && app.windows().length > antes);
+  check("modo jogo registra os atalhos globais (ou avisa que não deu)", atalhos && typeof atalhos.mic === "boolean", JSON.stringify(atalhos));
+  if (sobre) {
+    const nomes = await sobre
+      .waitForFunction(() => document.querySelectorAll(".p").length >= 2, null, { timeout: 5000 })
+      .then(() => sobre.evaluate(() => [...document.querySelectorAll(".p .nome")].map((n) => n.textContent)))
+      .catch(() => []);
+    check("a sobreposição lista quem está na chamada", nomes.length >= 2, nomes.join(", "));
+    const canto = await sobre.evaluate(() => document.body.dataset.canto);
+    check("a sobreposição fica no canto escolhido", canto === "tr", canto);
+  }
+  await win.evaluate(() => window.vcall.setModoJogo?.(false, { avisar: false }));
+  await espera(600);
+  check("desligar o modo jogo fecha a sobreposição", !app.windows().some((w) => w.url().endsWith("/sobreposicao.html")));
+
   check("nenhum erro de JavaScript no app", erros.length === 0, erros.slice(0, 2).join(" | "));
 } catch (err) {
   check("execução sem exceção", false, err?.message || String(err));

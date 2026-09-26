@@ -34,6 +34,7 @@ microfone. A câmera e o microfone podem começar desligados.
 | Pessoas | Lista, fila de mãos, moderação | `P` |
 | Grade | Alterna destaque/grade | `L` |
 | Mini-janela | Janela pequena sempre por cima | `J` |
+| Foco na voz | Apaga quem está calado, acende quem fala ([Jogos e voz](Jogos-e-voz)) | `G` |
 
 `?` mostra todos os atalhos. Com uma janela de diálogo aberta, as teclas são
 dela — `Esc` fecha.

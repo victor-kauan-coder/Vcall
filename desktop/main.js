@@ -17,7 +17,7 @@
  * preferências por ORIGEM, e a origem inclui a porta: com porta sorteada a
  * cada abertura, a pessoa perderia tudo toda vez que abrisse o app.
  */
-import { app, BrowserWindow, Menu, dialog, desktopCapturer, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
+import { app, BrowserWindow, Menu, dialog, desktopCapturer, globalShortcut, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
@@ -256,6 +256,8 @@ function criarJanela() {
 
   win.on("closed", () => {
     win = null;
+    fecharSobreposicao();
+    globalShortcut.unregisterAll();
   });
 
   /*
@@ -327,6 +329,115 @@ ipcMain.handle("vcall:mini", (_e, ligar) => {
     focar();
   }
   return true;
+});
+
+/* ==================================================================== *
+ * Modo jogo: sobreposição + atalhos globais
+ * ==================================================================== */
+
+/*
+ * Como o overlay do Discord: uma janelinha transparente, sempre por cima de
+ * tudo (inclusive do jogo em modo janela/sem bordas), que não rouba o foco e
+ * deixa os cliques passarem. Mostra quem está na chamada apagadinho e acende
+ * quem está falando. Ela só desenha: o estado vem da janela da chamada.
+ *
+ * Os atalhos globais funcionam com o jogo em foco — o que um atalho de
+ * página nunca faria. Só existem enquanto o modo jogo está ligado, para não
+ * roubar Ctrl+Shift+M/O de outros programas o tempo todo.
+ */
+let sobreposicao = null;
+let cantoSobreposicao = "tl";
+const ATALHO_MIC = "CommandOrControl+Shift+M";
+const ATALHO_SOBREPOSICAO = "CommandOrControl+Shift+O";
+
+function posicaoSobreposicao(canto, w, h) {
+  const { workArea: a } = screen.getPrimaryDisplay();
+  const m = 16;
+  const x = canto.endsWith("r") ? a.x + a.width - w - m : a.x + m;
+  const y = canto.startsWith("b") ? a.y + a.height - h - m : a.y + m;
+  return { x, y };
+}
+
+function abrirSobreposicao(canto = cantoSobreposicao) {
+  cantoSobreposicao = canto;
+  const w = 260;
+  const h = 460;
+  if (sobreposicao && !sobreposicao.isDestroyed()) {
+    sobreposicao.setBounds({ ...posicaoSobreposicao(canto, w, h), width: w, height: h });
+    sobreposicao.webContents.send("vcall:canto", canto);
+    return;
+  }
+  sobreposicao = new BrowserWindow({
+    width: w,
+    height: h,
+    ...posicaoSobreposicao(canto, w, h),
+    transparent: true,
+    backgroundColor: "#00000000",
+    frame: false,
+    resizable: false,
+    movable: false,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    title: "Vcall — sobreposição",
+    webPreferences: {
+      preload: path.join(__dirname, "preload-sobreposicao.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+      backgroundThrottling: false,
+    },
+  });
+  sobreposicao.setAlwaysOnTop(true, "screen-saver");
+  sobreposicao.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  sobreposicao.setIgnoreMouseEvents(true);
+  sobreposicao.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  sobreposicao.webContents.on("will-navigate", (e) => e.preventDefault());
+  sobreposicao.once("ready-to-show", () => {
+    sobreposicao?.showInactive();
+    sobreposicao?.webContents.send("vcall:canto", canto);
+  });
+  sobreposicao.on("closed", () => (sobreposicao = null));
+  sobreposicao.loadURL(`${baseUrl}/sobreposicao.html`);
+}
+
+function fecharSobreposicao() {
+  if (sobreposicao && !sobreposicao.isDestroyed()) sobreposicao.close();
+  sobreposicao = null;
+}
+
+function ligarAtalhosGlobais(ligar) {
+  globalShortcut.unregister(ATALHO_MIC);
+  globalShortcut.unregister(ATALHO_SOBREPOSICAO);
+  if (!ligar) return { mic: false, sobreposicao: false };
+  const mic = globalShortcut.register(ATALHO_MIC, () => win?.webContents.send("vcall:atalho", "mic"));
+  const sob = globalShortcut.register(ATALHO_SOBREPOSICAO, () => {
+    if (sobreposicao && !sobreposicao.isDestroyed()) {
+      if (sobreposicao.isVisible()) sobreposicao.hide();
+      else sobreposicao.showInactive();
+    } else {
+      abrirSobreposicao();
+    }
+  });
+  return { mic, sobreposicao: sob };
+}
+
+ipcMain.handle("vcall:modo-jogo", (e, pedido) => {
+  if (!win || e.sender !== win.webContents) return null;
+  const ligar = !!pedido?.ligar;
+  const canto = ["tl", "tr", "bl", "br"].includes(pedido?.canto) ? pedido.canto : "tl";
+  if (ligar) abrirSobreposicao(canto);
+  else fecharSobreposicao();
+  return ligarAtalhosGlobais(ligar);
+});
+
+// Estado da chamada para a sobreposição desenhar. Só a janela da chamada
+// fala por este canal, e só a sobreposição recebe.
+ipcMain.on("vcall:sobreposicao-estado", (e, estado) => {
+  if (!win || e.sender !== win.webContents) return;
+  if (sobreposicao && !sobreposicao.isDestroyed()) sobreposicao.webContents.send("vcall:estado", estado);
 });
 
 ipcMain.handle("vcall:info", () => ({
@@ -542,5 +653,6 @@ if (!app.requestSingleInstanceLock()) {
 
   // O túnel é a parte exposta à internet: cai junto com o app, sempre.
   app.on("before-quit", () => tunnel?.stop());
+  app.on("will-quit", () => globalShortcut.unregisterAll());
   process.on("exit", () => tunnel?.stop());
 }

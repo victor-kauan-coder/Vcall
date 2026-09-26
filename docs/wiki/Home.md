@@ -22,6 +22,7 @@ em qualquer distribuição Linux e no navegador.
 | Mostrar uma janela ou a tela inteira | [Compartilhar a tela](Compartilhar-a-tela) |
 | Desenhar junto e mandar arquivos | [Canvas e arquivos](Canvas-e-arquivos) |
 | Ligar legendas da minha fala | [Legendas](Legendas) |
+| Jogar junto: foco na voz, volume, sobreposição | [Jogos e voz](Jogos-e-voz) |
 | Silenciar, remover, trancar a sala | [Moderação e sala de espera](Moderacao-e-sala-de-espera) |
 | Algo não funciona | [Solução de problemas](Solucao-de-problemas) |
 | Entender o que é privado | [Segurança e privacidade](Seguranca-e-privacidade) |
@@ -43,6 +44,7 @@ em qualquer distribuição Linux e no navegador.
   computador, sem enviar áudio a ninguém.
 - **Moderação de verdade**: silenciar, desligar câmera, remover, trancar a
   sala e **sala de espera** com aprovação do anfitrião.
+- **Foco na voz** estilo Discord (quem fala acende, quem está calado apaga), **rampa de volume** por pessoa e **modo jogo** com sobreposição e atalhos globais.
 - **Convite clicável no WhatsApp** que abre direto no aplicativo.
 - **Aplicativo para Windows e Linux** (AppImage, .deb, .rpm, pacman, .tar.gz)
   e funcionamento completo no navegador.

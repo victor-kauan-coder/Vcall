@@ -43,6 +43,19 @@ contextBridge.exposeInMainWorld("vcallDesktop", {
       ipcRenderer.removeListener("vcall:fala-progresso", ouvir);
     }
   },
+  /**
+   * Modo jogo: sobreposição transparente por cima dos outros programas e
+   * atalhos globais (Ctrl+Shift+M microfone, Ctrl+Shift+O sobreposição).
+   */
+  modoJogo: (ligar, canto = "tl") => ipcRenderer.invoke("vcall:modo-jogo", { ligar: !!ligar, canto: String(canto) }),
+  /** Manda à sobreposição quem está na chamada e quem está falando. */
+  estadoSobreposicao: (estado) => ipcRenderer.send("vcall:sobreposicao-estado", estado),
+  /** Atalhos globais chegando do sistema ("mic"). */
+  aoAtalho: (fn) => {
+    const ouvir = (_e, acao) => fn(String(acao));
+    ipcRenderer.on("vcall:atalho", ouvir);
+    return () => ipcRenderer.removeListener("vcall:atalho", ouvir);
+  },
   /** Apaga o modelo de fala guardado (corrompido): a próxima vez baixa de novo. */
   descartarFala: (lang) => ipcRenderer.invoke("vcall:fala-descartar", String(lang || "pt-BR")),
   /** Diz qual fonte a próxima captura deve usar, e se leva o som do sistema. */

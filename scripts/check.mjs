@@ -98,7 +98,7 @@ for (const file of cssFiles) {
   }
 }
 // Variáveis definidas em linha pelo JS (via style) não precisam estar no CSS.
-const inlineDefined = new Set(["--swatch", "--dot", "--laser-color", "--level", "--cols", "--lv", "--tx", "--ty", "--mx", "--my", "--spin"]);
+const inlineDefined = new Set(["--swatch", "--dot", "--laser-color", "--level", "--cols", "--lv", "--tx", "--ty", "--mx", "--my", "--spin", "--acesas", "--i"]);
 
 for (const [name, where] of referenced) {
   if (!defined.has(name) && !inlineDefined.has(name)) fail(`variável CSS indefinida: ${name} (${where})`);

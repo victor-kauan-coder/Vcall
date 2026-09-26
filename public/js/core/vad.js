@@ -93,6 +93,13 @@ export class VoiceActivity extends Emitter {
     this.#sources.delete(id);
     this.levels.delete(id);
     if (this.#activeId === id) this.#activeId = null;
+    /*
+     * Parar de acompanhar quem estava falando precisa avisar que parou. Mutar
+     * ou trocar de microfone reinicia o acompanhamento; a entrada nova nasce
+     * "calada" e nunca mais emitia a transição — o quadro ficava aceso para
+     * sempre (para você e para os outros), mesmo no mudo.
+     */
+    if (entry.speaking) this.emit("speaking", { id, speaking: false, level: 0 });
   }
 
   stop() {

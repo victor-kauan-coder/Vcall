@@ -9,6 +9,7 @@
 - [Compartilhar a tela](Compartilhar-a-tela)
 - [Canvas e arquivos](Canvas-e-arquivos)
 - [Legendas](Legendas)
+- [Jogos e voz](Jogos-e-voz)
 - [Moderação e sala de espera](Moderacao-e-sala-de-espera)
 
 **Ajuda**

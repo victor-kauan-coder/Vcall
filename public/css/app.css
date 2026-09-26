@@ -1325,50 +1325,108 @@ button.person__main:focus-visible {
   color: var(--danger);
 }
 
+/*
+ * Volume com a cara do Vcall: uma rampa de dez barras que sobem da esquerda
+ * para a direita (o mesmo desenho do equalizador de voz), pintadas no degradê
+ * rosa→laranja da logo até o volume atual. A 7ª barra é o 100%; da 8ª em
+ * diante é ganho, e elas acendem em laranja quente com brilho.
+ *
+ * O <input type=range> continua ali, transparente, por cima da rampa: é ele
+ * que recebe o arrasto, as setas do teclado e o leitor de tela.
+ */
+.vol__trilho {
+  position: relative;
+  display: block;
+  width: 92px;
+  height: 22px;
+  flex: none;
+}
+.vol__rampa {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  pointer-events: none;
+}
+.vol__rampa > i {
+  /* 1 se esta barra está dentro do volume atual, 0 se não. */
+  --acesa: clamp(0, calc(var(--acesas, 7) - var(--i)), 1);
+  flex: 1;
+  height: calc(28% + var(--i) * 8%);
+  border-radius: 2px;
+  /* O degradê da marca atravessa a rampa inteira: cada barra pega o seu
+     trecho de cor — rosa no começo, laranja no fim. */
+  background: linear-gradient(90deg, #fd4d87, #fe9c5f) calc(var(--i) * 11.1%) 0 / 1000% 100%;
+  opacity: calc(0.22 + var(--acesa) * 0.78);
+  filter: saturate(var(--acesa));
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    filter var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.vol:hover .vol__rampa > i {
+  transform: scaleY(1.08);
+  transform-origin: bottom;
+}
+/* Ganho: as barras depois do 100% brilham. */
+.vol.is-boost .vol__rampa > i:nth-child(n + 8) {
+  box-shadow: 0 0 calc(var(--acesa) * 9px) -1px #fe9c5f;
+}
+.vol__btn.is-muted ~ .vol__trilho .vol__rampa > i {
+  opacity: 0.2;
+  filter: saturate(0);
+}
+
 .vol__slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 78px;
-  height: 4px;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.28);
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
   outline: none;
-  flex: none;
   cursor: pointer;
+  opacity: 0;
 }
-
+.vol__slider:focus-visible {
+  opacity: 1;
+}
+.vol__slider::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
 .vol__slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
   background: #fff;
   border: none;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.vol__slider::-moz-range-track {
+  background: transparent;
 }
 .vol__slider::-moz-range-thumb {
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
+  width: 4px;
+  height: 22px;
+  border-radius: 2px;
   background: #fff;
   border: none;
-  cursor: pointer;
 }
-
-/* Acima de 100% é ganho, não volume normal — o âmbar avisa disso. */
-.vol[data-level="105"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="110"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="115"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="120"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="125"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="130"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="135"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="140"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="145"] .vol__slider::-webkit-slider-thumb,
-.vol[data-level="150"] .vol__slider::-webkit-slider-thumb {
-  background: var(--warn);
+.vol__pct {
+  min-width: 3.4ch;
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+  color: #fff;
+  opacity: 0.85;
+}
+.vol.is-boost .vol__pct {
+  color: #fe9c5f;
 }
 
 /* Na faixa lateral do modo destaque não há espaço para o controle. */
@@ -1442,11 +1500,44 @@ button.person__main:focus-visible {
   border-radius: inherit;
   pointer-events: none;
   z-index: var(--z-tile-overlay);
-  box-shadow:
-    0 0 0 1px var(--accent),
-    0 0 18px -4px var(--accent);
-  opacity: calc(0.35 + var(--lv, 0) * 0.65);
+  /* O anel da marca: o degradê da logo, girando na velocidade da voz
+     (`--spin` vem do JS). A máscara deixa só a borda de 2px. */
+  padding: 2px;
+  background: conic-gradient(from var(--spin, 0deg), #fd4d87, #fe9c5f, #fd4d87 60%, #fe9c5f, #fd4d87);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: calc(0.45 + var(--lv, 0) * 0.55);
   transition: opacity 120ms linear;
+}
+
+/* ------------------------------------------------------------------ *
+ * Foco na voz (Configurações → "Apagar quem está calado", tecla G)
+ *
+ * Como o overlay do Discord: quem está calado fica apagadinho, sem cor; quem
+ * fala acende. Bom para jogar junto e para salas cheias — o olho acha na hora
+ * de quem é a voz. Só `filter` e `opacity`, que a placa de vídeo anima.
+ * ------------------------------------------------------------------ */
+.stage--foco .tile {
+  transition:
+    opacity 260ms var(--ease-out),
+    filter 260ms var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+.stage--foco .tile:not(.is-speaking):not(.tile--screen) {
+  opacity: 0.42;
+  filter: saturate(0.25) brightness(0.8);
+}
+.stage--foco .tile.is-speaking {
+  opacity: 1;
+  filter: none;
+}
+.stage--foco .tile:not(.is-speaking):hover,
+.stage--foco .tile:not(.is-speaking):focus-within {
+  opacity: 1;
+  filter: none;
 }
 
 /* O rótulo continua escuro e legível; só a tinta do nome esquenta. */

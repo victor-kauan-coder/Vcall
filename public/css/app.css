@@ -935,10 +935,19 @@ button.person__main:focus-visible {
   height: 13px;
   color: var(--accent-2);
 }
+/* Com os controles do anfitrião, a linha quebra: nome e estado em cima,
+   controles embaixo, alinhados com o nome. Antes tudo disputava a mesma
+   linha e os nomes viravam "A.." e "B..". */
+.person:has(.person__acoes) {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
 .person__acoes {
   display: flex;
   gap: 2px;
-  opacity: 0.55;
+  flex-basis: 100%;
+  padding-left: calc(36px + var(--sp-3));
+  opacity: 0.6;
   transition: opacity var(--dur-fast) var(--ease-out);
 }
 .person:hover .person__acoes,

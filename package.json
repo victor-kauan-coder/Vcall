@@ -9,8 +9,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "vendor": "node scripts/vendor.mjs",
-    "check": "node --check server.js && node scripts/features-test.mjs && node scripts/host-test.mjs && node scripts/security-test.mjs && node scripts/check.mjs",
-    "test": "node scripts/check.mjs && node scripts/e2e.mjs && node scripts/proxy-test.mjs",
+    "check": "node --check server.js && node scripts/features-test.mjs && node scripts/host-test.mjs && node scripts/security-test.mjs && node scripts/fixes-test.mjs && node scripts/check.mjs",
+    "test": "node scripts/check.mjs && node scripts/fixes-test.mjs && node scripts/e2e.mjs && node scripts/ui-test.mjs && node scripts/proxy-test.mjs",
     "doctor": "node scripts/doctor.mjs",
     "desktop": "electron desktop/main.js",
     "desktop:dev": "NODE_ENV=development electron desktop/main.js",
@@ -21,7 +21,11 @@
     "icons": "node scripts/icons.mjs",
     "build:exe": "node scripts/build-exe.mjs",
     "build:exe:linux": "node scripts/build-exe.mjs --linux",
-    "build:setup": "node scripts/build-exe.mjs && node scripts/build-installer.mjs"
+    "build:setup": "node scripts/build-exe.mjs && node scripts/build-installer.mjs",
+    "test:fixes": "node scripts/fixes-test.mjs",
+    "test:ui": "node scripts/ui-test.mjs",
+    "test:e2e": "node scripts/e2e.mjs",
+    "test:desktop": "node scripts/desktop-test.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

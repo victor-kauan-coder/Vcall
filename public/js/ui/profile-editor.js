@@ -76,6 +76,12 @@ export function profileSection({ profile, onChange }) {
   }
 
   function desenharGrade() {
+    // Redesenhar a grade apagaria o botão com foco e o foco cairia no fim da
+    // página — quem usa teclado se perdia. Ele volta para a opção escolhida.
+    const tinhaFoco = grade.contains(document.activeElement);
+    queueMicrotask(() => {
+      if (tinhaFoco) grade.querySelector('[aria-checked="true"]')?.focus();
+    });
     clear(grade);
     const usandoFoto = isPhoto(avatar);
     if (usandoFoto) {

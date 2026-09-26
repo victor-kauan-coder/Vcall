@@ -56,6 +56,22 @@ contextBridge.exposeInMainWorld("vcallDesktop", {
     ipcRenderer.on("vcall:atalho", ouvir);
     return () => ipcRenderer.removeListener("vcall:atalho", ouvir);
   },
+  /**
+   * Legendas com Whisper: garante o modelo do tamanho pedido ("rapida",
+   * "equilibrada", "maxima") e devolve onde ele está. `aoProgresso` de 0 a 1.
+   */
+  prepararWhisper: async (nivel, aoProgresso) => {
+    const ouvir = (_e, m) => {
+      if (m?.whisper) aoProgresso?.(m.p);
+    };
+    ipcRenderer.on("vcall:fala-progresso", ouvir);
+    try {
+      return await ipcRenderer.invoke("vcall:whisper-preparar", String(nivel || ""));
+    } finally {
+      ipcRenderer.removeListener("vcall:fala-progresso", ouvir);
+    }
+  },
+  descartarWhisper: (nivel) => ipcRenderer.invoke("vcall:whisper-descartar", String(nivel || "")),
   /** Apaga o modelo de fala guardado (corrompido): a próxima vez baixa de novo. */
   descartarFala: (lang) => ipcRenderer.invoke("vcall:fala-descartar", String(lang || "pt-BR")),
   /** Diz qual fonte a próxima captura deve usar, e se leva o som do sistema. */

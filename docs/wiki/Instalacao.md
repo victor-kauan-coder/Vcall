@@ -18,7 +18,7 @@ Cada Release traz também um `SHA256SUMS.txt` para conferir o download.
 
 ## Windows 10 e 11
 
-1. Baixe **`VcallSetup-3.2.0.exe`**.
+1. Baixe **`VcallSetup-3.3.0.exe`**.
 2. Execute. Se o Windows SmartScreen avisar "aplicativo não reconhecido",
    clique em **Mais informações → Executar assim mesmo** (o instalador ainda
    não tem assinatura digital paga).
@@ -38,27 +38,27 @@ qualquer uma.
 ### Fedora, openSUSE, RHEL, Rocky, Alma — `.rpm`
 
 ```bash
-sudo dnf install ./Vcall-3.2.0-x86_64.rpm        # Fedora, RHEL, Rocky, Alma
-sudo zypper install ./Vcall-3.2.0-x86_64.rpm     # openSUSE
+sudo dnf install ./Vcall-3.3.0-x86_64.rpm        # Fedora, RHEL, Rocky, Alma
+sudo zypper install ./Vcall-3.3.0-x86_64.rpm     # openSUSE
 ```
 
 ### Arch, Manjaro, EndeavourOS, CachyOS — `pacman`
 
 ```bash
-sudo pacman -U ./Vcall-3.2.0-x64.pacman
+sudo pacman -U ./Vcall-3.3.0-x64.pacman
 ```
 
 ### Ubuntu, Debian, Mint, Pop!_OS, elementary — `.deb`
 
 ```bash
-sudo apt install ./Vcall-3.2.0-amd64.deb
+sudo apt install ./Vcall-3.3.0-amd64.deb
 ```
 
 ### Qualquer distribuição — AppImage
 
 ```bash
-chmod +x Vcall-3.2.0-x86_64.AppImage
-./Vcall-3.2.0-x86_64.AppImage
+chmod +x Vcall-3.3.0-x86_64.AppImage
+./Vcall-3.3.0-x86_64.AppImage
 ```
 
 Na primeira execução o AppImage se registra no menu do usuário e passa a
@@ -70,8 +70,8 @@ exemplo), o Vcall detecta isso sozinho e abre mesmo assim — veja
 ### Qualquer distribuição — `.tar.gz`
 
 ```bash
-tar xzf Vcall-3.2.0-x64.tar.gz
-cd Vcall-3.2.0-x64 && ./vcall
+tar xzf Vcall-3.3.0-x64.tar.gz
+cd Vcall-3.3.0-x64 && ./vcall
 ```
 
 ### Compartilhar tela no Wayland (GNOME, KDE Plasma, Sway, Hyprland)

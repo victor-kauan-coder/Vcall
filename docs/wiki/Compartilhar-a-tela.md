@@ -30,6 +30,24 @@ aparecer, veja [Instalação → Wayland](Instalacao#compartilhar-tela-no-waylan
 O navegador mostra a lista dele (é uma regra de segurança: nenhum site pode
 ver suas janelas sem você escolher). O Vcall já abre essa lista na aba certa.
 
+## Trocar o que está sendo mostrado, sem parar
+
+Compartilhando uma janela e quer mostrar outra (ou a tela inteira)? Clique em
+**Trocar** (ícone de setas) no seu ladrilho de tela, ou em **⋯ → Opções de
+compartilhamento → Trocar o que estou mostrando…**. Escolha a nova janela, a
+tela, o som, a prioridade e a resolução, e clique em **Trocar agora**. A
+transmissão **não é interrompida**: quem está assistindo continua no mesmo
+ladrilho e passa a ver a nova escolha. A prioridade (nitidez ou fluidez) e a
+resolução também mudam na hora, pelo menu da seta ao lado do botão de tela.
+
+## Tela parada não cai mais
+
+A captura de tela (principalmente no Linux) só envia imagem quando algo muda
+na tela. Com um slide parado, nenhum dado saía, e do outro lado a tela
+**sumia e voltava** sem parar. Desde a 3.3 o Vcall repete a última imagem
+enquanto a tela estiver parada: a transmissão fica estável e quem entra no
+meio já vê a tela na hora.
+
 ## Prioridade da imagem
 
 | Opção | Use para | O que acontece quando a rede aperta |

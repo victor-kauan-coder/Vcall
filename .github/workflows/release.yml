@@ -35,6 +35,8 @@ jobs:
       - name: Ferramentas dos pacotes (.rpm e pacman)
         run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools
       - run: npm ci --include=dev
+      - name: Motor das legendas (Whisper) para dentro do app
+        run: npm run vendor
       - name: AppImage, .deb, .rpm, pacman e .tar.gz
         run: npx electron-builder --config electron-builder.yml --linux --publish never
       - uses: actions/upload-artifact@v4
@@ -57,6 +59,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --include=dev
+      - name: Motor das legendas (Whisper) para dentro do app
+        run: npm run vendor
       - name: cloudflared (vai junto do Vcall.exe para o link público)
         shell: pwsh
         run: |

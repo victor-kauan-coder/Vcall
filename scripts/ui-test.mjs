@@ -395,6 +395,138 @@ try {
   }
 
   /* ================================================================ *
+   * 5c. Tela parada, troca de fonte e economia de banda
+   * ================================================================ */
+  console.log("\nTransmissão estável");
+  {
+    const sala = novaSala("estavel");
+    // Captura "estilo Linux": um quadro quando começa e nada mais enquanto a
+    // tela não muda. Era isso que fazia a tela "cair e voltar" do outro lado.
+    const telaParada = () => {
+      navigator.mediaDevices.getDisplayMedia = async () => {
+        const c = document.createElement("canvas");
+        c.width = window.__largura || 1280;
+        c.height = 720;
+        const g = c.getContext("2d");
+        g.fillStyle = window.__cor || "#3355ff";
+        g.fillRect(0, 0, c.width, c.height);
+        const s = c.captureStream(0);
+        const t = s.getVideoTracks()[0];
+        setTimeout(() => t.requestFrame(), 300);
+        return s;
+      };
+    };
+    const contar = () => {
+      window.__tela = { entrou: 0, saiu: 0 };
+      const ligar = () =>
+        new MutationObserver((ms) => {
+          for (const m of ms) {
+            for (const n of m.addedNodes) if (n.dataset?.kind === "screen") window.__tela.entrou++;
+            for (const n of m.removedNodes) if (n.dataset?.kind === "screen") window.__tela.saiu++;
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+      if (document.body) ligar();
+      else document.addEventListener("DOMContentLoaded", ligar);
+    };
+    const a = await participante("Linux", sala, { antes: telaParada });
+    await noDock(a);
+    const b = await participante("Eu", sala, { antes: contar });
+    await noDock(b);
+    await conectados(b, 1);
+    await a.evaluate(() => window.vcall.screen.start({ withAudio: false }));
+    await espera(12_000);
+    const r = await b.evaluate(() => {
+      const v = document.querySelector('.tile[data-kind="screen"] video');
+      return { ...window.__tela, largura: v?.videoWidth || 0 };
+    });
+    check("tela parada por 12 s continua no ar (antes sumia e voltava)", r.entrou === 1 && r.saiu === 0, JSON.stringify(r));
+    check("a imagem da tela parada chega (quadros repetidos mantêm o fluxo)", r.largura === 1280, `${r.largura}px`);
+
+    await a.evaluate(() => {
+      window.__largura = 960;
+      window.__cor = "#ff5533";
+      return window.vcall.screen.switchSource({ withAudio: false });
+    });
+    const trocou = await b
+      .waitForFunction(() => document.querySelector('.tile[data-kind="screen"] video')?.videoWidth === 960, null, { timeout: 12_000 })
+      .then(() => true)
+      .catch(() => false);
+    const r2 = await b.evaluate(() => window.__tela);
+    check("trocar o que é mostrado não interrompe a transmissão", trocou && r2.saiu === 0 && (await a.evaluate(() => window.vcall.screen.active)), JSON.stringify(r2));
+
+    // Economia: a janela do Eu fica escondida — o Linux para de mandar câmera.
+    await b.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    const pausou = await a
+      .waitForFunction(() => [...window.vcall.mesh.peers.values()].every((p) => p.camPausada), null, { timeout: 12_000 })
+      .then(() => true)
+      .catch(() => false);
+    const parametro = await a.evaluate(() => [...window.vcall.mesh.peers.values()][0].tx.cam.sender.getParameters().encodings[0].active);
+    check("janela escondida: os outros param de mandar câmera (economia de banda)", pausou && parametro === false);
+    await b.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    const voltou = await a
+      .waitForFunction(() => [...window.vcall.mesh.peers.values()].every((p) => !p.camPausada), null, { timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    check("voltou a olhar: a câmera volta na hora", voltou);
+    await a.context().close();
+    await b.context().close();
+  }
+
+  /* ================================================================ *
+   * 5d. Readmitir quem foi removido
+   * ================================================================ */
+  console.log("\nReadmitir");
+  {
+    const sala = novaSala("readmitir");
+    const a = await participante("Anfitriã", sala);
+    await noDock(a);
+    const ctxB = await browser.newContext({ permissions: ["camera", "microphone"] });
+    const b = await ctxB.newPage();
+    b.on("pageerror", (e) => errosJs.push(`[Bia] ${e.message}`));
+    await b.goto(`${BASE}/#${sala}`, { waitUntil: "networkidle" });
+    await b.fill("#nameInput", "Bia");
+    await b.click("#joinBtn");
+    await noDock(b);
+    await conectados(a, 1);
+    await a.click('[aria-label="Pessoas"]');
+    await a.click('[aria-label="Remover da sala: Bia"]');
+    await a.click(".modal .btn--danger");
+    await b.waitForSelector(".leave", { timeout: 10_000 });
+    const lista = await a
+      .waitForSelector('.people__removidos [aria-label="Deixar Bia voltar"]', { timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    check("o anfitrião vê quem removeu, na lista de Pessoas", lista);
+    // Antes de liberar, a volta é recusada.
+    const tentar = async () => {
+      await b.click(".leave .btn--primary");
+      await b.waitForSelector("#joinBtn", { timeout: 10_000 });
+      await espera(600);
+      await b.click("#joinBtn");
+    };
+    await tentar();
+    await b.waitForSelector(".leave", { timeout: 10_000 });
+    const barrada = await b.evaluate(() => /removido/i.test(document.querySelector(".leave__title")?.textContent || ""));
+    check("sem liberação, quem foi removido não volta", barrada);
+    await a.click('[aria-label="Deixar Bia voltar"]');
+    await espera(800);
+    await tentar();
+    const entrou = await b
+      .waitForSelector("#dock:not([hidden])", { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    check("'Deixar voltar' + 'Tentar entrar de novo': a pessoa volta para a sala", entrou);
+    await a.context().close();
+    await ctxB.close();
+  }
+
+  /* ================================================================ *
    * 6. Legendas (Web Speech simulado)
    * ================================================================ */
   console.log("\nLegendas da própria fala");
@@ -434,6 +566,17 @@ try {
     await espera(100);
     const transcrito = await a.evaluate(() => window.vcall.captions.transcript.map((t) => t.text));
     check("frase em andamento não se perde quando o reconhecedor reinicia", transcrito.includes("bom dia a todos"), JSON.stringify(transcrito));
+    await a.evaluate(() => document.querySelector('[aria-label="Mais opções"]')?.click());
+    await espera(300);
+    await a.getByText("Transcrição ao vivo").click();
+    await espera(400);
+    const naAba = await a.evaluate(() => [...document.querySelectorAll(".transcricao__texto")].map((x) => x.textContent));
+    check("a aba Transcrição mostra o que foi dito, ao vivo", naAba.some((t) => t.includes("bom dia a todos")), JSON.stringify(naAba));
+    await a.fill(".transcricao__busca", "dia");
+    await espera(200);
+    const marcado = await a.evaluate(() => document.querySelector(".transcricao__texto mark")?.textContent);
+    check("a busca na transcrição destaca o termo", marcado === "dia", marcado || "");
+    await a.fill(".transcricao__busca", "");
     await espera(400);
     const inicios = await a.evaluate(() => window.__srStarts);
     await a.click('[aria-label="Microfone ligado"]');

@@ -53,6 +53,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb openbox
       - name: Dependências (baixa o Electron)
         run: npm ci --include=dev
+      - name: Motor das legendas (Whisper)
+        run: npm run vendor
       - name: Chromium para o segundo participante
         run: npx playwright install --with-deps chromium
       - name: App de mesa (Electron)

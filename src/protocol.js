@@ -53,6 +53,8 @@ export const S2C = Object.freeze({
   /** (Para o anfitrião) alguém bateu à porta / desistiu de esperar. */
   KNOCK: "knock",
   KNOCK_GONE: "knock-gone",
+  /** Para o anfitrião: quem foi removido e pode ser readmitido. */
+  BANNED: "banned",
   ERROR: "error",
   PONG: "pong",
 });
@@ -85,9 +87,10 @@ export const MOD_ACTIONS = new Set([
   "lower-hand",
   "admit",
   "deny",
+  "unban",
 ]);
 /** As que miram uma pessoa específica. */
-const MOD_TARGETED = new Set(["mute", "cam-off", "kick", "lower-hand", "admit", "deny"]);
+const MOD_TARGETED = new Set(["mute", "cam-off", "kick", "lower-hand", "admit", "deny", "unban"]);
 
 /** IDs de sala são segredos de 22+ caracteres gerados no cliente. */
 const ROOM_RE = /^[A-Za-z0-9_-]{16,64}$/;

@@ -63,7 +63,11 @@ class Tile {
     this.label = el("figcaption.tile__label", {}, [this.micIcon, this.nameEl]);
 
     this.actions = el("div.tile__actions");
-    this.node.append(this.video, this.avatarBox, this.netBox, this.label, this.actions);
+    this.espera = el("div.tile__espera", { "aria-hidden": "true" }, [
+      el("span.tile__espera-anel"),
+      el("span", { text: kind === "screen" ? "Carregando a tela…" : "Carregando o vídeo…" }),
+    ]);
+    this.node.append(this.video, this.avatarBox, this.espera, this.netBox, this.label, this.actions);
 
     this.setCamera(null);
   }
@@ -158,12 +162,23 @@ class Tile {
   /** Liga o <video> a um stream. */
   setStream(stream) {
     if (!stream) {
+      this.node.classList.remove("is-waiting");
       this.video.srcObject = null;
       this.video.hidden = true;
       this.avatarBox.hidden = false;
       return;
     }
-    if (this.video.srcObject !== stream) this.video.srcObject = stream;
+    if (this.video.srcObject !== stream) {
+      this.video.srcObject = stream;
+      // Até o primeiro quadro, o ladrilho diz que está carregando em vez de
+      // mostrar um retângulo preto que parece defeito.
+      if (this.video.readyState < 2) {
+        this.node.classList.add("is-waiting");
+        const pronto = () => this.node.classList.remove("is-waiting");
+        this.video.addEventListener("loadeddata", pronto, { once: true });
+        this.video.addEventListener("resize", pronto, { once: true });
+      }
+    }
     this.video.hidden = false;
     this.avatarBox.hidden = true;
     // Autoplay pode ser recusado; o catch evita uma promessa rejeitada solta.

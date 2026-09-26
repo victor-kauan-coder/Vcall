@@ -63,6 +63,8 @@ export class Mesh extends Emitter {
   handAt = new Map();
   /** Sala de espera, para o anfitrião: id -> { id, name, avatar }. */
   knocks = new Map();
+  /** (Anfitrião) quem foi removido e pode ser readmitido. */
+  banned = [];
 
   get isHost() {
     return this.hostId === this.selfId;
@@ -193,6 +195,10 @@ export class Mesh extends Emitter {
       this.knocks.delete(m.id);
       this.emit("knock-gone", m);
     });
+    sig.on("banned", (m) => {
+      this.banned = Array.isArray(m.list) ? m.list : [];
+      this.emit("banned", { list: this.banned, readmitted: m.readmitted || null });
+    });
     sig.on("room", (m) => {
       this.roomInfo = { ...(this.roomInfo || {}), closed: !!m.closed };
       this.emit("room-closed", { closed: !!m.closed, by: m.by });
@@ -281,7 +287,11 @@ export class Mesh extends Emitter {
      * reconstrução. Nos dois casos o outro lado pode ter perdido operações
      * enquanto o canal esteve fechado, e é aqui que a reconciliação começa.
      */
-    peer.on("board:open", () => this.emit("board-channel", { id: info.id }));
+    peer.on("board:open", () => {
+      this.emit("board-channel", { id: info.id });
+      // Quem chegou agora precisa saber que esta janela está escondida.
+      if (!this.#vendo) peer.sendBoard({ type: "ver", cam: false });
+    });
     peer.on("board:message", (raw) => this.#onPeerData(info.id, raw, "board"));
     peer.on("cursor:message", (raw) => this.#onPeerData(info.id, raw, "cursor"));
     peer.on("audio:message", (raw) => this.#onPeerData(info.id, raw, "audio"));
@@ -322,7 +332,24 @@ export class Mesh extends Emitter {
       this.emit("speaking", { id: from, speaking: !!msg.speaking, level: msg.level || 0, via: "p2p" });
       return;
     }
+    // "Não estou vendo o seu vídeo": a câmera para de ser enviada a este par.
+    if (msg?.type === "ver") {
+      this.peers.get(from)?.pausarCamera(msg.cam === false);
+      return;
+    }
     this.emit("board", { from, op: msg, via: "p2p" });
+  }
+
+  /**
+   * Janela minimizada ou em outra aba: os outros param de mandar câmera para
+   * cá (voz e tela continuam). É banda de subida que eles economizam — numa
+   * malha, cada câmera é codificada uma vez por pessoa que a recebe.
+   */
+  #vendo = true;
+  verVideo(vendo) {
+    if (this.#vendo === !!vendo) return;
+    this.#vendo = !!vendo;
+    for (const peer of this.peers.values()) peer.sendBoard({ type: "ver", cam: this.#vendo });
   }
 
   /* ---------------------------------------------------------------- *
@@ -333,7 +360,7 @@ export class Mesh extends Emitter {
     return {
       mic: this.media.micTrack,
       cam: this.media.camTrack,
-      screen: this.screen.videoTrack,
+      screen: this.screen.sendTrack || this.screen.videoTrack,
       screenAudio: this.screen.audioTrack,
       screenProfile: this.screen.profile,
     };

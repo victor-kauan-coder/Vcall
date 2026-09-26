@@ -16,6 +16,15 @@ anfitrião.
 | **Remover da sala** | Tira a pessoa na hora (com confirmação). Ela não volta pelo mesmo aparelho enquanto a sala existir. |
 | **Trancar sala** | Ninguém novo entra direto: quem chega vai para a **sala de espera**. |
 
+## Deixar voltar quem foi removido
+
+Removeu alguém por engano, ou a pessoa pediu desculpas? Logo depois de
+remover aparece **Deixar voltar** no aviso. A qualquer momento, em
+**Pessoas → Removidos da sala**, clique em **Deixar voltar**. A pessoa clica em
+**Tentar entrar de novo** na tela dela (ou abre o link da sala) e entra. Só o
+anfitrião vê essa lista, e ela não mostra nenhum identificador do aparelho de
+ninguém.
+
 ## Sala de espera
 
 Com a sala trancada, quem chega vê "Aguardando o anfitrião" e o anfitrião

@@ -17,10 +17,11 @@
  * sem rede (scripts/fixes-test.mjs).
  */
 import { createReadStream } from "node:fs";
-import { mkdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { gzipSync, inflateRawSync } from "node:zlib";
+import { adaptarEncoder, jaAdaptado } from "./whisper-curto.js";
 
 /** Esquema interno pelo qual a página busca o modelo (desktop/main.js). */
 export const ESQUEMA_FALA = "vcall-fala";
@@ -259,22 +260,38 @@ export async function responderModelo(pasta, url) {
  * Três tamanhos, escolhidos nas Configurações:
  */
 export const WHISPER = {
-  rapida: { repo: "Xenova/whisper-tiny", mb: 41, nome: "Rápida" },
-  equilibrada: { repo: "Xenova/whisper-base", mb: 77, nome: "Equilibrada" },
-  maxima: { repo: "Xenova/whisper-small", mb: 250, nome: "Máxima" },
+  /*
+   * Escolhidos pela medição com voz humana (scripts/bench-fala.mjs, LapsBM,
+   * 40 frases de 10 falantes; palavras erradas / tempo por frase, 2 núcleos):
+   *
+   *   base,  janela de 30 s (o padrão até a 3.3)   24,3%   0,92 s
+   *   base,  trecho + 3 s              "Rápida"    22,6%   0,52 s
+   *   small, trecho + 1 s         "Equilibrada"    14,3%   0,85 s
+   *   small, janela de 30 s            "Máxima"    12,5%   2,37 s
+   *   tiny (qualquer)                  descartado  57–200%
+   *
+   * O trecho curto (encoder adaptado, desktop/whisper-curto.js) é o que torna
+   * o "small" viável: com a janela fixa de 30 s ele levava ~13 s por frase
+   * numa máquina comum. "Máxima" usa os mesmos arquivos da "Equilibrada".
+   */
+  rapida: { repo: "Xenova/whisper-base", mb: 77, nome: "Rápida", encoder: "encoder_model_quantized.onnx", dtype: "q8", folgaS: 3 },
+  equilibrada: { repo: "Xenova/whisper-small", mb: 250, nome: "Equilibrada", encoder: "encoder_model_quantized.onnx", dtype: "q8", folgaS: 1 },
+  maxima: { repo: "Xenova/whisper-small", mb: 250, nome: "Máxima", encoder: "encoder_model_quantized.onnx", dtype: "q8", janelaCompleta: true },
 };
 export const WHISPER_PADRAO = "equilibrada";
 
-/** Os arquivos de cada modelo — e só eles podem ser servidos à página. */
-export const ARQUIVOS_WHISPER = [
+/** Arquivos comuns a todos os modelos. O encoder depende do nível. */
+const COMUNS = [
   "config.json",
   "generation_config.json",
   "preprocessor_config.json",
   "tokenizer.json",
   "tokenizer_config.json",
-  "onnx/encoder_model_quantized.onnx",
   "onnx/decoder_model_merged_quantized.onnx",
 ];
+/** Os arquivos que podem ser servidos à página — e só eles. */
+export const ARQUIVOS_WHISPER = [...COMUNS, "onnx/encoder_model_quantized.onnx", "onnx/encoder_model.onnx"];
+const arquivosDo = (m) => [...COMUNS, `onnx/${m.encoder}`];
 
 const HF = "https://huggingface.co";
 
@@ -296,7 +313,7 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
   const m = WHISPER[nivel] || WHISPER[WHISPER_PADRAO];
   const destino = pastaWhisper(pasta, nivel);
   const faltam = [];
-  for (const arq of ARQUIVOS_WHISPER) {
+  for (const arq of arquivosDo(m)) {
     try {
       const s = await stat(path.join(destino, arq));
       if (s.size > 0) continue;
@@ -307,7 +324,7 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
   }
   if (!faltam.length) {
     progresso(1);
-    return { repo: m.repo };
+    return resultado(m, await adaptar(path.join(destino, "onnx", m.encoder)));
   }
 
   const total = m.mb * 1024 * 1024;
@@ -329,8 +346,32 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
     await writeFile(`${final}.parcial`, Buffer.concat(pedacos));
     await rename(`${final}.parcial`, final);
   }
+  const adaptado = await adaptar(path.join(destino, "onnx", m.encoder));
   progresso(1);
-  return { repo: m.repo };
+  return resultado(m, adaptado);
+}
+
+/**
+ * Adapta o encoder para ler trechos curtos (desktop/whisper-curto.js), uma
+ * vez. Se algo der errado, o modelo original continua servindo — só mais
+ * lento — e a página é avisada de que o encoder não é "curto".
+ */
+async function adaptar(enc) {
+  try {
+    const buf = await readFile(enc);
+    if (jaAdaptado(buf)) return true;
+    await writeFile(`${enc}.parcial`, adaptarEncoder(buf));
+    await rename(`${enc}.parcial`, enc);
+    return true;
+  } catch (err) {
+    console.warn("[fala] encoder sem adaptação para trechos curtos:", err?.message || err);
+    return false;
+  }
+}
+
+/** O que a página precisa saber para abrir o modelo. */
+function resultado(m, adaptado) {
+  return { repo: m.repo, dtype: m.dtype, curto: adaptado && !m.janelaCompleta, folgaS: m.folgaS ?? 1 };
 }
 
 /** Apaga um modelo Whisper (corrompido): a próxima vez baixa de novo. */

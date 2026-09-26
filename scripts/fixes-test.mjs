@@ -21,6 +21,8 @@ import { destinoDoLink } from "../desktop/protocol.js";
 import { linkAbrir, linkDaSala, linkDoAplicativo, linkWhatsApp, salaDoFragmento, ehCelular } from "../public/js/lib/invite.js";
 import { createBoardNotice } from "../public/js/features/board-notice.js";
 import { executavelParaRegistrar, namespacesDisponiveis, precisaSemSandbox } from "../desktop/linux.js";
+import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
+import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
 
 let passou = 0;
 const ok = (nome) => {
@@ -400,6 +402,56 @@ server.close();
   ok("Linux: sandbox e link vcall:// certos no Fedora, Arch, Ubuntu 24.04 e Debian");
 }
 
+/* ------------------------------------------------------------------ *
+ * Legendas: o núcleo do reconhecimento e o encoder "curto"
+ * ------------------------------------------------------------------ */
+{
+  // Palavras confirmadas só quando duas leituras concordam, e nunca voltam.
+  const a = new Acordo();
+  assert.deepEqual(a.ler("bom dia"), { confirmado: "", provisorio: "bom dia" });
+  assert.deepEqual(a.ler("Bom dia a"), { confirmado: "Bom dia", provisorio: "a" });
+  assert.deepEqual(a.ler("bom dia a todos"), { confirmado: "Bom dia a", provisorio: "todos" });
+  assert.equal(a.ler("bom tia").confirmado, "Bom dia a", "o confirmado não muda com uma leitura pior");
+
+  assert.equal(limpar("Obrigado por assistir!"), "", "alucinação clássica descartada");
+  assert.equal(limpar("[Música] oi pessoal"), "oi pessoal");
+  assert.equal(limpar("sim sim sim sim sim"), "sim", "laço de repetição colapsado");
+  assert.equal(limpar("vamos começar", "hoje nós vamos começar"), "", "eco do contexto descartado");
+  assert.equal(limpar("  ok,  vamos lá "), "ok, vamos lá");
+
+  assert.equal(quadrosPara(16_000 * 3), 400, "3 s de fala + 1 s de folga");
+  assert.equal(quadrosPara(16_000 * 40), 3000, "nunca passa da janela de 30 s");
+  assert.ok(tokensPara(16_000 * 2) < tokensPara(16_000 * 8), "limite de texto cresce com o áudio");
+
+  assert.deepEqual(wer("Bom dia, a todos!", "bom dia a todos"), { erros: 0, palavras: 4 }, "pontuação e caixa não contam");
+  assert.equal(wer("o prazo é sexta", "o prado é sexta feira").erros, 2);
+
+  // Encoder de brinquedo com a mesma estrutura do Whisper: y = x + posições.
+  const modelo = encoderDeBrinquedo();
+  const curto = adaptarEncoder(modelo);
+  assert.ok(jaAdaptado(curto) && !jaAdaptado(modelo));
+  assert.equal(adaptarEncoder(curto), curto, "adaptar de novo não muda nada");
+  const ort = (await import("onnxruntime-node")).default;
+  const rodar = async (bytes, t) => {
+    const s = await ort.InferenceSession.create(bytes, { logSeverityLevel: 3 });
+    const x = new Float32Array(t * 2).fill(1);
+    try {
+      const r = await s.run({ x: new ort.Tensor("float32", x, [1, t, 2]) });
+      return { y: [...r.y.data], saidas: s.outputNames };
+    } catch (err) {
+      return { erro: err.message, saidas: s.outputNames };
+    }
+  };
+  const antes = await rodar(modelo, 3);
+  assert.ok(antes.erro, "o original não aceita 3 posições (só 1500)");
+  const depois = await rodar(curto, 3);
+  assert.deepEqual(depois.y, [1, 1, 2, 2, 3, 3], "3 posições: x + posições[0..2]");
+  assert.deepEqual(depois.saidas, ["y"], "as saídas de atenção saem do modelo");
+  const cheio = await rodar(curto, 1500);
+  assert.equal(cheio.y.length, 3000, "os 30 s inteiros continuam funcionando");
+  ok("legendas: palavras confirmadas, limpeza de alucinações e encoder curto (saída idêntica)");
+}
+
 console.log(`\n${passou} blocos de verificação passaram.`);
 process.exit(0);
 
@@ -435,6 +487,46 @@ function zipSimples(arquivos) {
   fim.writeUInt32LE(dir.length, 12);
   fim.writeUInt32LE(offset, 16);
   return Buffer.concat([...locais, dir, fim]);
+}
+
+/**
+ * Um ONNX mínimo com a forma do encoder do Whisper: y = Add(x, embed_positions.weight),
+ * posições [1500, 2] com valores i (linha i), e uma saída "encoder_attentions.0"
+ * que o adaptador deve remover. Protobuf escrito à mão.
+ */
+function encoderDeBrinquedo() {
+  const v = (n) => {
+    const o = [];
+    let x = BigInt(n);
+    do {
+      let b = Number(x & 0x7fn);
+      x >>= 7n;
+      if (x) b |= 0x80;
+      o.push(b);
+    } while (x);
+    return Buffer.from(o);
+  };
+  const b = (num, c) => Buffer.concat([v((num << 3) | 2), v(c.length), c]);
+  const t = (num, s) => b(num, Buffer.from(s));
+  const i = (num, n) => Buffer.concat([v(num << 3), v(n)]);
+  const tipo = (dims) =>
+    b(2, b(1, Buffer.concat([i(1, 1), b(2, Buffer.concat(dims.map((d) => b(1, typeof d === "number" ? i(1, d) : t(2, d)))))])));
+  const valor = (nome, dims) => Buffer.concat([t(1, nome), tipo(dims)]);
+  const pesos = Buffer.alloc(1500 * 2 * 4);
+  for (let k = 0; k < 1500; k += 1) {
+    pesos.writeFloatLE(k, k * 8);
+    pesos.writeFloatLE(k, k * 8 + 4);
+  }
+  const grafo = Buffer.concat([
+    b(1, Buffer.concat([t(1, "x"), t(1, "embed_positions.weight"), t(2, "y"), t(3, "/Add_2"), t(4, "Add")])),
+    b(1, Buffer.concat([t(1, "y"), t(2, "encoder_attentions.0"), t(3, "/Id"), t(4, "Identity")])),
+    t(2, "brinquedo"),
+    b(5, Buffer.concat([i(1, 1500), i(1, 2), i(2, 1), t(8, "embed_positions.weight"), b(9, pesos)])),
+    b(11, valor("x", [1, "T", 2])),
+    b(12, valor("y", [1, "T", 2])),
+    b(12, valor("encoder_attentions.0", [1, "T", 2])),
+  ]);
+  return Buffer.concat([i(1, 7), b(8, Buffer.concat([t(1, ""), i(2, 11)])), b(7, grafo)]);
 }
 
 function lerNomesTar(tar) {

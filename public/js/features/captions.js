@@ -129,10 +129,33 @@ export class Captions extends Emitter {
     return true;
   }
 
-  #startWeb() {
+  /** O Chrome tem o reconhecimento deste idioma no próprio aparelho? */
+  #local = null;
+  #localLang = "";
+
+  async #startWeb() {
     if (this.#rec) return;
+    /*
+     * Chrome recente: reconhecimento NO APARELHO (processLocally). Mais
+     * rápido, funciona sem internet e o áudio não vai para o Google. Só é
+     * usado quando o pacote do idioma já está instalado — baixar centenas de
+     * MB sem a pessoa pedir não é decisão nossa. Sem isso, segue o normal.
+     */
+    if (this.#localLang !== this.lang) {
+      this.#localLang = this.lang;
+      this.#local = false;
+      try {
+        if (typeof SR.available === "function") {
+          this.#local = (await SR.available({ langs: [this.lang], processLocally: true })) === "available";
+        }
+      } catch {
+        this.#local = false;
+      }
+      if (this.#rec || !this.#wantsRunning || this.#paused) return;
+    }
     const rec = new SR();
     rec.lang = this.lang;
+    if (this.#local && "processLocally" in rec) rec.processLocally = true;
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
@@ -226,7 +249,7 @@ export class Captions extends Emitter {
     const trilha = () => this.micTrack?.() || null;
     const ligar = (motor, reserva) => {
       this.#offline = motor;
-      motor.on("result", ({ text, final }) => this.emit("local", { text, final }));
+      motor.on("result", ({ text, final, confirmado }) => this.emit("local", { text, final, confirmado: confirmado?.length || 0 }));
       motor.on("status", (st) => this.emit("status", st));
       motor.on("falando", (on) => this.emit("falando", on));
       motor.start().catch((err) => {
@@ -287,7 +310,7 @@ export class Captions extends Emitter {
    * Mostra (ou atualiza) a fala de alguém. Uma pessoa ocupa sempre a mesma
    * linha: o palpite se reescreve no lugar em vez de empilhar repetições.
    */
-  show(peerId, { name, text, final = false, color = null, avatar = null }) {
+  show(peerId, { name, text, final = false, color = null, avatar = null, confirmado = 0 }) {
     if (!this.#root || !text) return;
 
     let line = this.#lines.get(peerId);
@@ -317,7 +340,17 @@ export class Captions extends Emitter {
      * crescia até virar um bloco de texto cobrindo o vídeo; legenda boa é a
      * que se lê de relance — como na TV, o texto antigo sai por cima.
      */
-    line.node.querySelector(".caption__text").textContent = cauda(text, CAUDA);
+    const visivel = cauda(text, CAUDA);
+    const alvo = line.node.querySelector(".caption__text");
+    // Palavras já confirmadas (duas leituras concordaram) ficam firmes; o fim,
+    // que ainda pode mudar, aparece mais claro.
+    const prov = !final && confirmado > 0 && confirmado < text.length ? text.length - confirmado : 0;
+    const corte = visivel.length - prov;
+    if (prov && corte > 0) {
+      alvo.replaceChildren(document.createTextNode(visivel.slice(0, corte)), el("span.caption__prov", { text: visivel.slice(corte) }));
+    } else {
+      alvo.textContent = visivel;
+    }
     line.node.dataset.final = String(final);
     line.node.classList.remove("is-ouvindo");
 

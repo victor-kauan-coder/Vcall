@@ -1,0 +1,47 @@
+name: Medição das legendas
+
+# Precisão (WER) e custo do reconhecimento de fala com voz humana real
+# (LapsBM). Roda quando o reconhecedor muda, ou à mão.
+on:
+  workflow_dispatch:
+    inputs:
+      frases:
+        description: "Quantas frases do LapsBM"
+        default: "40"
+      configs:
+        description: "Configurações (vazio = todas)"
+        default: ""
+  push:
+    paths:
+      - "public/js/features/whisper-nucleo.js"
+      - "desktop/whisper-curto.js"
+      - "scripts/bench-fala.mjs"
+      - ".github/workflows/bench-fala.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  medir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --include=dev
+      - name: Cache dos modelos e áudios
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcall-bench-fala
+          key: bench-fala-v1
+      - name: Medir
+        env:
+          BENCH_CACHE: /home/runner/.cache/vcall-bench-fala
+        run: node scripts/bench-fala.mjs --frases "${{ github.event.inputs.frases || '40' }}" --configs "${{ github.event.inputs.configs || 'tiny-q8-curto5,base-q8-curto,base-q8-curto3,base-q8-curto6,small-q8-longo,small-q8-curto,small-q8-curto3,small-q8-curto6' }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-fala
+          path: bench-fala.json

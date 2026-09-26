@@ -3,13 +3,19 @@
  *
  * Roda na thread de áudio. Junta os blocos de 128 amostras que o navegador
  * entrega em pedaços de ~100 ms e os passa adiante; quem decide o que é fala
- * é a página (features/fala-whisper.js).
+ * é o worker do reconhecedor (features/whisper-worker.js).
  */
 class Captura extends AudioWorkletProcessor {
   constructor() {
     super();
     this.buf = new Float32Array(sampleRate / 10);
     this.n = 0;
+    // O destino pode ser um MessagePort entregue pela página: o áudio vai
+    // direto ao worker do reconhecedor, sem passar pela thread da página.
+    this.destino = this.port;
+    this.port.onmessage = ({ data }) => {
+      if (data?.porta) this.destino = data.porta;
+    };
   }
 
   process(inputs) {
@@ -22,7 +28,8 @@ class Captura extends AudioWorkletProcessor {
         this.n += cabe;
         i += cabe;
         if (this.n === this.buf.length) {
-          this.port.postMessage(this.buf.slice(0));
+          const bloco = this.buf.slice(0);
+          this.destino.postMessage(bloco, [bloco.buffer]);
           this.n = 0;
         }
       }

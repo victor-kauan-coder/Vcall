@@ -1518,11 +1518,11 @@ function wireCaptions() {
    * legenda parcial que chega atrasada não serve para nada, e a frase final
    * vem logo atrás de qualquer jeito.
    */
-  const sendInterim = throttle((text) => {
-    mesh.broadcastBoard({ type: "caption", text: text.slice(0, 300), final: false }, { fallback: false });
+  const sendInterim = throttle((text, confirmado = 0) => {
+    mesh.broadcastBoard({ type: "caption", text: text.slice(0, 300), final: false, c: Math.min(confirmado, 300) }, { fallback: false });
   }, 350);
 
-  captions.on("local", ({ text, final }) => {
+  captions.on("local", ({ text, final, confirmado = 0 }) => {
     // A própria fala aparece na sua tela e vai para os outros como texto.
     captions.show(mesh.selfId || "self", {
       name: `${app.profile.name} (você)`,
@@ -1530,11 +1530,12 @@ function wireCaptions() {
       final,
       color: colorFor(mesh.selfId || "self"),
       avatar: app.profile.avatar,
+      confirmado,
     });
     // A frase encerrada vai inteira e com direito ao plano B: é ela que entra
     // na transcrição de quem está do outro lado.
     if (final) mesh.broadcastBoard({ type: "caption", text: text.slice(0, 300), final: true });
-    else sendInterim(text);
+    else sendInterim(text, confirmado);
   });
 
   // Whisper: enquanto a frase é reconhecida, a pessoa vê que está sendo ouvida.
@@ -2008,6 +2009,7 @@ function wireMesh() {
         final: !!op.final,
         color: colorFor(from),
         avatar: profile.avatar,
+        confirmado: Number(op.c) || 0,
       });
       return;
     }
@@ -2613,9 +2615,9 @@ function openSettings() {
     });
     if (window.vcallDesktop?.prepararWhisper) {
       const niveis = [
-        ["rapida", "Rápida — 40 MB, para computadores modestos"],
-        ["equilibrada", "Equilibrada — 80 MB (recomendada)"],
-        ["maxima", "Máxima — 250 MB, a mais precisa (pede um computador forte)"],
+        ["rapida", "Rápida — 80 MB, para computadores modestos"],
+        ["equilibrada", "Equilibrada — 250 MB, bem mais precisa (recomendada)"],
+        ["maxima", "Máxima — a mais precisa, legenda mais lenta (mesmo download)"],
       ];
       const selN = el("select.input", { "aria-label": "Precisão das legendas" });
       for (const [v, t] of niveis) selN.append(el("option", { value: v, text: t, selected: captions.nivel === v }));

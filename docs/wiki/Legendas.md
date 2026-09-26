@@ -13,29 +13,53 @@ fica em Configurações → Legendas e avisos.
 
 ## No aplicativo: Whisper, no seu computador
 
-Desde a 3.3 o app reconhece a fala com o **Whisper**, o mesmo modelo de
-reconhecimento usado em serviços profissionais de transcrição. Ele roda **no
-seu computador**: nenhum áudio sai daqui, só o texto vai para a sala. Ele
-acerta frases inteiras, com pontuação. O reconhecedor anterior (Vosk pequeno)
-errava muito em português, e continua existindo só como reserva.
+O app reconhece a fala com o **Whisper**, **no seu computador**: nenhum áudio
+sai daqui, só o texto vai para a sala. Na primeira vez o modelo é baixado (uma
+vez só), com o progresso na tela.
 
-Na primeira vez o modelo é baixado, uma vez só, com o progresso na tela. Três
-níveis de precisão, em Configurações → Legendas e avisos → **Precisão das
-legendas**:
+### Precisão (medida com voz humana)
 
-| Nível | Download | Para quem |
-| --- | --- | --- |
-| Rápida | ~40 MB | computadores modestos |
-| **Equilibrada** (padrão) | ~80 MB | a maioria |
-| Máxima | ~250 MB | computadores fortes, a mais precisa |
+Em Configurações → Legendas e avisos → **Precisão das legendas**. Os números
+são de 40 frases gravadas por 10 brasileiros (corpus LapsBM, UFPA), medidos
+pelo `scripts/bench-fala.mjs` em 2 núcleos:
 
-A legenda aparece conforme você fala e é corrigida no fim da frase, quando sai
-o texto definitivo (é esse que entra na transcrição). O app usa vários núcleos
-do processador para isso.
+| Nível | Palavras erradas | Tempo por frase | Download |
+| --- | ---: | ---: | ---: |
+| Rápida (Whisper base) | 22,6% | ~0,5 s | ~80 MB |
+| **Equilibrada** (Whisper small, padrão) | **14,3%** | ~0,85 s | ~250 MB |
+| Máxima (Whisper small, janela completa) | 12,5% | ~2,4 s | o mesmo da Equilibrada |
+
+Até a 3.3 o padrão errava 24,3% das palavras e levava ~0,9 s. Parte dos
+"erros" restantes nem são erros de verdade: números saem em algarismos
+("170" no lugar de "cento e setenta").
+
+### Como ficou rápido e leve
+
+- **O modelo lê só o tamanho da sua fala.** O Whisper foi feito para ler
+  janelas de 30 s: uma frase de 3 s era completada com 27 s de silêncio, e
+  tudo era processado. Ao baixar o modelo, o app o adapta para ler só o trecho
+  falado (mais uma pequena folga) — o resultado numérico é idêntico, e uma
+  frase custa até 29× menos. É isso que torna o modelo mais preciso (small)
+  viável no padrão.
+- **Detector de voz de verdade (Silero).** Só a fala vai para o reconhecedor.
+  Teclado, mouse e ventilador não abrem frases, e as frases não grudam umas
+  nas outras.
+- **Menos trabalho à toa.** Legendas parciais só enquanto você fala, espaçadas
+  pelo custo real no seu computador (máquina mais lenta = menos parciais, sem
+  fila). Metade dos núcleos no máximo, o resto fica para o jogo e a chamada.
+  Com o microfone mudo, nada é processado. Legenda desligada por 5 minutos: o
+  modelo sai da memória.
+- **Palavras confirmadas não mudam.** Uma palavra só fica firme quando duas
+  leituras seguidas concordam nela; o fim da frase, que ainda pode mudar,
+  aparece mais claro. Acabou o texto que pisca e se reescreve.
+- **O áudio não passa pela tela.** Vai do microfone direto ao processo do
+  reconhecedor, sem pesar no vídeo nem nas animações.
 
 ## No navegador
 
-Usa o reconhecimento do Chrome ou do Edge. Em outros navegadores o botão avisa
+Usa o reconhecimento do Chrome ou do Edge. Se o Chrome já tiver o pacote do
+idioma instalado no aparelho, o reconhecimento roda **localmente** (mais
+rápido, sem internet para isso, e o áudio não vai para o Google). Em outros navegadores o botão avisa
 que não há reconhecimento — mas você continua **lendo** as legendas de quem
 estiver legendando.
 

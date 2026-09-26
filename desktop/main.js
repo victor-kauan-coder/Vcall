@@ -587,7 +587,7 @@ function permissoes() {
           for (const w of BrowserWindow.getAllWindows()) w.webContents.send("vcall:fala-progresso", { whisper: n, p });
         },
       })
-        .then(({ repo }) => ({ base: `${ESQUEMA_FALA}://modelo/whisper/`, modelo: repo, nivel: n }))
+        .then((r) => ({ base: `${ESQUEMA_FALA}://modelo/whisper/`, modelo: r.repo, nivel: n, curto: r.curto, dtype: r.dtype, folgaS: r.folgaS }))
         .catch((err) => {
           registrar("whisper-falhou", { nivel: n, erro: String(err?.message || err) });
           throw err;

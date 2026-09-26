@@ -127,22 +127,31 @@ function lerTar(tar) {
   return mapa;
 }
 
-/** WAV PCM 16 bits -> Float32 mono a 16 kHz (interpolação linear). */
+/** WAV (PCM 8/16/24/32 bits ou float) -> Float32 mono a 16 kHz. */
 function lerWav16k(buf) {
+  if (buf.toString("ascii", 0, 4) !== "RIFF") throw new Error(`WAV não suportado: ${buf.subarray(0, 16).toString("hex")}`);
   let pos = 12;
   let fmt = null;
   let dados = null;
-  while (pos < buf.length) {
+  while (pos + 8 <= buf.length) {
     const id = buf.toString("ascii", pos, pos + 4);
     const tam = buf.readUInt32LE(pos + 4);
-    if (id === "fmt ") fmt = { canais: buf.readUInt16LE(pos + 10), taxa: buf.readUInt32LE(pos + 12), bits: buf.readUInt16LE(pos + 22) };
-    if (id === "data") dados = buf.subarray(pos + 8, pos + 8 + tam);
+    if (id === "fmt ") fmt = { formato: buf.readUInt16LE(pos + 8), canais: buf.readUInt16LE(pos + 10), taxa: buf.readUInt32LE(pos + 12), bits: buf.readUInt16LE(pos + 22) };
+    if (id === "data") dados = buf.subarray(pos + 8, Math.min(buf.length, pos + 8 + tam));
     pos += 8 + tam + (tam % 2);
   }
-  if (!fmt || !dados || fmt.bits !== 16) throw new Error("WAV não suportado");
-  const n = dados.length / 2 / fmt.canais;
+  if (!fmt || !dados) throw new Error(`WAV incompleto: ${JSON.stringify(fmt)}`);
+  const passo = (fmt.bits / 8) * fmt.canais;
+  const n = Math.floor(dados.length / passo);
+  const ler = {
+    8: (o) => (dados[o] - 128) / 128,
+    16: (o) => dados.readInt16LE(o) / 32768,
+    24: (o) => dados.readIntLE(o, 3) / 8388608,
+    32: fmt.formato === 3 ? (o) => dados.readFloatLE(o) : (o) => dados.readInt32LE(o) / 2147483648,
+  }[fmt.bits];
+  if (!ler) throw new Error(`WAV com ${fmt.bits} bits`);
   const mono = new Float32Array(n);
-  for (let i = 0; i < n; i += 1) mono[i] = dados.readInt16LE(i * 2 * fmt.canais) / 32768;
+  for (let i = 0; i < n; i += 1) mono[i] = ler(i * passo);
   if (fmt.taxa === 16_000) return mono;
   const razao = fmt.taxa / 16_000;
   const out = new Float32Array(Math.floor(n / razao));

@@ -129,10 +129,33 @@ export class Captions extends Emitter {
     return true;
   }
 
-  #startWeb() {
+  /** O Chrome tem o reconhecimento deste idioma no próprio aparelho? */
+  #local = null;
+  #localLang = "";
+
+  async #startWeb() {
     if (this.#rec) return;
+    /*
+     * Chrome recente: reconhecimento NO APARELHO (processLocally). Mais
+     * rápido, funciona sem internet e o áudio não vai para o Google. Só é
+     * usado quando o pacote do idioma já está instalado — baixar centenas de
+     * MB sem a pessoa pedir não é decisão nossa. Sem isso, segue o normal.
+     */
+    if (this.#localLang !== this.lang) {
+      this.#localLang = this.lang;
+      this.#local = false;
+      try {
+        if (typeof SR.available === "function") {
+          this.#local = (await SR.available({ langs: [this.lang], processLocally: true })) === "available";
+        }
+      } catch {
+        this.#local = false;
+      }
+      if (this.#rec || !this.#wantsRunning || this.#paused) return;
+    }
     const rec = new SR();
     rec.lang = this.lang;
+    if (this.#local && "processLocally" in rec) rec.processLocally = true;
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 1;

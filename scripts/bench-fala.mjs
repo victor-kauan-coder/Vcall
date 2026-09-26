@@ -19,6 +19,7 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import * as lib from "@huggingface/transformers";
 import { adaptarEncoder } from "../desktop/whisper-curto.js";
@@ -83,49 +84,47 @@ async function prepararFrases() {
         texto: readFileSync(path.join(dir, a.replace(/\.wav$/, ".txt")), "utf8").trim(),
       }));
   }
-  // A API lista uma pasta por vez: primeiro os falantes, depois os arquivos.
+  // A API lista uma pasta por vez; cada falante vem num .tar.gz.
   const listar = async (pasta) => {
     const r = await fetch(`${HF}/api/datasets/falabrasil/lapsbm/tree/main/${pasta}`);
     if (!r.ok) throw new Error(`LapsBM (${pasta}): ${r.status}`);
     return r.json();
   };
   const falantes = (await listar("data/test")).filter((x) => x.type === "directory").map((x) => x.path);
-  const lista = [];
-  for (const f of falantes.slice(0, Math.max(6, Math.ceil(N_FRASES / 4)))) {
-    for (const x of await listar(f)) lista.push(x.path);
-  }
-  const wavs = lista.filter((p) => /\.wav$/i.test(p)).sort();
-  const txts = new Set(lista.filter((p) => /\.txt$/i.test(p)));
-  const pares = wavs.map((w) => [w, w.replace(/\.wav$/i, ".txt")]).filter(([, t]) => txts.has(t));
-  if (!pares.length) {
-    console.log("Estrutura do LapsBM:", lista.slice(0, 40));
-    throw new Error("LapsBM: nenhum par .wav/.txt");
-  }
-  // Espalha pelos falantes (pastas) em vez de pegar só os primeiros.
-  const porFalante = new Map();
-  for (const p of pares) {
-    const f = path.dirname(p[0]);
-    if (!porFalante.has(f)) porFalante.set(f, []);
-    porFalante.get(f).push(p);
-  }
-  const escolhidos = [];
-  for (let i = 0; escolhidos.length < N_FRASES; i += 1) {
-    let algum = false;
-    for (const l of porFalante.values()) {
-      if (l[i] && escolhidos.length < N_FRASES) {
-        escolhidos.push(l[i]);
-        algum = true;
-      }
-    }
-    if (!algum) break;
-  }
+  const porFalante = Math.ceil(N_FRASES / Math.min(falantes.length, 10));
   const frases = [];
-  for (const [w, t] of escolhidos) {
-    const wav = await baixar(`${HF}/datasets/falabrasil/lapsbm/resolve/main/${w}`, path.join(cache, "lapsbm", w));
-    const txt = (await baixar(`${HF}/datasets/falabrasil/lapsbm/resolve/main/${t}`, path.join(cache, "lapsbm", t))).toString("utf8").trim();
-    frases.push({ id: w, falante: path.dirname(w), audio: lerWav16k(wav), texto: txt });
+  for (const f of falantes) {
+    if (frases.length >= N_FRASES) break;
+    const tgz = (await listar(f)).find((x) => x.path.endsWith(".tar.gz"));
+    if (!tgz) continue;
+    const buf = await baixar(`${HF}/datasets/falabrasil/lapsbm/resolve/main/${tgz.path}`, path.join(cache, "lapsbm", tgz.path));
+    const arquivos = lerTar(gunzipSync(buf));
+    const wavs = [...arquivos.keys()].filter((n) => /\.wav$/i.test(n)).sort();
+    let n = 0;
+    for (const w of wavs) {
+      const t = arquivos.get(w.replace(/\.wav$/i, ".txt"));
+      if (!t || n >= porFalante || frases.length >= N_FRASES) continue;
+      frases.push({ id: w, falante: f, audio: lerWav16k(arquivos.get(w)), texto: t.toString("utf8").trim() });
+      n += 1;
+    }
   }
+  if (!frases.length) throw new Error("LapsBM: nenhum par .wav/.txt");
   return frases;
+}
+
+/** Arquivos de um .tar (ustar), por nome. */
+function lerTar(tar) {
+  const mapa = new Map();
+  for (let p = 0; p + 512 <= tar.length; ) {
+    const h = tar.subarray(p, p + 512);
+    if (h.every((b) => b === 0)) break;
+    const nome = h.toString("utf8", 0, 100).replace(/\0.*$/s, "");
+    const prefixo = h.toString("utf8", 345, 500).replace(/\0.*$/s, "");
+    const tam = parseInt(h.toString("ascii", 124, 136).replace(/\0.*$/s, "").trim() || "0", 8);
+    if (h[156] === 48 || h[156] === 0) mapa.set(prefixo ? `${prefixo}/${nome}` : nome, tar.subarray(p + 512, p + 512 + tam));
+    p += 512 + Math.ceil(tam / 512) * 512;
+  }
+  return mapa;
 }
 
 /** WAV PCM 16 bits -> Float32 mono a 16 kHz (interpolação linear). */

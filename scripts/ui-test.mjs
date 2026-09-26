@@ -119,8 +119,10 @@ try {
       document.addEventListener("keydown", (e) => window.__k.push(`key ${e.key} ${e.target.tagName} prevented=${e.defaultPrevented}`), true);
     });
     await a.keyboard.press("Escape");
-    await espera(400);
-    const fechou = await a.evaluate(() => !document.querySelector("#settingsModal").open);
+    const fechou = await a
+      .waitForFunction(() => !document.querySelector("#settingsModal").open, null, { timeout: 2000 })
+      .then(() => true)
+      .catch(() => false);
     if (!fechou) console.log("    eventos:", await a.evaluate(() => JSON.stringify(window.__k)));
     check("Esc fecha o diálogo (antes o atalho engolia a tecla)", fechou);
 
@@ -320,6 +322,10 @@ try {
     await espera(800);
     const duo = await a.evaluate(() => document.querySelector("#stage").classList.contains("stage--duo") && !!document.querySelector(".floatSelf .tile"));
     check("chamada a dois: o próprio vídeo vira um balão flutuante", duo);
+    // Espera o ladrilho terminar de deslizar para dentro do balão: durante a
+    // animação ele ainda está visualmente em outro lugar.
+    await a.waitForFunction(() => document.getAnimations().every((x) => x.playState !== "running" || x.effect?.getTiming?.().iterations === Infinity), null, { timeout: 5000 }).catch(() => {});
+    await espera(300);
     const f = await a.locator(".floatSelf").boundingBox();
     await a.mouse.move(f.x + f.width / 2, f.y + f.height / 2);
     await a.mouse.down();

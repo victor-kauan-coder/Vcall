@@ -7,6 +7,8 @@
  *   public/vendor/icons.svg    — sprite SVG com o subconjunto de ícones do Lucide (ISC)
  *   public/vendor/icons.json   — manifesto (id -> viewBox) para checagem em build
  *   public/vendor/avatars.js   — bundle ESM do DiceBear (MIT) com os estilos escolhidos
+ *   public/vendor/vosk.js      — reconhecimento de fala offline (vosk-browser, Apache-2.0),
+ *                                usado pelas legendas no aplicativo de mesa
  *
  * Nenhum ícone é desenhado à mão neste projeto: todos vêm de bibliotecas abertas.
  * Rode com:  npm run vendor
@@ -27,6 +29,10 @@ const outDir = path.join(root, "public", "vendor");
 
 /** Nome do arquivo no lucide-static -> id usado no app. */
 const ICONS = [
+  // Moderação e anexos (3.1)
+  "user-x",
+  "lock-open",
+  "paperclip",
   "mic",
   "picture-in-picture-2",
   "headphones",
@@ -250,10 +256,70 @@ async function buildAvatars() {
   await import("node:fs").then((fs) => fs.promises.unlink(entry));
 }
 
+/**
+ * Reconhecimento de fala offline (vosk-browser, Apache-2.0). Só é carregado
+ * quando a legenda é ligada no app de mesa, onde o reconhecimento do Chrome
+ * não existe.
+ *
+ * O pacote traz um worker embutido (base64) que usa `new Function` para
+ * montar funções internas — técnica antiga do Emscripten (embind), que a
+ * nossa CSP bloqueia, e com razão: liberar 'unsafe-eval' valeria para o app
+ * inteiro. Em vez disso, as três funções que geram código são trocadas aqui
+ * pelas versões com closures que o próprio Emscripten adotou depois
+ * (DYNAMIC_EXECUTION=0). O resultado é conferido: se sobrar geração de código,
+ * o script falha em vez de publicar algo que a CSP vai derrubar.
+ */
+const VOSK_PATCHES = [
+  {
+    nome: "createNamedFunction",
+    de: /function createNamedFunction\(name,body\)\{name=makeLegalFunctionName\(name\);return new Function\([\s\S]*?\)\(body\)\}/,
+    para:
+      'function createNamedFunction(name,body){name=makeLegalFunctionName(name);return {[name]:function(){return body.apply(this,arguments)}}[name]}',
+  },
+  {
+    nome: "craftInvokerFunction",
+    de: /function craftInvokerFunction\(humanName,argTypes,classType,cppInvokerFunc,cppTargetFunc\)\{[\s\S]*?var invokerFunction=new_\(Function,args1\)\.apply\(null,args2\);return invokerFunction\}/,
+    para: `function craftInvokerFunction(humanName,argTypes,classType,cppInvokerFunc,cppTargetFunc){var argCount=argTypes.length;if(argCount<2){throwBindingError("argTypes array size mismatch! Must at least get return value and 'this' types!")}var isClassMethodFunc=argTypes[1]!==null&&classType!==null;var needsDestructorStack=false;for(var i=1;i<argTypes.length;++i){if(argTypes[i]!==null&&argTypes[i].destructorFunction===undefined){needsDestructorStack=true;break}}var returns=argTypes[0].name!=="void";var expected=argCount-2;return createNamedFunction(humanName,function(){if(arguments.length!==expected){throwBindingError("function "+humanName+" called with "+arguments.length+" arguments, expected "+expected+" args!")}var destructors=needsDestructorStack?[]:null;var thisWired;var wired=new Array(expected);var callArgs=[cppTargetFunc];if(isClassMethodFunc){thisWired=argTypes[1].toWireType(destructors,this);callArgs.push(thisWired)}for(var i=0;i<expected;++i){wired[i]=argTypes[i+2].toWireType(destructors,arguments[i]);callArgs.push(wired[i])}var rv=cppInvokerFunc.apply(null,callArgs);if(needsDestructorStack){runDestructors(destructors)}else{for(var j=isClassMethodFunc?1:2;j<argTypes.length;++j){var param=j===1?thisWired:wired[j-2];if(argTypes[j].destructorFunction!==null){argTypes[j].destructorFunction(param)}}}if(returns){return argTypes[0].fromWireType(rv)}})}`,
+  },
+  {
+    nome: "__emval_get_method_caller",
+    de: /var functionName=makeLegalFunctionName\("methodCaller_"\+signatureName\);[\s\S]*?var invokerFunction=new_\(Function,params\)\.apply\(null,args\);/,
+    para:
+      'var invokerFunction=function(handle,name,destructors,args){var offset=0;var argv=new Array(argCount-1);for(var i=0;i<argCount-1;++i){argv[i]=types[1+i].readValueFromPointer(args+offset);offset+=types[i+1]["argPackAdvance"]}var rv=handle[name].apply(handle,argv);for(var k=0;k<argCount-1;++k){if(types[k+1]["deleteObject"]){types[k+1].deleteObject(argv[k])}}if(!retType.isVoid){return retType.toWireType(destructors,rv)}};',
+  },
+];
+
+export function patchVoskWorker(codigo) {
+  let out = codigo;
+  for (const p of VOSK_PATCHES) {
+    if (!p.de.test(out)) throw new Error(`vosk: trecho ${p.nome} não encontrado — a versão do vosk-browser mudou`);
+    out = out.replace(p.de, () => p.para);
+  }
+  if (/new Function|new_\(Function|\beval\(/.test(out)) throw new Error("vosk: ainda há geração de código no worker");
+  return out;
+}
+
+async function copyVosk() {
+  const src = path.join(root, "node_modules", "vosk-browser", "dist", "vosk.js");
+  if (!existsSync(src)) {
+    console.warn("  ! vosk-browser não instalado (npm install --include=dev); mantendo o vosk.js atual");
+    return;
+  }
+  const bundle = await readFile(src, "utf8");
+  const m = bundle.match(/createBase64WorkerFactory\('([A-Za-z0-9+/=]+)'/);
+  if (!m) throw new Error("vosk: worker embutido não encontrado");
+  const worker = Buffer.from(m[1], "base64").toString("latin1");
+  const corrigido = patchVoskWorker(worker);
+  const final = bundle.replace(m[1], Buffer.from(corrigido, "latin1").toString("base64"));
+  await writeFile(path.join(outDir, "vosk.js"), final);
+  console.log(`  ✓ vosk.js (${(final.length / 1024 / 1024).toFixed(1)} MB, worker sem eval)`);
+}
+
 /* ------------------------------------------------------------------ */
 
 await mkdir(outDir, { recursive: true });
 console.log("Vendorizando dependências de UI...");
 await buildSprite();
 await buildAvatars();
+await copyVosk();
 console.log("Pronto.");

@@ -103,7 +103,20 @@ function clientIp(req) {
     const first = String(Array.isArray(fwd) ? fwd[0] : fwd || "").split(",")[0].trim();
     if (first) return first;
   }
-  return req.socket.remoteAddress || "desconhecido";
+  const direto = req.socket.remoteAddress || "desconhecido";
+  /*
+   * Túnel do Cloudflare (link público do app de mesa): o cloudflared roda NA
+   * PRÓPRIA MÁQUINA e toda conexão chega de 127.0.0.1. Sem olhar o endereço
+   * real, todos os convidados contavam como uma pessoa só — um único
+   * curioso errando a senha bloqueava a entrada de todo mundo, e o limite de
+   * conexões por endereço valia para a sala inteira. O cabeçalho só é aceito
+   * quando a conexão vem da própria máquina: de fora ninguém consegue forjá-lo.
+   */
+  if (/^(127\.|::1$|::ffff:127\.)/.test(direto)) {
+    const cf = req.headers["cf-connecting-ip"];
+    if (typeof cf === "string" && /^[0-9a-fA-F:.]{2,45}$/.test(cf)) return cf;
+  }
+  return direto;
 }
 
 /**
@@ -257,6 +270,11 @@ export function attachSignaling(httpServer, { registry = new RoomRegistry() } = 
           break;
         }
 
+        case C2S.MODERATE: {
+          handleModerate(me, room, msg, fail);
+          break;
+        }
+
         case C2S.PING: {
           me.send({ t: S2C.PONG, n: msg.n, at: Date.now() });
           break;
@@ -297,10 +315,32 @@ function handleJoin(ctx, socket, registry, msg, fail) {
 
   // Os metadados só valem para quem cria a sala. Para quem entra depois, eles
   // são ignorados: ninguém renomeia nem abre ao público a sala dos outros.
+  const nova = !registry.get(msg.room);
   const room = registry.ensure(msg.room, msg.meta);
-  if (room.isFull) return fail(ERRORS.ROOM_FULL, true);
+  // Quem cria a sala deixa registrada a chave de anfitrião.
+  if (nova) room.setHostKey(msg.hostKey);
+  const ehDono = room.isHostKey(msg.hostKey);
 
-  if (room.hasPass) {
+  // Removido pelo anfitrião: não volta, nem recarregando a página.
+  if (room.isBanned(msg.device) && !ehDono) return fail(ERRORS.KICKED, true);
+
+  // Mesma aba reconectando: a conexão antiga ainda pode estar pendurada (o
+  // servidor só percebe uma queda no próximo batimento, até ~50 s depois).
+  // Ela é substituída agora, e por isso não conta como "vaga ocupada".
+  const anterior = room.bySession(msg.session);
+
+  // Sala trancada: só entra quem já estava (reconexão) ou o dono.
+  if (room.closed && !anterior && !ehDono) return fail(ERRORS.ROOM_LOCKED, true);
+  if (room.isFull && !anterior) return fail(ERRORS.ROOM_FULL, true);
+
+  /*
+   * ANTES ISTO ERA `room.hasPass` — uma propriedade que não existe. A
+   * condição nunca era verdadeira e a senha da sala NUNCA era conferida:
+   * qualquer pessoa com o link entrava numa sala "protegida". A propriedade
+   * certa é `locked`; scripts/fixes-test.mjs garante que continue assim.
+   * Vale também para reconexões: o cliente reenvia a senha que já tinha.
+   */
+  if (room.locked) {
     // De castigo por erros anteriores: nem chega a conferir a senha, para que
     // tentar de novo não fique mais barato do que esperar.
     if (ctx.passGuard.blocked(ctx.ip)) return fail(ERRORS.BAD_PASSWORD, true);
@@ -315,10 +355,26 @@ function handleJoin(ctx, socket, registry, msg, fail) {
   ctx.participant = me;
   ctx.room = room;
 
+  // Substitui a conexão anterior desta mesma aba: os outros veem a saída do
+  // id velho ANTES da entrada do novo — nunca os dois ao mesmo tempo.
+  let herdaAnfitriao = false;
+  if (anterior) {
+    herdaAnfitriao = anterior.host;
+    room.remove(anterior.id);
+    anterior.replaced = true;
+    room.broadcast({ t: S2C.PEER_LEAVE, id: anterior.id, newHost: null, replacedBy: me.id });
+    try {
+      anterior.socket.terminate();
+    } catch {
+      /* já fechado */
+    }
+  }
+
   // Ordem importa: o recém-chegado recebe o elenco atual antes de ser anunciado,
   // para que nenhum par apareça duas vezes.
   const peers = room.roster();
   room.add(me);
+  if (ehDono || herdaAnfitriao) room.claimHost(me);
 
   me.send({
     t: S2C.WELCOME,
@@ -331,10 +387,13 @@ function handleJoin(ctx, socket, registry, msg, fail) {
       code: room.code,
       visibility: room.visibility,
       locked: room.locked,
+      closed: room.closed,
     },
   });
 
-  room.broadcast({ t: S2C.PEER_JOIN, peer: me.publicView() }, me.id);
+  room.broadcast({ t: S2C.PEER_JOIN, peer: me.publicView(), replaces: anterior?.id || null }, me.id);
+  // O anfitrião mudou (o dono voltou): todos atualizam a marca.
+  if (me.host) room.broadcast({ t: S2C.HOST, id: me.id }, me.id);
 
   log.info("participante entrou", {
     room: redactRoom(room.id),
@@ -343,11 +402,60 @@ function handleJoin(ctx, socket, registry, msg, fail) {
   });
 }
 
+/**
+ * Ações do anfitrião. A conferência de quem pode é AQUI, no servidor: o botão
+ * só aparece para o anfitrião, mas um cliente modificado poderia mandar a
+ * mensagem mesmo assim — e ela seria recusada.
+ */
+function handleModerate(me, room, msg, fail) {
+  if (!me.host) return fail(ERRORS.NOT_HOST);
+  const by = me.profile.name;
+
+  switch (msg.action) {
+    case "mute":
+    case "cam-off": {
+      const alvo = room.get(msg.target);
+      if (!alvo || alvo === me) return;
+      alvo.send({ t: S2C.MODERATED, action: msg.action, by });
+      break;
+    }
+    case "mute-all": {
+      room.broadcast({ t: S2C.MODERATED, action: "mute", by }, me.id);
+      break;
+    }
+    case "kick": {
+      const alvo = room.get(msg.target);
+      if (!alvo || alvo === me) return;
+      if (alvo.device) room.banned.add(alvo.device);
+      alvo.send({ t: S2C.MODERATED, action: "kick", by });
+      room.broadcast({ t: S2C.MODERATED, action: "kicked", target: alvo.id, name: alvo.profile.name, by }, alvo.id);
+      // 1008 + motivo "kicked": o cliente entende como definitivo e não
+      // tenta reconectar sozinho.
+      alvo.socket.close(1008, ERRORS.KICKED);
+      break;
+    }
+    case "lock":
+    case "unlock": {
+      room.closed = msg.action === "lock";
+      room.broadcast({ t: S2C.ROOM, closed: room.closed, by });
+      break;
+    }
+  }
+
+  log.info("moderação", { room: redactRoom(room.id), by: me.id, action: msg.action });
+}
+
 function teardown(ctx, registry) {
   const me = ctx.participant;
   if (!me || !ctx.room) return;
   const room = ctx.room;
   ctx.participant = null;
+
+  // Substituído por uma reconexão da mesma aba: a saída já foi anunciada.
+  if (me.replaced || !room.has(me.id)) {
+    registry.dropIfEmpty(room.id);
+    return;
+  }
 
   const newHost = room.remove(me.id);
   room.broadcast({ t: S2C.PEER_LEAVE, id: me.id, newHost: newHost?.id || null });

@@ -64,7 +64,12 @@ const COMPRESSIBLE = new Set([".html", ".js", ".mjs", ".css", ".json", ".svg", "
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  /*
+   * 'wasm-unsafe-eval' libera SÓ a compilação de WebAssembly (o reconhecedor
+   * de fala offline das legendas, public/vendor/vosk.js). Não libera eval()
+   * nem script inline: continua valendo apenas código servido por aqui.
+   */
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
@@ -75,7 +80,10 @@ const CSP = [
    * da chamada. `'self'` já cobre o WebSocket da mesma origem em todos os
    * navegadores atuais — que é o único ao qual este app se conecta.
    */
-  "connect-src 'self'",
+  // `vcall-fala:` é o esquema interno do app de mesa que entrega o modelo de
+  // reconhecimento de fala guardado no computador (desktop/fala.js). Fora do
+  // app ele não existe e não leva a lugar nenhum.
+  "connect-src 'self' vcall-fala:",
   "font-src 'self'",
   "worker-src 'self' blob:",
   "object-src 'none'",
@@ -87,6 +95,9 @@ const CSP = [
   // importava aqui.
   "upgrade-insecure-requests",
 ].join("; ");
+
+/** Páginas com endereço limpo que não são o app principal. */
+const ROTAS_FIXAS = { "/abrir": "/abrir.html", "/abrir/": "/abrir.html" };
 
 const SECURITY_HEADERS = {
   "Content-Security-Policy": CSP,
@@ -295,8 +306,15 @@ export function createHttpServer({ registry = null, control = null, assets = nul
      * embutidos no binário e chegam aqui por `assets`. Responder da memória é,
      * de quebra, mais rápido — some uma leitura de disco por requisição.
      */
+    /*
+     * /abrir é a página do convite que vai pelo WhatsApp: um endereço https
+     * que abre o aplicativo (vcall://) ou cai no navegador. Tem arquivo
+     * próprio; as demais rotas sem extensão continuam indo para o app.
+     */
+    const caminho = ROTAS_FIXAS[pathname] || pathname;
+
     if (assets) {
-      const rota = pathname === "/" ? "/index.html" : pathname;
+      const rota = caminho === "/" ? "/index.html" : caminho;
       // Rotas do app (links de sala) não têm extensão e caem no index.html.
       const alvo = assets.has(rota) ? rota : path.extname(rota) ? null : "/index.html";
       if (!alvo) {
@@ -320,7 +338,7 @@ export function createHttpServer({ registry = null, control = null, assets = nul
       return res.end(method === "HEAD" ? undefined : buf);
     }
 
-    let abs = resolveSafe(pathname);
+    let abs = resolveSafe(caminho);
     if (!abs) {
       res.writeHead(400, SEC);
       return res.end();

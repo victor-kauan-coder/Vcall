@@ -8,6 +8,7 @@
  * — com N pessoas, cada uma codifica N−1 vezes.
  */
 import { Emitter } from "../lib/emitter.js";
+import { deviceToken, hostKeyFor, sessionToken } from "../lib/identity.js";
 import { Peer } from "./peer.js";
 import { StatsMonitor } from "./stats.js";
 import { VoiceActivity } from "./vad.js";
@@ -54,7 +55,21 @@ export class Mesh extends Emitter {
     this.emit("ice", this.iceConfig);
     this.room = room;
     this.roomMeta = meta;
-    this.signaling.join({ room, profile, state, meta, pass });
+    this.signaling.join({
+      room,
+      profile,
+      state,
+      meta,
+      pass,
+      hostKey: hostKeyFor(room),
+      session: sessionToken(),
+      device: deviceToken(),
+    });
+  }
+
+  /** Ação de anfitrião. O servidor confere se quem pede é mesmo o anfitrião. */
+  moderate(action, target = "") {
+    return this.signaling.send({ t: "moderate", action, target });
   }
 
   /**
@@ -119,17 +134,36 @@ export class Mesh extends Emitter {
     });
 
     sig.on("peer-join", (m) => {
+      // Reconexão de alguém que caiu: o id antigo sai antes de o novo entrar.
+      // O servidor já avisou a saída; isto cobre o caso de o aviso se perder.
+      if (m.replaces && this.peers.has(m.replaces)) {
+        const profile = this.profiles.get(m.replaces);
+        this.#dropPeer(m.replaces);
+        this.emit("peer-leave", { id: m.replaces, profile, replaced: true });
+      }
       this.#addPeer(m.peer);
-      this.emit("peer-join", m.peer);
+      this.emit("peer-join", { ...m.peer, reconnected: !!m.replaces });
       this.emit("roster", this.roster());
     });
 
     sig.on("peer-leave", (m) => {
+      if (!this.peers.has(m.id) && !this.profiles.has(m.id)) return; // já tratado
       const profile = this.profiles.get(m.id);
       this.#dropPeer(m.id);
       if (m.newHost) this.hostId = m.newHost;
-      this.emit("peer-leave", { id: m.id, profile });
+      this.emit("peer-leave", { id: m.id, profile, replaced: !!m.replacedBy });
       this.emit("roster", this.roster());
+    });
+
+    sig.on("host", (m) => {
+      this.hostId = m.id;
+      this.emit("host", { id: m.id, self: m.id === this.selfId });
+      this.emit("roster", this.roster());
+    });
+    sig.on("moderated", (m) => this.emit("moderated", m));
+    sig.on("room", (m) => {
+      this.roomInfo = { ...(this.roomInfo || {}), closed: !!m.closed };
+      this.emit("room-closed", { closed: !!m.closed, by: m.by });
     });
 
     sig.on("signal", (m) => {

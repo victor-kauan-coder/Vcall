@@ -24,8 +24,9 @@ export class Panel {
   tab = "chat";
   unread = 0;
 
-  constructor({ onSend, onClose, onChange, onFiles }) {
+  constructor({ onSend, onClose, onChange, onFiles, onPerson }) {
     this.onSend = onSend;
+    this.onPerson = onPerson || null;
     this.onClose = onClose || (() => {});
     this.onChange = onChange || (() => {});
     this.onFiles = onFiles || null;
@@ -394,8 +395,44 @@ export class Panel {
    * Pessoas
    * ---------------------------------------------------------------- */
 
-  renderPeople(roster) {
+  /**
+   * Lista de pessoas. Com `mod` (só para o anfitrião) cada pessoa ganha os
+   * botões de silenciar, desligar câmera e remover, e o topo ganha "silenciar
+   * todos" e "trancar a sala". A conferência de verdade é no servidor: estes
+   * botões são só o caminho até ela.
+   *
+   * @param {Array} roster
+   * @param {null|{closed:boolean, onMute:Function, onCamOff:Function, onKick:Function, onMuteAll:Function, onLock:Function}} mod
+   */
+  renderPeople(roster, mod = this.mod) {
+    this.mod = mod;
     clear(this.peopleList);
+
+    if (mod) {
+      const outros = roster.filter((p) => !p.self);
+      const trancar = el(
+        "button.btn.btn--ghost.people__acao",
+        {
+          type: "button",
+          "aria-pressed": String(!!mod.closed),
+          onClick: () => mod.onLock(!mod.closed),
+        },
+        [icon(mod.closed ? "lock" : "lock-open", { size: "sm" }), el("span", { text: mod.closed ? "Sala trancada" : "Trancar sala" })],
+      );
+      trancar.dataset.tip = mod.closed ? "Ninguém novo entra. Clique para destrancar." : "Impede que mais alguém entre";
+      const todos = el(
+        "button.btn.btn--ghost.people__acao",
+        { type: "button", disabled: !outros.some((p) => p.state?.mic), onClick: () => mod.onMuteAll() },
+        [icon("mic-off", { size: "sm" }), el("span", { text: "Silenciar todos" })],
+      );
+      this.peopleList.append(
+        el("div.people__host", {}, [
+          el("div.people__hostTitulo", {}, [icon("crown", { size: "sm" }), el("span", { text: "Você é o anfitrião" })]),
+          el("div.people__hostAcoes", {}, [todos, trancar]),
+        ]),
+      );
+    }
+
     for (const p of roster) {
       const icons = el("div.person__icons");
       icons.append(
@@ -419,16 +456,55 @@ export class Panel {
       if (!p.self && p.connection !== "connected") sub.push("conectando…");
       else if (!p.self) sub.push(QUALITY_LABEL[p.quality] || "");
 
-      this.peopleList.append(
-        el("div.person", {}, [
-          avatarEl(p.avatar, { title: p.name }),
-          el("div", {}, [
-            el("div.person__name", { text: p.name || "Convidado" }),
-            el("div.person__sub", { text: sub.filter(Boolean).join(" · ") }),
-          ]),
-          icons,
+      const nome = p.name || "Convidado";
+      const conteudo = [
+        avatarEl(p.avatar, { title: nome }),
+        el("div.person__texto", {}, [
+          el("div.person__name", {}, [
+            el("span.truncate", { text: nome }),
+            p.host ? icon("crown", { size: "sm", label: "Anfitrião", className: "person__coroa" }) : null,
+          ].filter(Boolean)),
+          el("div.person__sub", { text: sub.filter(Boolean).join(" · ") }),
         ]),
-      );
+      ];
+
+      const principal = this.onPerson
+        ? el(
+            "button.person__main",
+            {
+              type: "button",
+              "aria-label": p.self ? "Editar o seu perfil" : `Destacar ${nome}`,
+              dataset: { tip: p.self ? "Editar perfil" : "Ver em destaque", "tip-placement": "left" },
+              onClick: () => this.onPerson(p),
+            },
+            conteudo,
+          )
+        : el("div.person__main", {}, conteudo);
+
+      const linha = el("div.person", { dataset: { id: p.id } }, [principal, icons]);
+
+      if (mod && !p.self) {
+        const acao = (nomeIcone, rotulo, fn, { perigo = false, desligado = false } = {}) =>
+          el(
+            `button.person__acao${perigo ? ".person__acao--perigo" : ""}`,
+            {
+              type: "button",
+              disabled: desligado,
+              "aria-label": `${rotulo}: ${nome}`,
+              dataset: { tip: rotulo, "tip-placement": "top" },
+              onClick: () => fn(p),
+            },
+            [icon(nomeIcone, { size: "sm" })],
+          );
+        linha.append(
+          el("div.person__acoes", {}, [
+            acao("mic-off", "Silenciar", mod.onMute, { desligado: !p.state?.mic }),
+            acao("video-off", "Desligar câmera", mod.onCamOff, { desligado: !p.state?.cam }),
+            acao("user-x", "Remover da sala", mod.onKick, { perigo: true }),
+          ]),
+        );
+      }
+      this.peopleList.append(linha);
     }
   }
 

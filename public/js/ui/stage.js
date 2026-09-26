@@ -216,6 +216,45 @@ class Tile {
     this.eqEl.classList.toggle("is-live", v > 0.05);
   }
 
+  /**
+   * "Você está apresentando". Substitui a prévia ao vivo quando a própria tela
+   * inteira está sendo compartilhada.
+   *
+   * A prévia da tela inteira mostra a janela do Vcall, que mostra a prévia,
+   * que mostra a janela… — o efeito sala de espelhos. Além de feio, ele faz
+   * cada quadro ser diferente do anterior: o encoder trabalha no máximo o
+   * tempo todo, a subida de rede satura e, em máquina ou internet mais
+   * modesta, a chamada cai. Com o aviso no lugar, a imagem enviada fica
+   * parada quando nada muda — como deve ser.
+   */
+  setPresenting(on, { label = "Você está compartilhando a tela inteira" } = {}) {
+    if (!on) {
+      this.presentEl?.remove();
+      this.presentEl = null;
+      this.video.classList.remove("is-concealed");
+      return;
+    }
+    if (this.presentEl) return;
+    const ver = el("button.btn.btn--ghost.tile__presentBtn", { type: "button" }, [
+      icon("eye", { size: "sm" }),
+      el("span", { text: "Ver prévia" }),
+    ]);
+    ver.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const oculto = this.video.classList.toggle("is-concealed");
+      this.presentEl.classList.toggle("is-peek", !oculto);
+      ver.lastElementChild.textContent = oculto ? "Ver prévia" : "Esconder prévia";
+    });
+    this.presentEl = el("div.tile__present", {}, [
+      icon("screen-share", { size: "xl" }),
+      el("strong", { text: label }),
+      el("span", { text: "Os outros estão vendo a sua tela. A prévia fica escondida para não gerar o efeito espelho." }),
+      ver,
+    ]);
+    this.video.classList.add("is-concealed");
+    this.node.append(this.presentEl);
+  }
+
   setPinned(on) {
     this.pinned = on;
     this.node.classList.toggle("is-pinned", on);

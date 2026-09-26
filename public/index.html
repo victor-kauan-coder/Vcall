@@ -227,8 +227,10 @@
 
           <!-- Link que abre no aplicativo. Só serve para quem tem o Vcall
                instalado, por isso fica separado do link normal. -->
-          <div class="field" id="appLinkBox" hidden>
-            <span class="field__label">Link para quem tem o aplicativo</span>
+          <!-- Convite para mensageiros: um link https (clicável no WhatsApp)
+               que abre o aplicativo, ou o navegador para quem não o tem. -->
+          <div class="field" id="appLinkBox">
+            <span class="field__label">Convite que abre o aplicativo</span>
             <div class="row">
               <input class="input mono" id="appLink" type="text" readonly />
               <button class="btn" id="copyAppLinkBtn" type="button">
@@ -236,9 +238,13 @@
                 <span>Copiar</span>
               </button>
             </div>
+            <button class="btn btn--whatsapp" id="whatsappBtn" type="button">
+              <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-send" /></svg>
+              <span>Enviar pelo WhatsApp</span>
+            </button>
             <span class="field__hint" id="appLinkHint">
-              Abre direto no Vcall, sem passar pelo navegador. Quem não tem o
-              aplicativo deve receber o link de cima.
+              Clicável no WhatsApp. Abre direto no Vcall de quem tem o aplicativo;
+              quem não tem entra pelo navegador.
             </span>
           </div>
 

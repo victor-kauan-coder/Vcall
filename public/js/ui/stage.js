@@ -16,7 +16,8 @@
 import { el, icon, clear, setIcon } from "../lib/dom.js";
 import { avatarEl, setAvatar } from "./avatars.js";
 import { QUALITY_ICON, QUALITY_LABEL } from "../core/stats.js";
-import { burst, flip } from "./motion.js";
+import { SPRING, animate, burst, calm, flip } from "./motion.js";
+import { prefs } from "../lib/util.js";
 
 const CONNECTION_TEXT = {
   new: "Conectando…",
@@ -216,6 +217,45 @@ class Tile {
     this.eqEl.classList.toggle("is-live", v > 0.05);
   }
 
+  /**
+   * "Você está apresentando". Substitui a prévia ao vivo quando a própria tela
+   * inteira está sendo compartilhada.
+   *
+   * A prévia da tela inteira mostra a janela do Vcall, que mostra a prévia,
+   * que mostra a janela… — o efeito sala de espelhos. Além de feio, ele faz
+   * cada quadro ser diferente do anterior: o encoder trabalha no máximo o
+   * tempo todo, a subida de rede satura e, em máquina ou internet mais
+   * modesta, a chamada cai. Com o aviso no lugar, a imagem enviada fica
+   * parada quando nada muda — como deve ser.
+   */
+  setPresenting(on, { label = "Você está compartilhando a tela inteira" } = {}) {
+    if (!on) {
+      this.presentEl?.remove();
+      this.presentEl = null;
+      this.video.classList.remove("is-concealed");
+      return;
+    }
+    if (this.presentEl) return;
+    const ver = el("button.btn.btn--ghost.tile__presentBtn", { type: "button" }, [
+      icon("eye", { size: "sm" }),
+      el("span", { text: "Ver prévia" }),
+    ]);
+    ver.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const oculto = this.video.classList.toggle("is-concealed");
+      this.presentEl.classList.toggle("is-peek", !oculto);
+      ver.lastElementChild.textContent = oculto ? "Ver prévia" : "Esconder prévia";
+    });
+    this.presentEl = el("div.tile__present", {}, [
+      icon("screen-share", { size: "xl" }),
+      el("strong", { text: label }),
+      el("span", { text: "Os outros estão vendo a sua tela. A prévia fica escondida para não gerar o efeito espelho." }),
+      ver,
+    ]);
+    this.video.classList.add("is-concealed");
+    this.node.append(this.presentEl);
+  }
+
   setPinned(on) {
     this.pinned = on;
     this.node.classList.toggle("is-pinned", on);
@@ -284,6 +324,84 @@ export class Stage {
     this.grid = gridEl;
     this.spotlight = spotlightEl;
     this.onPin = onPin || (() => {});
+    /*
+     * Balão flutuante com o seu próprio vídeo, na chamada a dois: a outra
+     * pessoa ocupa o palco e você vira um balão que dá para arrastar para
+     * qualquer canto — ele desliza até o canto mais próximo, com mola.
+     */
+    this.floater = el("div.floatSelf", { hidden: true, dataset: { corner: prefs.get("float:corner", "br") } });
+    this.floater.setAttribute("aria-label", "Seu vídeo — arraste para outro canto");
+    (spotlightEl?.parentElement || root)?.append(this.floater);
+    this.#wireFloater();
+  }
+
+  /** Chamada a dois, sem tela, quadro nem fixação: modo balão. */
+  #duo() {
+    if (this.layout !== "auto" || this.pinnedId || this.boardActive || this.tiles.size !== 2) return null;
+    const lista = [...this.tiles.values()];
+    if (lista.some((t) => t.kind !== "cam")) return null;
+    const eu = lista.find((t) => t.self);
+    const outro = lista.find((t) => !t.self);
+    return eu && outro ? { eu, outro } : null;
+  }
+
+  #wireFloater() {
+    const f = this.floater;
+    let arrasto = null;
+
+    f.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest("button, input")) return;
+      const r = f.getBoundingClientRect();
+      arrasto = { id: e.pointerId, x0: e.clientX, y0: e.clientY, r, pts: [{ x: e.clientX, y: e.clientY, t: e.timeStamp }] };
+      f.setPointerCapture(e.pointerId);
+      f.classList.add("is-dragging");
+    });
+
+    f.addEventListener("pointermove", (e) => {
+      if (!arrasto || e.pointerId !== arrasto.id) return;
+      const dx = e.clientX - arrasto.x0;
+      const dy = e.clientY - arrasto.y0;
+      f.style.translate = `${dx}px ${dy}px`;
+      arrasto.pts.push({ x: e.clientX, y: e.clientY, t: e.timeStamp });
+      if (arrasto.pts.length > 6) arrasto.pts.shift();
+    });
+
+    const soltar = (e) => {
+      if (!arrasto || e.pointerId !== arrasto.id) return;
+      const a = arrasto;
+      arrasto = null;
+      f.classList.remove("is-dragging");
+      const dx = e.clientX - a.x0;
+      const dy = e.clientY - a.y0;
+      // Um toque sem arrastar não mexe em nada.
+      if (Math.hypot(dx, dy) < 4) {
+        f.style.translate = "";
+        return;
+      }
+      // Arremesso: projeta a velocidade final, como numa mola de verdade.
+      const p0 = a.pts[0];
+      const p1 = a.pts[a.pts.length - 1];
+      const dt = Math.max(1, p1.t - p0.t);
+      const vx = ((p1.x - p0.x) / dt) * 180;
+      const vy = ((p1.y - p0.y) / dt) * 180;
+      const area = f.parentElement.getBoundingClientRect();
+      const cx = a.r.left + a.r.width / 2 + dx + vx - area.left;
+      const cy = a.r.top + a.r.height / 2 + dy + vy - area.top;
+      const canto = `${cy < area.height / 2 ? "t" : "b"}${cx < area.width / 2 ? "l" : "r"}`;
+
+      const antes = f.getBoundingClientRect();
+      f.style.translate = "";
+      f.dataset.corner = canto;
+      prefs.set("float:corner", canto);
+      const depois = f.getBoundingClientRect();
+      animate(
+        f,
+        [{ translate: `${antes.left - depois.left}px ${antes.top - depois.top}px` }, { translate: "0 0" }],
+        SPRING.bouncy,
+      );
+    };
+    f.addEventListener("pointerup", soltar);
+    f.addEventListener("pointercancel", soltar);
   }
 
   /* ---------------------------------------------------------------- */
@@ -337,10 +455,46 @@ export class Stage {
     const id = this.tileId(peerId, kind);
     const tile = this.tiles.get(id);
     if (!tile) return;
-    tile.destroy();
     this.tiles.delete(id);
     if (this.pinnedId === id) this.pinnedId = null;
-    this.relayout();
+    /*
+     * Saída animada: o ladrilho encolhe e some ANTES de os outros ocuparem o
+     * lugar dele. Antes ele sumia de um quadro para o outro e a grade pulava.
+     * Ele já saiu do mapa, então nenhuma outra conta o enxerga mais.
+     */
+    const node = tile.node;
+    if (calm() || !node.isConnected || !node.animate) {
+      tile.destroy();
+      this.relayout();
+      return;
+    }
+    node.style.pointerEvents = "none";
+    const saida = node.animate(
+      [
+        { opacity: 1, scale: "1", filter: "blur(0px)" },
+        { opacity: 0, scale: "0.82", filter: "blur(4px)" },
+      ],
+      { duration: 220, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" },
+    );
+    saida.finished
+      .catch(() => {})
+      .then(() => {
+        tile.destroy();
+        this.relayout();
+      });
+  }
+
+  /**
+   * Anima qualquer mudança que mexa no tamanho do palco (abrir o painel
+   * lateral, entrar no modo mini): os ladrilhos deslizam para o lugar novo em
+   * vez de pular.
+   */
+  animateChange(mutate) {
+    return flip(() => [...this.tiles.values()].map((t) => t.node), () => {
+      const r = mutate();
+      this.#relayout();
+      return r;
+    });
   }
 
   removePeer(peerId) {
@@ -444,11 +598,15 @@ export class Stage {
   }
 
   #relayout() {
-    const featured = this.boardActive ? null : this.#featured();
+    const duo = this.#duo();
+    const featured = duo ? duo.outro.id : this.boardActive ? null : this.#featured();
     const isSpotlight = !!featured || this.boardActive;
 
     this.root.classList.toggle("stage--spotlight", isSpotlight);
+    this.root.classList.toggle("stage--duo", !!duo);
     this.spotlight.hidden = !isSpotlight;
+    this.floater.hidden = !duo;
+    if (duo && duo.eu.node.parentElement !== this.floater) this.floater.append(duo.eu.node);
 
     const ordered = [...this.tiles.values()].sort((a, b) => {
       // Telas primeiro, depois o próprio usuário por último na faixa.
@@ -458,11 +616,12 @@ export class Stage {
     });
 
     for (const tile of ordered) {
+      if (duo && tile === duo.eu) continue; // mora no balão
       const target = tile.id === featured ? this.spotlight : this.grid;
       if (tile.node.parentElement !== target) target.append(tile.node);
     }
 
-    const gridCount = ordered.length - (featured ? 1 : 0);
+    const gridCount = ordered.length - (featured ? 1 : 0) - (duo ? 1 : 0);
     this.grid.dataset.count = String(Math.max(0, gridCount));
     // Degrau de enxugamento do ladrilho (fonte menor, sem barra de volume).
     // Em degraus, e não contínuo, para não mudar a cada pessoa que entra.
@@ -495,6 +654,8 @@ export class Stage {
     this.pinnedId = null;
     clear(this.grid);
     clear(this.spotlight);
+    clear(this.floater);
+    this.floater.hidden = true;
   }
 }
 

@@ -23,6 +23,8 @@ export const C2S = Object.freeze({
   AUDIO: "audio",
   /** Pede o diretório de salas públicas (usado pelo painel inicial). */
   LIST_ROOMS: "list-rooms",
+  /** Ação do anfitrião: silenciar, desligar câmera, remover, trancar. */
+  MODERATE: "moderate",
   LEAVE: "leave",
   PING: "ping",
 });
@@ -40,6 +42,17 @@ export const S2C = Object.freeze({
   BOARD: "board",
   AUDIO: "audio",
   ROOMS: "rooms",
+  /** Uma ação do anfitrião chegou até você (ou um aviso para a sala). */
+  MODERATED: "moderated",
+  /** Quem é o anfitrião agora. */
+  HOST: "host",
+  /** A sala foi trancada ou destrancada pelo anfitrião. */
+  ROOM: "room",
+  /** Você está na sala de espera: o anfitrião decide se entra. */
+  WAITING: "waiting",
+  /** (Para o anfitrião) alguém bateu à porta / desistiu de esperar. */
+  KNOCK: "knock",
+  KNOCK_GONE: "knock-gone",
   ERROR: "error",
   PONG: "pong",
 });
@@ -53,11 +66,40 @@ export const ERRORS = Object.freeze({
   MALFORMED: "malformed",
   TOO_LARGE: "too-large",
   BAD_PASSWORD: "bad-password",
+  /** O anfitrião removeu você desta sala. */
+  KICKED: "kicked",
+  /** O anfitrião trancou a sala: ninguém novo entra. */
+  ROOM_LOCKED: "room-locked",
+  /** Ação de moderação pedida por quem não é o anfitrião. */
+  NOT_HOST: "not-host",
 });
+
+/** Ações que só o anfitrião pode pedir. */
+export const MOD_ACTIONS = new Set([
+  "mute",
+  "mute-all",
+  "cam-off",
+  "kick",
+  "lock",
+  "unlock",
+  "lower-hand",
+  "admit",
+  "deny",
+]);
+/** As que miram uma pessoa específica. */
+const MOD_TARGETED = new Set(["mute", "cam-off", "kick", "lower-hand", "admit", "deny"]);
 
 /** IDs de sala são segredos de 22+ caracteres gerados no cliente. */
 const ROOM_RE = /^[A-Za-z0-9_-]{16,64}$/;
 export const isRoomId = (v) => typeof v === "string" && ROOM_RE.test(v);
+
+/**
+ * Segredos gerados no cliente: chave de anfitrião, sessão da aba e aparelho.
+ * Só letras, números, `_` e `-`; tamanho fixo o bastante para não ser
+ * adivinhado. Qualquer outra coisa vira "não informado".
+ */
+const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/;
+const token = (v) => (typeof v === "string" && TOKEN_RE.test(v) ? v : "");
 
 const clean = (v, max) =>
   typeof v === "string" ? v.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, max).trim() : "";
@@ -154,8 +196,24 @@ export function parseClientMessage(raw) {
           state: normalizeState(m.state),
           meta: normalizeRoomMeta(m.meta),
           pass: typeof m.pass === "string" ? m.pass.slice(0, 128) : "",
+          // Prova de que quem entra é quem criou a sala (volta a ser
+          // anfitrião depois de uma queda).
+          hostKey: token(m.hostKey),
+          // Identifica ESTA aba: ao reconectar, substitui a conexão antiga em
+          // vez de aparecer duplicado para os outros.
+          session: token(m.session),
+          // Identifica o aparelho, para que um participante removido não
+          // volte só recarregando a página.
+          device: token(m.device),
         },
       };
+    }
+
+    case C2S.MODERATE: {
+      if (!MOD_ACTIONS.has(m.action)) return { ok: false, error: ERRORS.MALFORMED };
+      const target = typeof m.target === "string" ? m.target.slice(0, 64) : "";
+      if (MOD_TARGETED.has(m.action) && !target) return { ok: false, error: ERRORS.MALFORMED };
+      return { ok: true, msg: { t: C2S.MODERATE, action: m.action, target } };
     }
 
     case C2S.SIGNAL: {

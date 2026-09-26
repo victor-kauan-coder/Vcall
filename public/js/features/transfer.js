@@ -33,9 +33,22 @@ export class FileTransfer extends Emitter {
   /** id -> { meta, total, parts, got } */
   #incoming = new Map();
 
+  /**
+   * Quem põe cada pedaço na rede. Deve devolver uma promessa que só resolve
+   * quando o pedaço saiu (mesh.broadcastBlob). Sem ele, os pedaços são só
+   * emitidos como evento `blob` (usado nos testes).
+   */
+  sender = null;
+
   constructor({ selfId = "self" } = {}) {
     super();
     this.selfId = selfId;
+  }
+
+  async #enviar(payload) {
+    if (this.sender) return this.sender(payload);
+    this.emit("blob", payload);
+    return { ok: [], falhou: [] };
   }
 
   /**
@@ -61,21 +74,36 @@ export class FileTransfer extends Emitter {
       at: Date.now(),
     };
 
-    this.emit("blob", { type: "file-begin", id, by: this.selfId, meta, total });
-    for (let i = 0; i < total; i += 1) {
-      this.emit("blob", {
-        type: "file-chunk",
-        id,
-        by: this.selfId,
-        i,
-        total,
-        data: data.slice(i * CHUNK, (i + 1) * CHUNK),
-      });
-      this.emit("progress", { id, sent: i + 1, total, outgoing: true });
-    }
+    /*
+     * O envio segue em segundo plano, um pedaço de cada vez: o próximo só sai
+     * quando o anterior foi aceito pela rede. A bolha de quem manda aparece
+     * na hora e a barra de progresso mostra o avanço de verdade (antes ela
+     * marcava 100% antes de qualquer byte sair).
+     */
+    const falharam = new Set();
+    const envio = (async () => {
+      const r0 = await this.#enviar({ type: "file-begin", id, by: this.selfId, meta, total });
+      for (const f of r0?.falhou || []) falharam.add(f);
+      for (let i = 0; i < total; i += 1) {
+        const r = await this.#enviar({
+          type: "file-chunk",
+          id,
+          by: this.selfId,
+          i,
+          total,
+          data: data.slice(i * CHUNK, (i + 1) * CHUNK),
+        });
+        for (const f of r?.falhou || []) falharam.add(f);
+        this.emit("progress", { id, sent: i + 1, total, outgoing: true });
+      }
+      const resultado = { id, falhou: [...falharam] };
+      this.emit("sent", resultado);
+      return resultado;
+    })();
+
     // O próprio remetente também recebe um objeto pronto, para a bolha dele
     // ter um botão de baixar igual ao dos outros.
-    return { ...meta, url: URL.createObjectURL(file), self: true };
+    return { ...meta, url: URL.createObjectURL(file), blob: file, self: true, envio };
   }
 
   /** Trata uma mensagem vinda do canal de carga pesada. Ignora o que não é dela. */
@@ -111,6 +139,7 @@ export class FileTransfer extends Emitter {
           ...entry.meta,
           from: entry.from,
           url: URL.createObjectURL(blob),
+          blob,
           size: blob.size,
         });
       } catch (err) {

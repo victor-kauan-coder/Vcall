@@ -329,14 +329,22 @@ function wireDialogs() {
     const a = this.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: "ease-in", fill: "forwards" });
     card(this)?.animate([{ scale: "1" }, { scale: "0.96", translate: "0 6px" }], { duration: 150, easing: "ease-in", fill: "forwards" });
     this._closing = a;
-    a.finished
-      .catch(() => {})
-      .then(() => {
-        this._closing = null;
-        close.call(this, value);
-        this.getAnimations().forEach((x) => x.cancel());
-        card(this)?.getAnimations().forEach((x) => x.cancel());
-      });
+    /*
+     * O fechamento de verdade vem no fim da animação — e também num prazo
+     * fixo. Se a animação não rodar (máquina lenta, janela em segundo plano,
+     * aba sem foco), `finished` pode demorar ou nunca chegar, e o diálogo
+     * ficava aberto e invisível (opacidade 0) na frente de tudo, engolindo
+     * os cliques. Quem chegar primeiro fecha; o outro não faz nada.
+     */
+    const concluir = () => {
+      if (this._closing !== a) return;
+      this._closing = null;
+      close.call(this, value);
+      this.getAnimations().forEach((x) => x.cancel());
+      card(this)?.getAnimations().forEach((x) => x.cancel());
+    };
+    a.finished.catch(() => {}).then(concluir);
+    setTimeout(concluir, 320);
   };
 
   // Escape e botões de formulário fecham pelo caminho nativo, que não passa

@@ -446,19 +446,37 @@ export class Peer extends Emitter {
 
     const publish = () => this.emit("media", { role, stream, track, live: !track.muted });
 
-    // `unmute` é o sinal de que quadros começaram a chegar de verdade. Ligar o
-    // <video> antes disso é o que produz aquele retângulo preto que nunca sai.
-    if (track.muted) track.addEventListener("unmute", publish, { once: true });
-    else publish();
+    if (transceiver) this.#midRole.set(String(transceiver.mid), role);
 
+    // A mesma trilha pode ser adotada de novo (mapa de papéis tardio,
+    // renegociação). Os ouvintes são ligados uma vez só por trilha.
+    if (this.#wired.has(track)) {
+      publish();
+      return;
+    }
+    this.#wired.add(track);
+
+    /*
+     * `unmute` é o sinal de que quadros começaram a chegar de verdade. Ligar o
+     * <video> antes disso é o que produz aquele retângulo preto que nunca sai.
+     *
+     * O ouvinte é PERMANENTE. A linha de tela é fixa (não se renegocia), então
+     * a mesma trilha recebida silencia quando a pessoa para de compartilhar e
+     * volta a ter quadros quando ela compartilha de novo. Com `{ once: true }`
+     * o segundo compartilhamento da chamada nunca aparecia do outro lado: o
+     * estado dizia "compartilhando", o vídeo chegava, e o ladrilho não nascia.
+     */
+    track.addEventListener("unmute", publish);
     track.addEventListener("mute", () => this.emit("media", { role, stream, track, live: false }));
     track.addEventListener("ended", () => {
       stream.removeTrack(track);
       this.emit("media", { role, stream: null, track: null, live: false });
     });
-
-    if (transceiver) this.#midRole.set(String(transceiver.mid), role);
+    if (!track.muted) publish();
   }
+
+  /** Trilhas recebidas que já têm ouvintes ligados. */
+  #wired = new WeakSet();
 
   /* ---------------------------------------------------------------- *
    * Resiliência

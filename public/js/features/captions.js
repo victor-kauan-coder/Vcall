@@ -10,9 +10,10 @@
  *    pronto viaja como texto — alguns bytes, não áudio.
  *
  * 2. O NAVEGADOR FAZ O TRABALHO. `SpeechRecognition` existe no Chrome e no
- *    Edge. Onde não existe, o botão não aparece: é melhor do que oferecer um
- *    recurso que fica mudo. Quem não transcreve continua LENDO as legendas
- *    dos outros normalmente — receber é só texto.
+ *    Edge. No aplicativo de mesa ele NÃO funciona (falha com "network"), e lá
+ *    entra o reconhecedor offline (features/fala-offline.js). Onde nenhum dos
+ *    dois existe, o botão avisa em vez de ficar mudo. Quem não transcreve
+ *    continua LENDO as legendas dos outros normalmente — receber é só texto.
  *
  * 3. PARCIAL E FINAL SÃO COISAS DIFERENTES. O reconhecedor entrega um palpite
  *    que muda a cada palavra e, no fim da frase, um resultado estável. O
@@ -22,6 +23,7 @@
 import { Emitter } from "../lib/emitter.js";
 import { el, clear } from "../lib/dom.js";
 import { formatClock } from "../lib/util.js";
+import { FalaOffline, falaOfflineDisponivel } from "./fala-offline.js";
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -32,7 +34,18 @@ const MAX_LINES = 3;
 /** Falas guardadas na transcrição. Acima disso, as mais antigas saem. */
 const TRANSCRICAO_MAX = 5000;
 
-export const captionsSupported = typeof SR === "function";
+/** Dá para legendar a própria fala aqui? (Chrome/Edge, ou o app de mesa.) */
+export const captionsSupported = typeof SR === "function" || falaOfflineDisponivel();
+
+/**
+ * Idioma inicial das legendas. O Vcall é em português: antes o padrão era o
+ * idioma do sistema, e num Windows em inglês a fala em português era
+ * transcrita como se fosse inglês — um amontoado de palavras sem sentido.
+ */
+export function idiomaPadrao(salvo) {
+  const validos = ["pt-BR", "pt-PT", "en-US", "es-ES", "fr-FR", "de-DE", "it-IT", "ja-JP"];
+  return validos.includes(salvo) ? salvo : "pt-BR";
+}
 
 export class Captions extends Emitter {
   enabled = false;
@@ -45,8 +58,16 @@ export class Captions extends Emitter {
   #lines = new Map();
   #restart = 0;
   #wantsRunning = false;
+  #paused = false;
+  /** "web" (Chrome/Edge) ou "offline" (aplicativo de mesa). */
+  #engine = null;
+  #offline = null;
+  /** Palpite em andamento que ainda não virou frase final. */
+  #pendente = "";
+  /** Quem fornece a trilha do microfone da chamada (motor offline). */
+  micTrack = null;
 
-  constructor({ lang = navigator.language || "pt-BR" } = {}) {
+  constructor({ lang = "pt-BR" } = {}) {
     super();
     this.lang = lang;
   }
@@ -70,8 +91,28 @@ export class Captions extends Emitter {
    * Reconhecimento da própria voz
    * ---------------------------------------------------------------- */
 
+  /**
+   * Liga a legenda da própria fala.
+   *
+   * Dois motores, escolhidos sozinhos:
+   *   - no navegador, o reconhecimento do Chrome/Edge (Web Speech);
+   *   - no aplicativo de mesa, o reconhecedor offline (features/fala-offline.js),
+   *     porque lá o do Chrome falha na hora com "network".
+   */
   start() {
-    if (!captionsSupported || this.#rec) return false;
+    if (this.enabled) return true;
+    if (falaOfflineDisponivel()) return this.#startOffline();
+    if (!SR) return false;
+    this.#wantsRunning = true;
+    this.enabled = true;
+    this.#engine = "web";
+    if (!this.#paused) this.#startWeb();
+    this.emit("state", true);
+    return true;
+  }
+
+  #startWeb() {
+    if (this.#rec) return;
     const rec = new SR();
     rec.lang = this.lang;
     rec.continuous = true;
@@ -79,13 +120,28 @@ export class Captions extends Emitter {
     rec.maxAlternatives = 1;
 
     rec.onresult = (e) => {
-      // O evento traz a lista inteira desde o início; só o que veio depois de
-      // `resultIndex` é novidade.
+      /*
+       * O evento traz a lista inteira desde o início; só o que veio depois de
+       * `resultIndex` é novidade. Frases finais saem uma a uma; o palpite em
+       * andamento pode vir QUEBRADO em vários pedaços, e antes cada pedaço
+       * substituía o anterior na tela (a legenda piscava mostrando só o fim
+       * da frase). Agora os pedaços em andamento são juntados num só.
+       */
+      let parcial = "";
       for (let i = e.resultIndex; i < e.results.length; i += 1) {
         const r = e.results[i];
         const text = String(r[0]?.transcript || "").trim();
         if (!text) continue;
-        this.emit("local", { text, final: r.isFinal });
+        if (r.isFinal) {
+          this.#pendente = "";
+          this.emit("local", { text, final: true });
+        } else {
+          parcial = parcial ? `${parcial} ${text}` : text;
+        }
+      }
+      if (parcial) {
+        this.#pendente = parcial;
+        this.emit("local", { text: parcial, final: false });
       }
     };
 
@@ -94,49 +150,87 @@ export class Captions extends Emitter {
       // app parou o reconhecimento. Só o resto merece ser contado para fora.
       if (e.error === "no-speech" || e.error === "aborted") return;
       this.emit("error", e.error);
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") this.stop();
+      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "network") this.stop();
     };
 
     /*
      * O Chrome encerra sozinho depois de alguns segundos de silêncio, mesmo em
      * modo contínuo. Sem religar, a legenda morre calada no meio da reunião.
+     * E o palpite que estava na tela quando ele encerrou nunca vira "final":
+     * antes essa frase sumia da transcrição. Agora ela é confirmada aqui.
      */
     rec.onend = () => {
-      if (!this.#wantsRunning) return;
+      this.#confirmarPendente();
+      this.#rec = null;
+      if (!this.#wantsRunning || this.#paused) return;
       clearTimeout(this.#restart);
-      this.#restart = setTimeout(() => {
-        try {
-          rec.start();
-        } catch {
-          /* já rodando: nada a fazer */
-        }
-      }, 400);
+      this.#restart = setTimeout(() => this.#startWeb(), 250);
     };
 
     this.#rec = rec;
-    this.#wantsRunning = true;
-    this.enabled = true;
     try {
       rec.start();
     } catch {
       /* uma segunda chamada a start() lança; o onend já religa */
     }
+  }
+
+  #stopWeb() {
+    clearTimeout(this.#restart);
+    if (!this.#rec) return;
+    const rec = this.#rec;
+    this.#rec = null;
+    rec.onend = null;
+    try {
+      rec.stop();
+    } catch {
+      /* ignorado */
+    }
+    this.#confirmarPendente();
+  }
+
+  #confirmarPendente() {
+    if (!this.#pendente) return;
+    const text = this.#pendente;
+    this.#pendente = "";
+    this.emit("local", { text, final: true });
+  }
+
+  #startOffline() {
+    this.#engine = "offline";
+    this.#wantsRunning = true;
+    this.enabled = true;
+    this.#offline = new FalaOffline({ lang: this.lang, trilha: () => this.micTrack?.() || null });
+    this.#offline.on("result", ({ text, final }) => this.emit("local", { text, final }));
+    this.#offline.on("status", (st) => this.emit("status", st));
+    this.#offline.start().catch((err) => {
+      this.emit("error", err?.message || "offline");
+      this.stop();
+    });
     this.emit("state", true);
     return true;
   }
 
+  /**
+   * Microfone mudo = legenda em pausa. Antes a legenda continuava ouvindo e
+   * mandando para a sala o que a pessoa dizia com o microfone DESLIGADO —
+   * vazamento de privacidade. O motor offline já recebe silêncio da trilha
+   * muda; o do Chrome ouve o microfone por conta própria, então é parado.
+   */
+  setPaused(paused) {
+    this.#paused = !!paused;
+    if (this.#engine !== "web" || !this.#wantsRunning) return;
+    if (this.#paused) this.#stopWeb();
+    else this.#startWeb();
+  }
+
   stop() {
     this.#wantsRunning = false;
-    clearTimeout(this.#restart);
-    if (this.#rec) {
-      this.#rec.onend = null;
-      try {
-        this.#rec.stop();
-      } catch {
-        /* ignorado */
-      }
-      this.#rec = null;
-    }
+    this.#stopWeb();
+    this.#offline?.stop();
+    this.#offline = null;
+    this.#engine = null;
+    if (!this.enabled) return false;
     this.enabled = false;
     this.emit("state", false);
     return false;

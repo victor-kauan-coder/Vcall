@@ -53,12 +53,13 @@ export class ScreenShare extends Emitter {
    * clique: depois de um `await` intermediário o navegador já perdeu a
    * "ativação transitória" e recusa a captura.
    */
-  async start({ quality = this.quality, mode = this.mode, withAudio = true, surface = null } = {}) {
+  async start({ quality = this.quality, mode = this.mode, withAudio = false, surface = null } = {}) {
     if (this.active) return this.stream;
 
     this.quality = quality;
     this.mode = mode;
     this.surface = surface;
+    this.wantedAudio = !!withAudio;
     const q = SCREEN_QUALITY[quality] || SCREEN_QUALITY.auto;
 
     let stream;
@@ -66,12 +67,23 @@ export class ScreenShare extends Emitter {
       stream = await navigator.mediaDevices.getDisplayMedia(this.#options(q, withAudio, surface));
     } catch (err) {
       if (err?.name === "TypeError" || err?.name === "NotSupportedError") {
-        // Alguma opção nova não foi aceita: tenta o conjunto mínimo.
-        try {
-          stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: withAudio });
-        } catch (err2) {
-          this.emit("error", err2);
-          throw err2;
+        // Alguma opção nova não foi aceita: tenta o conjunto mínimo e, se nem
+        // assim, sem som. O Firefox (comum no Linux) não captura áudio de
+        // tela e pode recusar o pedido inteiro só por causa dele.
+        const planos = withAudio ? [{ video: true, audio: true }, { video: true }] : [{ video: true }];
+        let ultimo = err;
+        for (const plano of planos) {
+          try {
+            stream = await navigator.mediaDevices.getDisplayMedia(plano);
+            break;
+          } catch (err2) {
+            ultimo = err2;
+            if (err2?.name !== "TypeError" && err2?.name !== "NotSupportedError") break;
+          }
+        }
+        if (!stream) {
+          this.emit("error", ultimo);
+          throw ultimo;
         }
       } else {
         this.emit("error", err);
@@ -205,6 +217,10 @@ export class ScreenShare extends Emitter {
             autoGainControl: false,
             channelCount: 2,
             sampleRate: 48000,
+            // Chrome recente: não captura o som tocado pela própria página
+            // (as vozes da chamada). Ignorado onde não existe.
+            restrictOwnAudio: true,
+            suppressLocalAudioPlayback: false,
           }
         : false,
     };

@@ -336,7 +336,12 @@ async function buildWhisper() {
   }
   await mkdir(pasta, { recursive: true });
   const entrada = path.join(root, "scripts", ".whisper-entry.mjs");
-  await writeFile(entrada, 'export { env, WhisperTokenizer, WhisperProcessor, AutoFeatureExtractor, WhisperForConditionalGeneration, AutomaticSpeechRecognitionPipeline } from "@huggingface/transformers";\n');
+  await writeFile(
+    entrada,
+    'export { env, Tensor, WhisperTokenizer, AutoFeatureExtractor, WhisperForConditionalGeneration } from "@huggingface/transformers";\n' +
+      // O mesmo ONNX Runtime que o Whisper usa roda o detector de voz.
+      'export { InferenceSession, Tensor as OrtTensor } from "onnxruntime-web/webgpu";\n',
+  );
   const result = await esbuild.build({
     entryPoints: [entrada],
     bundle: true,
@@ -356,6 +361,13 @@ async function buildWhisper() {
     total += dados.length;
     await writeFile(path.join(pasta, nome), dados);
   }
+  // Detector de voz Silero v5 (MIT, 2 MB): decide quando alguém começa e
+  // para de falar muito melhor que o volume — teclado e ventilador não contam.
+  const silero = path.join(root, "node_modules", "@ricky0123", "vad-web", "dist", "silero_vad_v5.onnx");
+  if (!existsSync(silero)) throw new Error("silero_vad_v5.onnx não encontrado (npm install --include=dev)");
+  const vad = await readFile(silero);
+  total += vad.length;
+  await writeFile(path.join(pasta, "silero_vad_v5.onnx"), vad);
   const { size } = await import("node:fs").then((fs) => fs.promises.stat(path.join(pasta, "transformers.js")));
   console.log(`  ✓ whisper/ (transformers.js ${(size / 1024).toFixed(0)} kB + motor ${(total / 1024 / 1024).toFixed(1)} MB)`);
 }

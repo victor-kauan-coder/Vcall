@@ -35,6 +35,7 @@
     "@dicebear/core": "^9.0.0",
     "@huggingface/transformers": "^4.3.0",
     "@jitsi/rnnoise-wasm": "^0.2.1",
+    "@ricky0123/vad-web": "^0.0.31",
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.25.12",

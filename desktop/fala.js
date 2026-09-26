@@ -17,10 +17,11 @@
  * sem rede (scripts/fixes-test.mjs).
  */
 import { createReadStream } from "node:fs";
-import { mkdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { gzipSync, inflateRawSync } from "node:zlib";
+import { adaptarEncoder, jaAdaptado } from "./whisper-curto.js";
 
 /** Esquema interno pelo qual a página busca o modelo (desktop/main.js). */
 export const ESQUEMA_FALA = "vcall-fala";
@@ -307,7 +308,7 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
   }
   if (!faltam.length) {
     progresso(1);
-    return { repo: m.repo };
+    return { repo: m.repo, curto: await adaptar(destino) };
   }
 
   const total = m.mb * 1024 * 1024;
@@ -329,8 +330,28 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
     await writeFile(`${final}.parcial`, Buffer.concat(pedacos));
     await rename(`${final}.parcial`, final);
   }
+  const curto = await adaptar(destino);
   progresso(1);
-  return { repo: m.repo };
+  return { repo: m.repo, curto };
+}
+
+/**
+ * Adapta o encoder para ler trechos curtos (desktop/whisper-curto.js), uma
+ * vez. Se algo der errado, o modelo original continua servindo — só mais
+ * lento — e a página é avisada de que o encoder não é "curto".
+ */
+async function adaptar(destino) {
+  const enc = path.join(destino, "onnx", "encoder_model_quantized.onnx");
+  try {
+    const buf = await readFile(enc);
+    if (jaAdaptado(buf)) return true;
+    await writeFile(`${enc}.parcial`, adaptarEncoder(buf));
+    await rename(`${enc}.parcial`, enc);
+    return true;
+  } catch (err) {
+    console.warn("[fala] encoder sem adaptação para trechos curtos:", err?.message || err);
+    return false;
+  }
 }
 
 /** Apaga um modelo Whisper (corrompido): a próxima vez baixa de novo. */

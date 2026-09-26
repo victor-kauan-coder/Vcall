@@ -260,22 +260,31 @@ export async function responderModelo(pasta, url) {
  * Três tamanhos, escolhidos nas Configurações:
  */
 export const WHISPER = {
-  rapida: { repo: "Xenova/whisper-tiny", mb: 41, nome: "Rápida" },
-  equilibrada: { repo: "Xenova/whisper-base", mb: 77, nome: "Equilibrada" },
-  maxima: { repo: "Xenova/whisper-small", mb: 250, nome: "Máxima" },
+  /*
+   * Escolhidos pela medição com voz humana (scripts/bench-fala.mjs, LapsBM,
+   * 40 frases de 10 falantes): palavras erradas / tempo por frase em 2 núcleos.
+   *   tiny   57% — descartado: erra mais da metade.
+   *   base   ~24% / ~0,6 s
+   *   small  ~14% / ~1,0 s  ← só viável com o encoder curto (antes: ~13 s)
+   */
+  rapida: { repo: "Xenova/whisper-base", mb: 77, nome: "Rápida", encoder: "encoder_model_quantized.onnx", dtype: "q8" },
+  equilibrada: { repo: "Xenova/whisper-small", mb: 250, nome: "Equilibrada", encoder: "encoder_model_quantized.onnx", dtype: "q8" },
+  maxima: { repo: "Xenova/whisper-small", mb: 510, nome: "Máxima", encoder: "encoder_model.onnx", dtype: "fp32" },
 };
 export const WHISPER_PADRAO = "equilibrada";
 
-/** Os arquivos de cada modelo — e só eles podem ser servidos à página. */
-export const ARQUIVOS_WHISPER = [
+/** Arquivos comuns a todos os modelos. O encoder depende do nível. */
+const COMUNS = [
   "config.json",
   "generation_config.json",
   "preprocessor_config.json",
   "tokenizer.json",
   "tokenizer_config.json",
-  "onnx/encoder_model_quantized.onnx",
   "onnx/decoder_model_merged_quantized.onnx",
 ];
+/** Os arquivos que podem ser servidos à página — e só eles. */
+export const ARQUIVOS_WHISPER = [...COMUNS, "onnx/encoder_model_quantized.onnx", "onnx/encoder_model.onnx"];
+const arquivosDo = (m) => [...COMUNS, `onnx/${m.encoder}`];
 
 const HF = "https://huggingface.co";
 
@@ -297,7 +306,7 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
   const m = WHISPER[nivel] || WHISPER[WHISPER_PADRAO];
   const destino = pastaWhisper(pasta, nivel);
   const faltam = [];
-  for (const arq of ARQUIVOS_WHISPER) {
+  for (const arq of arquivosDo(m)) {
     try {
       const s = await stat(path.join(destino, arq));
       if (s.size > 0) continue;
@@ -308,7 +317,7 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
   }
   if (!faltam.length) {
     progresso(1);
-    return { repo: m.repo, curto: await adaptar(destino) };
+    return { repo: m.repo, dtype: m.dtype, curto: await adaptar(path.join(destino, "onnx", m.encoder)) };
   }
 
   const total = m.mb * 1024 * 1024;
@@ -330,9 +339,9 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
     await writeFile(`${final}.parcial`, Buffer.concat(pedacos));
     await rename(`${final}.parcial`, final);
   }
-  const curto = await adaptar(destino);
+  const curto = await adaptar(path.join(destino, "onnx", m.encoder));
   progresso(1);
-  return { repo: m.repo, curto };
+  return { repo: m.repo, dtype: m.dtype, curto };
 }
 
 /**
@@ -340,8 +349,7 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
  * vez. Se algo der errado, o modelo original continua servindo — só mais
  * lento — e a página é avisada de que o encoder não é "curto".
  */
-async function adaptar(destino) {
-  const enc = path.join(destino, "onnx", "encoder_model_quantized.onnx");
+async function adaptar(enc) {
   try {
     const buf = await readFile(enc);
     if (jaAdaptado(buf)) return true;

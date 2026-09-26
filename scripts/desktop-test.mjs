@@ -150,11 +150,11 @@ try {
   await win.evaluate(() => window.vcall.screen.stop("user"));
 
   /* -- legendas com Whisper: microfone de verdade (um .wav com fala) -- */
-  // O modelo "rápido" (tiny). No CI ele é baixado do Hugging Face como seria
+  // O modelo "rápido" (base). No CI ele é baixado do Hugging Face como seria
   // para qualquer pessoa; sem rede, VCALL_WHISPER_LOCAL aponta uma cópia.
   const userData = await app.evaluate(({ app }) => app.getPath("userData"));
   if (process.env.VCALL_WHISPER_LOCAL) {
-    const destino = path.join(userData, "fala", "whisper", "Xenova", "whisper-tiny");
+    const destino = path.join(userData, "fala", "whisper", "Xenova", "whisper-base");
     mkdirSync(destino, { recursive: true });
     cpSync(process.env.VCALL_WHISPER_LOCAL, destino, { recursive: true });
   }

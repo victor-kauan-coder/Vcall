@@ -2615,9 +2615,9 @@ function openSettings() {
     });
     if (window.vcallDesktop?.prepararWhisper) {
       const niveis = [
-        ["rapida", "Rápida — 40 MB, para computadores modestos"],
-        ["equilibrada", "Equilibrada — 80 MB (recomendada)"],
-        ["maxima", "Máxima — 250 MB, a mais precisa (pede um computador forte)"],
+        ["rapida", "Rápida — 80 MB, para computadores modestos"],
+        ["equilibrada", "Equilibrada — 250 MB, erra metade da Rápida (recomendada)"],
+        ["maxima", "Máxima — 510 MB, um pouco mais precisa e usa mais memória"],
       ];
       const selN = el("select.input", { "aria-label": "Precisão das legendas" });
       for (const [v, t] of niveis) selN.append(el("option", { value: v, text: t, selected: captions.nivel === v }));

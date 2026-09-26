@@ -79,7 +79,7 @@ export class FalaWhisper extends Emitter {
     const w = worker;
     aberto = (async () => {
       this.emit("status", { fase: "baixando", p: 0 });
-      const { base, modelo, curto } = await window.vcallDesktop.prepararWhisper(this.nivel, (p) =>
+      const { base, modelo, curto, dtype } = await window.vcallDesktop.prepararWhisper(this.nivel, (p) =>
         this.emit("status", { fase: "baixando", p }),
       );
       this.emit("status", { fase: "carregando" });
@@ -95,7 +95,15 @@ export class FalaWhisper extends Emitter {
         };
         w.addEventListener("message", aoMsg);
         w.addEventListener("error", (e) => reject(new Error(e.message || "o reconhecedor de fala não abriu")), { once: true });
-        w.postMessage({ tipo: "abrir", base, modelo, curto: !!curto, idioma: this.lang, vad: "/vendor/whisper/silero_vad_v5.onnx" });
+        w.postMessage({
+          tipo: "abrir",
+          base,
+          modelo,
+          curto: !!curto,
+          dtype: dtype === "fp32" ? { encoder_model: "fp32", decoder_model_merged: "q8" } : null,
+          idioma: this.lang,
+          vad: "/vendor/whisper/silero_vad_v5.onnx",
+        });
       });
     })();
     try {

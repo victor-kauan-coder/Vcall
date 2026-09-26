@@ -1,0 +1,75 @@
+# Testes a cada push e pull request.
+#
+#   servidor e navegador  — Ubuntu: verificação estática, testes do servidor,
+#                           dois navegadores reais, interface e túnel
+#   app de mesa           — Ubuntu com tela virtual (Xvfb) e gerenciador de
+#                           janelas: seletor de janelas, tela, legenda offline
+#   windows               — os testes rápidos também no Windows
+name: Testes
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  servidor-e-navegador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Dependências (com as de desenvolvimento)
+        run: npm ci --include=dev
+      - name: Chromium para os testes
+        run: npx playwright install --with-deps chromium
+      - name: Verificação estática e testes do servidor
+        run: npm run check
+      - name: Dois navegadores numa chamada (e2e)
+        run: node scripts/e2e.mjs
+      - name: Interface — cada correção, clicando como uma pessoa
+        run: node scripts/ui-test.mjs
+      - name: Atrás de um túnel HTTPS
+        run: node scripts/proxy-test.mjs
+
+  app-de-mesa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Tela virtual e gerenciador de janelas
+        run: sudo apt-get update && sudo apt-get install -y xvfb openbox
+      - name: Dependências (baixa o Electron)
+        run: npm ci --include=dev
+      - name: Chromium para o segundo participante
+        run: npx playwright install --with-deps chromium
+      - name: App de mesa (Electron)
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" sh -c 'openbox & sleep 1; node scripts/desktop-test.mjs'
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --include=dev --ignore-scripts
+      - name: Verificação estática e testes do servidor
+        run: |
+          node scripts/check.mjs
+          node scripts/fixes-test.mjs
+          node scripts/security-test.mjs

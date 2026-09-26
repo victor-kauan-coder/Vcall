@@ -131,6 +131,13 @@ export const config = Object.freeze({
 
   /** Em produção atrás de um proxy TLS, deixe true para exigir HTTPS nos links. */
   trustProxy: process.env.TRUST_PROXY === "1",
+  /**
+   * Atrás do cloudflared rodando NA MESMA máquina: usar o CF-Connecting-IP
+   * como endereço de quem conecta. Desligado por padrão — atrás de um nginx
+   * local qualquer um poderia forjar esse cabeçalho. O app de mesa liga
+   * sozinho (o túnel dele é o cloudflared).
+   */
+  trustCloudflare: process.env.TRUST_CLOUDFLARE === "1",
 
   dev: process.env.NODE_ENV !== "production",
 });

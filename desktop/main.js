@@ -20,7 +20,7 @@
 import { app, BrowserWindow, Menu, dialog, desktopCapturer, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
 import { randomBytes } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,8 +29,9 @@ import { attachSignaling } from "../src/signaling.js";
 import { RoomRegistry } from "../src/rooms.js";
 import { hostControl } from "./guard.js";
 import { Tunnel } from "./tunnel.js";
-import { ESQUEMA, destinoDoLink, linkDosArgumentos } from "./protocol.js";
+import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
 import { descreverFontes, montarResposta, sessaoWayland } from "./captura.js";
+import { executavelParaRegistrar, precisaSemSandbox } from "./linux.js";
 import { ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, responderModelo } from "./fala.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,9 @@ if (process.platform === "linux") {
   // Sem este recurso o Chromium tenta capturar pelo X11, que no Wayland só
   // enxerga janelas XWayland — e a pessoa vê uma tela preta ou nada.
   app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
+  // AppImage em distro que restringe user namespaces (Ubuntu 24.04+, kernels
+  // endurecidos): sem isto o app nem abre. Ver desktop/linux.js.
+  if (precisaSemSandbox()) app.commandLine.appendSwitch("no-sandbox");
 }
 
 /*
@@ -137,7 +141,9 @@ async function subirServidor() {
   });
 
   const server = createHttpServer({ registry, control });
-  attachSignaling(server, { registry });
+  // O link público do app é o cloudflared nesta mesma máquina: o endereço
+  // real de cada convidado vem no CF-Connecting-IP.
+  attachSignaling(server, { registry, trustCloudflare: true });
 
   for (const p of PORTAS) {
     const obtida = await escutar(server, p);
@@ -505,6 +511,17 @@ if (!app.requestSingleInstanceLock()) {
       app.setAsDefaultProtocolClient(ESQUEMA, process.execPath, [path.resolve(process.argv[1])]);
     } else {
       app.setAsDefaultProtocolClient(ESQUEMA);
+    }
+    // Linux sem pacote instalado (AppImage, .tar.gz): o .desktop do usuário
+    // é o que faz o link vcall:// dos convites abrir este app.
+    const exeLinux = app.isPackaged ? executavelParaRegistrar() : null;
+    if (exeLinux) {
+      registrarEsquema(exeLinux, { icone: await readFile(ICON).catch(() => null) }).then((ok) =>
+        registrar("esquema-linux", { ok, exe: exeLinux }),
+      );
+    }
+    if (process.platform === "linux" && app.commandLine.hasSwitch("no-sandbox")) {
+      registrar("sem-sandbox", { motivo: "AppImage sem user namespaces" });
     }
 
     try {

@@ -56,10 +56,16 @@ function conteudo(arquivo) {
      */
     return el("embed.lightbox__pdf", { src: arquivo.url, type: "application/pdf" });
   }
-  // Texto: buscado do próprio blob, que já está em memória.
+  /*
+   * Texto: lido direto do Blob, que já está em memória. Antes era um
+   * `fetch(blob:…)`, que a política de segurança (connect-src 'self')
+   * bloqueia — todo .txt recebido abria com "não consegui ler". E sempre
+   * como TEXTO (textContent): um .html malicioso aparece como código, nunca
+   * é interpretado.
+   */
   const pre = el("pre.lightbox__texto", { text: "carregando…" });
-  fetch(arquivo.url)
-    .then((r) => r.text())
+  const ler = arquivo.blob?.text ? arquivo.blob.text() : Promise.reject(new Error("sem conteúdo"));
+  ler
     .then((t2) => (pre.textContent = t2.slice(0, 200_000)))
     .catch(() => (pre.textContent = "não consegui ler este arquivo"));
   return pre;

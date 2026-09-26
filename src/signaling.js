@@ -98,7 +98,7 @@ class PassGuard {
  * limite por IP punir a sala inteira por causa de uma pessoa. Só confiamos no
  * cabeçalho quando TRUST_PROXY estiver ligado explicitamente.
  */
-function clientIp(req) {
+function clientIp(req, { trustCloudflare = config.trustCloudflare } = {}) {
   if (config.trustProxy) {
     const fwd = req.headers["x-forwarded-for"];
     const first = String(Array.isArray(fwd) ? fwd[0] : fwd || "").split(",")[0].trim();
@@ -111,9 +111,11 @@ function clientIp(req) {
    * real, todos os convidados contavam como uma pessoa só — um único
    * curioso errando a senha bloqueava a entrada de todo mundo, e o limite de
    * conexões por endereço valia para a sala inteira. O cabeçalho só é aceito
-   * quando a conexão vem da própria máquina: de fora ninguém consegue forjá-lo.
+   * quando ligado (app de mesa, ou TRUST_CLOUDFLARE=1) e quando a conexão vem
+   * da própria máquina — atrás de um nginx local, sem esse cuidado, qualquer
+   * um forjaria o endereço e escaparia dos limites.
    */
-  if (/^(127\.|::1$|::ffff:127\.)/.test(direto)) {
+  if (trustCloudflare && /^(127\.|::1$|::ffff:127\.)/.test(direto)) {
     const cf = req.headers["cf-connecting-ip"];
     if (typeof cf === "string" && /^[0-9a-fA-F:.]{2,45}$/.test(cf)) return cf;
   }
@@ -141,7 +143,8 @@ function allowedOrigin(origin, req) {
   return host === req.headers.host;
 }
 
-export function attachSignaling(httpServer, { registry = new RoomRegistry() } = {}) {
+export function attachSignaling(httpServer, { registry = new RoomRegistry(), trustCloudflare = config.trustCloudflare } = {}) {
+  const ipDe = (req) => clientIp(req, { trustCloudflare });
   const passGuard = new PassGuard();
   /** Conexões abertas por IP, para um cliente só não esgotar o servidor. */
   const perIp = new Map();
@@ -162,7 +165,7 @@ export function attachSignaling(httpServer, { registry = new RoomRegistry() } = 
      * conferir o Origin no servidor.
      */
     verifyClient: ({ origin, req }, done) => {
-      const ip = clientIp(req);
+      const ip = ipDe(req);
       if ((perIp.get(ip) || 0) >= config.limits.maxSocketsPerIp) {
         done(false, 429, "conexões demais deste endereço");
         return;
@@ -172,7 +175,7 @@ export function attachSignaling(httpServer, { registry = new RoomRegistry() } = 
   });
 
   wss.on("connection", (socket, req) => {
-    const ip = clientIp(req);
+    const ip = ipDe(req);
     perIp.set(ip, (perIp.get(ip) || 0) + 1);
     socket.once("close", () => {
       const n = (perIp.get(ip) || 1) - 1;

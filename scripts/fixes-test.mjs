@@ -20,6 +20,7 @@ import { lerZip, montarTar, zipParaTarGz, nomeDoModelo, responderModelo } from "
 import { destinoDoLink } from "../desktop/protocol.js";
 import { linkAbrir, linkDaSala, linkDoAplicativo, linkWhatsApp, salaDoFragmento, ehCelular } from "../public/js/lib/invite.js";
 import { createBoardNotice } from "../public/js/features/board-notice.js";
+import { executavelParaRegistrar, namespacesDisponiveis, precisaSemSandbox } from "../desktop/linux.js";
 
 let passou = 0;
 const ok = (nome) => {
@@ -229,6 +230,28 @@ const TOK = (n) => `token-${n}-abcdefghijklmnop`;
   ok("protocolo: moderação e segredos validados na entrada");
 }
 
+/* -- CF-Connecting-IP: só quando ligado (app de mesa / TRUST_CLOUDFLARE) -- */
+{
+  // Com a opção desligada (padrão do servidor), forjar o cabeçalho não
+  // escapa do limite de conexões por endereço.
+  const { config } = await import("../src/config.js");
+  const limite = config.limits.maxSocketsPerIp;
+  const abertos = [];
+  let recusados = 0;
+  for (let i = 0; i < limite + 3; i++) {
+    const ws = new WebSocket(`ws://localhost:${PORT}`, { headers: { "cf-connecting-ip": `203.0.113.${i + 1}` } });
+    const r = await new Promise((res) => {
+      ws.on("open", () => res(true));
+      ws.on("error", () => res(false));
+    });
+    if (r) abertos.push(ws);
+    else recusados += 1;
+  }
+  assert.ok(recusados >= 3, "cabeçalho forjado não pode furar o limite por endereço");
+  for (const ws of abertos) ws.close();
+  ok("segurança: CF-Connecting-IP forjado não fura o limite de conexões");
+}
+
 server.close();
 
 /* ================================================================== *
@@ -329,6 +352,35 @@ server.close();
   assert.equal(m.shouldAnnounce({ type: "add" }), false, "quem já abriu o canvas não é avisado");
   assert.equal(createBoardNotice().shouldAnnounce({ type: "cursor" }), false, "ponteiro não é desenho");
   ok("canvas: 'fulano está desenhando' aparece uma vez, não a cada traço");
+}
+
+/* ================================================================== *
+ * Linux: Fedora, Arch, Ubuntu… (desktop/linux.js)
+ * ================================================================== */
+{
+  const proc = (valores) => (caminho) => {
+    if (caminho in valores) return valores[caminho];
+    throw new Error("ENOENT");
+  };
+  const ubuntu2404 = proc({ "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": "1\n" });
+  const fedora = proc({ "/proc/sys/user/max_user_namespaces": "63432\n" });
+  const arch = proc({});
+  const debianAntigo = proc({ "/proc/sys/kernel/unprivileged_userns_clone": "0" });
+  assert.equal(namespacesDisponiveis(fedora), true);
+  assert.equal(namespacesDisponiveis(arch), true, "sem os arquivos de restrição, está liberado");
+  assert.equal(namespacesDisponiveis(ubuntu2404), false);
+  assert.equal(namespacesDisponiveis(debianAntigo), false);
+
+  const appimage = { APPIMAGE: "/home/ana/Vcall-3.1.0-x86_64.AppImage" };
+  assert.equal(precisaSemSandbox({ plataforma: "linux", env: appimage, ler: ubuntu2404 }), true, "AppImage no Ubuntu 24.04: só assim abre");
+  assert.equal(precisaSemSandbox({ plataforma: "linux", env: appimage, ler: fedora }), false, "no Fedora o sandbox continua ligado");
+  assert.equal(precisaSemSandbox({ plataforma: "linux", env: {}, ler: ubuntu2404 }), false, "pacote .deb: nunca desliga");
+  assert.equal(precisaSemSandbox({ plataforma: "win32", env: appimage, ler: ubuntu2404 }), false);
+
+  assert.equal(executavelParaRegistrar({ plataforma: "linux", env: appimage, execPath: "/tmp/.mount_x/vcall" }), appimage.APPIMAGE, "AppImage registra o próprio arquivo");
+  assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/opt/Vcall/vcall" }), null, ".deb/.rpm/pacman já têm .desktop");
+  assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/home/ana/vcall/vcall" }), "/home/ana/vcall/vcall", ".tar.gz registra onde está");
+  ok("Linux: sandbox e link vcall:// certos no Fedora, Arch, Ubuntu 24.04 e Debian");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

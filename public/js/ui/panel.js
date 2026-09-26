@@ -367,7 +367,7 @@ export class Panel {
    * miniatura. Mostrar o cartão desde o começo é o que dá a sensação de que
    * algo está acontecendo durante uma transferência longa.
    */
-  completeFile(id, url) {
+  completeFile(id, url, blob = null) {
     const alvo = $(`[data-file="${CSS.escape(String(id))}"]`, this.chatList);
     if (!alvo) return false;
     if (alvo.tagName === "A") alvo.href = url;
@@ -375,7 +375,10 @@ export class Panel {
     if (img) img.src = url;
     // O clique guarda o objeto do arquivo por closure; atualizar o endereço
     // dele aqui é o que faz o visualizador abrir a versão já completa.
-    if (alvo.__arquivo) alvo.__arquivo.url = url;
+    if (alvo.__arquivo) {
+      alvo.__arquivo.url = url;
+      if (blob) alvo.__arquivo.blob = blob;
+    }
     this.setFileProgress(id, 1);
     return true;
   }

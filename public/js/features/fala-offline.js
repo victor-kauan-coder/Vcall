@@ -36,6 +36,10 @@ function carregarVosk() {
 function abrirModelo(Vosk, url, limiteMs = 120_000) {
   return new Promise((resolve, reject) => {
     const modelo = new Vosk.Model(url);
+    // O `terminate()` do vosk-browser tenta liberar um modelo que nunca
+    // carregou e lança dentro do worker. Encerrar o worker direto é o certo
+    // quando a abertura falhou.
+    modelo.terminate = () => modelo.worker?.terminate();
     const timer = setTimeout(() => {
       modelo.terminate?.();
       reject(new Error("o reconhecedor de fala demorou demais para abrir"));

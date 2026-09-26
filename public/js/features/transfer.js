@@ -103,7 +103,7 @@ export class FileTransfer extends Emitter {
 
     // O próprio remetente também recebe um objeto pronto, para a bolha dele
     // ter um botão de baixar igual ao dos outros.
-    return { ...meta, url: URL.createObjectURL(file), self: true, envio };
+    return { ...meta, url: URL.createObjectURL(file), blob: file, self: true, envio };
   }
 
   /** Trata uma mensagem vinda do canal de carga pesada. Ignora o que não é dela. */
@@ -139,6 +139,7 @@ export class FileTransfer extends Emitter {
           ...entry.meta,
           from: entry.from,
           url: URL.createObjectURL(blob),
+          blob,
           size: blob.size,
         });
       } catch (err) {

@@ -594,7 +594,7 @@ function wireTransfer() {
   transfer.on("file", (file) => {
     // O cartão já está na conversa desde o "file-begin"; agora ele ganha o
     // endereço do arquivo pronto e a barra de progresso sai.
-    panel.completeFile(file.id, file.url);
+    panel.completeFile(file.id, file.url, file.blob);
     const who = mesh.profiles.get(file.from)?.name || "Alguém";
     notify(`${who} enviou um arquivo`, file.name);
     if (!panel.open || panel.tab !== "chat") {

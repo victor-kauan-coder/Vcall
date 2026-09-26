@@ -239,6 +239,21 @@ try {
       }
       check(`arquivo de ${(tamanho / 1e6).toFixed(1)} MB chega inteiro e idêntico`, chegou && igual, chegou ? (igual ? "sha256 igual" : "conteúdo diferente") : "não chegou");
     }
+    // Um .html malicioso: aparece como texto, nunca é interpretado.
+    const html = path.join(tmp, "armadilha.html");
+    writeFileSync(html, '<img src=x onerror="window.__xss=1"><script>window.__xss=1</script>ola');
+    await a.setInputFiles(".composer input[type=file]", html);
+    await b.waitForFunction(() => document.querySelector('[data-file][title*="armadilha"]'), null, { timeout: 15_000 });
+    await b.click('[aria-label="Conversa"]').catch(() => {});
+    await espera(400);
+    await b.locator('[data-file][title*="armadilha"]').click();
+    await b.waitForSelector(".lightbox__texto", { timeout: 5000 });
+    await b.waitForFunction(() => !/carregando/.test(document.querySelector(".lightbox__texto").textContent), null, { timeout: 5000 });
+    const texto = await b.evaluate(() => document.querySelector(".lightbox__texto").textContent);
+    const xss = await b.evaluate(() => window.__xss === 1);
+    check("arquivo de texto recebido abre no visualizador (antes: 'não consegui ler')", texto.includes("ola"), texto.slice(0, 40));
+    check("um .html recebido aparece como texto e NÃO executa script", !xss);
+
     await a.context().close();
     await b.context().close();
   }

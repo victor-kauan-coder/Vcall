@@ -99,7 +99,8 @@ async function prepararFrases() {
     if (!tgz) continue;
     const buf = await baixar(`${HF}/datasets/falabrasil/lapsbm/resolve/main/${tgz.path}`, path.join(cache, "lapsbm", tgz.path));
     const arquivos = lerTar(gunzipSync(buf));
-    const wavs = [...arquivos.keys()].filter((n) => /\.wav$/i.test(n)).sort();
+    // "._nome.wav" são metadados do macOS que vieram junto no .tar.
+    const wavs = [...arquivos.keys()].filter((n) => /\.wav$/i.test(n) && !path.basename(n).startsWith("._")).sort();
     let n = 0;
     for (const w of wavs) {
       const t = arquivos.get(w.replace(/\.wav$/i, ".txt"));

@@ -262,14 +262,21 @@ export async function responderModelo(pasta, url) {
 export const WHISPER = {
   /*
    * Escolhidos pela medição com voz humana (scripts/bench-fala.mjs, LapsBM,
-   * 40 frases de 10 falantes): palavras erradas / tempo por frase em 2 núcleos.
-   *   tiny   57% — descartado: erra mais da metade.
-   *   base   ~24% / ~0,6 s
-   *   small  ~14% / ~1,0 s  ← só viável com o encoder curto (antes: ~13 s)
+   * 40 frases de 10 falantes; palavras erradas / tempo por frase, 2 núcleos):
+   *
+   *   base,  janela de 30 s (o padrão até a 3.3)   24,3%   0,92 s
+   *   base,  trecho + 3 s              "Rápida"    22,6%   0,52 s
+   *   small, trecho + 1 s         "Equilibrada"    14,3%   0,85 s
+   *   small, janela de 30 s            "Máxima"    12,5%   2,37 s
+   *   tiny (qualquer)                  descartado  57–200%
+   *
+   * O trecho curto (encoder adaptado, desktop/whisper-curto.js) é o que torna
+   * o "small" viável: com a janela fixa de 30 s ele levava ~13 s por frase
+   * numa máquina comum. "Máxima" usa os mesmos arquivos da "Equilibrada".
    */
-  rapida: { repo: "Xenova/whisper-base", mb: 77, nome: "Rápida", encoder: "encoder_model_quantized.onnx", dtype: "q8" },
-  equilibrada: { repo: "Xenova/whisper-small", mb: 250, nome: "Equilibrada", encoder: "encoder_model_quantized.onnx", dtype: "q8" },
-  maxima: { repo: "Xenova/whisper-small", mb: 510, nome: "Máxima", encoder: "encoder_model.onnx", dtype: "fp32" },
+  rapida: { repo: "Xenova/whisper-base", mb: 77, nome: "Rápida", encoder: "encoder_model_quantized.onnx", dtype: "q8", folgaS: 3 },
+  equilibrada: { repo: "Xenova/whisper-small", mb: 250, nome: "Equilibrada", encoder: "encoder_model_quantized.onnx", dtype: "q8", folgaS: 1 },
+  maxima: { repo: "Xenova/whisper-small", mb: 250, nome: "Máxima", encoder: "encoder_model_quantized.onnx", dtype: "q8", janelaCompleta: true },
 };
 export const WHISPER_PADRAO = "equilibrada";
 
@@ -317,7 +324,7 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
   }
   if (!faltam.length) {
     progresso(1);
-    return { repo: m.repo, dtype: m.dtype, curto: await adaptar(path.join(destino, "onnx", m.encoder)) };
+    return resultado(m, await adaptar(path.join(destino, "onnx", m.encoder)));
   }
 
   const total = m.mb * 1024 * 1024;
@@ -339,9 +346,9 @@ export async function prepararWhisper({ pasta, nivel, baixar, progresso = () => 
     await writeFile(`${final}.parcial`, Buffer.concat(pedacos));
     await rename(`${final}.parcial`, final);
   }
-  const curto = await adaptar(path.join(destino, "onnx", m.encoder));
+  const adaptado = await adaptar(path.join(destino, "onnx", m.encoder));
   progresso(1);
-  return { repo: m.repo, dtype: m.dtype, curto };
+  return resultado(m, adaptado);
 }
 
 /**
@@ -360,6 +367,11 @@ async function adaptar(enc) {
     console.warn("[fala] encoder sem adaptação para trechos curtos:", err?.message || err);
     return false;
   }
+}
+
+/** O que a página precisa saber para abrir o modelo. */
+function resultado(m, adaptado) {
+  return { repo: m.repo, dtype: m.dtype, curto: adaptado && !m.janelaCompleta, folgaS: m.folgaS ?? 1 };
 }
 
 /** Apaga um modelo Whisper (corrompido): a próxima vez baixa de novo. */

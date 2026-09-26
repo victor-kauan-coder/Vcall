@@ -59,7 +59,7 @@ app de mesa (Ubuntu + Xvfb + openbox) e os testes rápidos no Windows.
 - **Windows:** instalador NSIS com o `cloudflared` embutido
 - `SHA256SUMS.txt` com as somas de verificação
 
-Dispara com uma tag (`git tag v3.3.0 && git push origin v3.3.0`) ou à mão em
+Dispara com uma tag (`git tag v3.4.0 && git push origin v3.4.0`) ou à mão em
 **Actions → Release → Run workflow**. As notas vêm de
 `docs/release/v<versão>.md`.
 
@@ -73,3 +73,13 @@ workflow `.github/workflows/wiki.yml` a cada alteração no `main`.
 `npm run vendor` regenera `public/vendor/`: o sprite de ícones (Lucide), o
 pacote de avatares (DiceBear) e o `vosk.js` (reconhecimento de fala, com o
 worker adaptado para funcionar sem `eval` dentro da CSP).
+
+## Medir as legendas
+
+`scripts/bench-fala.mjs` mede o reconhecimento (o mesmo núcleo do app,
+`public/js/features/whisper-nucleo.js`) com voz humana do LapsBM: taxa de
+palavras erradas, tempo por frase e memória, para cada configuração. Roda no
+GitHub Actions (`.github/workflows/bench-fala.yml`, que tem acesso ao Hugging
+Face) sempre que o reconhecedor muda, e a tabela aparece no resumo da execução.
+Sem rede: `BENCH_CACHE` com os modelos e `BENCH_FRASES_DIR` com pares
+`.wav`/`.txt`.

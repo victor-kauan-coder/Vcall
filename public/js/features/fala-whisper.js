@@ -79,7 +79,7 @@ export class FalaWhisper extends Emitter {
     const w = worker;
     aberto = (async () => {
       this.emit("status", { fase: "baixando", p: 0 });
-      const { base, modelo, curto, dtype } = await window.vcallDesktop.prepararWhisper(this.nivel, (p) =>
+      const { base, modelo, curto, dtype, folgaS } = await window.vcallDesktop.prepararWhisper(this.nivel, (p) =>
         this.emit("status", { fase: "baixando", p }),
       );
       this.emit("status", { fase: "carregando" });
@@ -100,6 +100,7 @@ export class FalaWhisper extends Emitter {
           base,
           modelo,
           curto: !!curto,
+          folgaS,
           dtype: dtype === "fp32" ? { encoder_model: "fp32", decoder_model_merged: "q8" } : null,
           idioma: this.lang,
           vad: "/vendor/whisper/silero_vad_v5.onnx",

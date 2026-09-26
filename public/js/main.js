@@ -2616,8 +2616,8 @@ function openSettings() {
     if (window.vcallDesktop?.prepararWhisper) {
       const niveis = [
         ["rapida", "Rápida — 80 MB, para computadores modestos"],
-        ["equilibrada", "Equilibrada — 250 MB, erra metade da Rápida (recomendada)"],
-        ["maxima", "Máxima — 510 MB, um pouco mais precisa e usa mais memória"],
+        ["equilibrada", "Equilibrada — 250 MB, bem mais precisa (recomendada)"],
+        ["maxima", "Máxima — a mais precisa, legenda mais lenta (mesmo download)"],
       ];
       const selN = el("select.input", { "aria-label": "Precisão das legendas" });
       for (const [v, t] of niveis) selN.append(el("option", { value: v, text: t, selected: captions.nivel === v }));

@@ -66,7 +66,7 @@ let vad = null;
  */
 let curto = false;
 
-async function abrir({ base, modelo: repo, idioma, vad: urlVad, curto: encoderCurto, dtype }) {
+async function abrir({ base, modelo: repo, idioma, vad: urlVad, curto: encoderCurto, dtype, folgaS }) {
   curto = !!encoderCurto && !EXP.has("longo");
   env.allowRemoteModels = false;
   env.allowLocalModels = true;
@@ -96,6 +96,7 @@ async function abrir({ base, modelo: repo, idioma, vad: urlVad, curto: encoderCu
       repo,
       idioma,
       curto,
+      folgaS: Number(folgaS) > 0 ? Number(folgaS) : 1,
       opcoes,
       lerJson: async (arquivo) => {
         const r = await fetch(`${base}${repo}/${arquivo}`);

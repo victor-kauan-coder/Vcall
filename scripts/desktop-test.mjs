@@ -144,6 +144,31 @@ try {
   const msg = aviso2.split(" | ").find((t) => /interrompidas/.test(t)) || aviso2;
   check("modelo inválido gera aviso claro, sem travar em 'Preparando'", /modelo de fala não abriu/.test(msg), msg.slice(0, 90));
 
+  /* -- visualizador de imagem: o X não pode ficar sob os botões da janela -- */
+  const geo = await win.evaluate(async () => {
+    const png = await new Promise((r) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      c.toBlob(r, "image/png");
+    });
+    const { abrirVisualizador } = await import("/js/ui/lightbox.js");
+    abrirVisualizador({ url: URL.createObjectURL(png), blob: png, name: "foto.png", mime: "image/png" });
+    await new Promise((r) => setTimeout(r, 400));
+    const x = document.querySelector('.lightbox [aria-label="Fechar"]').getBoundingClientRect();
+    const area = navigator.windowControlsOverlay?.getTitlebarAreaRect?.();
+    const alto = area?.height || 40;
+    const drag = getComputedStyle(document.querySelector(".lightbox__barra")).getPropertyValue("-webkit-app-region");
+    return { top: x.top, right: x.right, alto, limite: area ? area.x + area.width : innerWidth, drag };
+  });
+  check(
+    "visualizador: o X fica abaixo dos botões da janela e fora da faixa de arrastar",
+    geo.top >= geo.alto && geo.right <= geo.limite && geo.drag.trim() !== "drag",
+    JSON.stringify(geo),
+  );
+  await win.click('.lightbox [aria-label="Fechar"]');
+  await espera(300);
+  check("visualizador: o X fecha", !(await win.evaluate(() => !!document.querySelector(".lightbox"))));
+
   check("nenhum erro de JavaScript no app", erros.length === 0, erros.slice(0, 2).join(" | "));
 } catch (err) {
   check("execução sem exceção", false, err?.message || String(err));

@@ -224,7 +224,16 @@ textarea {
  */
 .stage--board .stage__main {
   display: flex;
-  flex-direction: column;
+  /*
+   * SEM `flex-direction` AQUI.
+   *
+   * A primeira versão desta regra punha `column`, e com a mesma
+   * especificidade de `.stage--spotlight .stage__main { flex-direction: row }`
+   * vindo depois, ela vencia: a faixa de participantes saía de lado e virava
+   * linhas de largura inteira embaixo do quadro, com os vídeos esticados.
+   * O que esta regra precisa desfazer é só a grade de duas colunas de
+   * `.stage--alone`; a direção quem decide é o modo destaque.
+   */
   grid-template-columns: none;
   align-items: stretch;
   padding-inline: var(--sp-3);

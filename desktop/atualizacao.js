@@ -22,7 +22,7 @@ import os from "node:os";
 import path from "node:path";
 
 export const REPO = process.env.VCALL_REPO || "victor-kauan-coder/vcall";
-export const VERSAO = process.env.VCALL_VERSAO || "3.6.1";
+export const VERSAO = process.env.VCALL_VERSAO || "3.6.2";
 
 const CACHE = path.join(os.homedir(), ".vcall", "atualizacao.json");
 

@@ -159,15 +159,33 @@ class Tile {
     return b;
   }
 
-  /** Liga o <video> a um stream. */
+  /**
+   * Liga o <video> a um stream.
+   *
+   * "CARREGANDO" SÓ VALE PARA VÍDEO QUE ESTÁ VINDO.
+   *
+   * Câmera fechada não é vídeo demorando: é vídeo que não existe, e o
+   * ladrilho tem de mostrar o avatar. Antes bastava haver um stream para o
+   * aviso aparecer — e o stream continua existindo com a trilha de vídeo
+   * desligada, então quem fechava a câmera ficava com "Carregando o vídeo…"
+   * para sempre, por cima de um retângulo preto.
+   *
+   * O que decide é a TRILHA: viva, habilitada e não silenciada pela outra
+   * ponta. Fora disso, avatar.
+   */
   setStream(stream) {
-    if (!stream) {
+    const faixa = stream?.getVideoTracks?.().find((t) => t.readyState === "live" && t.enabled && !t.muted);
+
+    if (!stream || !faixa) {
       this.node.classList.remove("is-waiting");
       this.video.srcObject = null;
       this.video.hidden = true;
       this.avatarBox.hidden = false;
+      // Religa sozinho quando a pessoa reabrir a câmera do outro lado.
+      this.#vigiarTrilha(stream);
       return;
     }
+
     if (this.video.srcObject !== stream) {
       this.video.srcObject = stream;
       // Até o primeiro quadro, o ladrilho diz que está carregando em vez de
@@ -179,8 +197,30 @@ class Tile {
     }
     this.video.hidden = false;
     this.avatarBox.hidden = true;
+    this.#vigiarTrilha(stream);
     // Autoplay pode ser recusado; o catch evita uma promessa rejeitada solta.
     this.video.play?.().catch(() => {});
+  }
+
+  /**
+   * Acompanha a trilha de vídeo para o ladrilho reagir sozinho.
+   *
+   * Quem está do outro lado abre e fecha a câmera sem renegociar nada: a
+   * mesma trilha apenas silencia (`mute`) e volta (`unmute`). Sem escutar
+   * isso, o ladrilho congela no estado em que estava.
+   */
+  #vigiarTrilha(stream) {
+    const faixa = stream?.getVideoTracks?.()[0] || null;
+    if (this.trilhaVigiada === faixa) return;
+    if (this.trilhaVigiada && this.aoMudarTrilha) {
+      for (const ev of ["mute", "unmute", "ended"]) {
+        this.trilhaVigiada.removeEventListener(ev, this.aoMudarTrilha);
+      }
+    }
+    this.trilhaVigiada = faixa;
+    if (!faixa) return;
+    this.aoMudarTrilha = () => this.setStream(this.trilhaVigiada ? stream : null);
+    for (const ev of ["mute", "unmute", "ended"]) faixa.addEventListener(ev, this.aoMudarTrilha);
   }
 
   /**

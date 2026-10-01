@@ -22,6 +22,7 @@ import { Panel } from "./ui/panel.js";
 import { Dock, REACTIONS } from "./ui/dock.js";
 import { toast, chime } from "./ui/toast.js";
 import { avatarEl, colorFor, defaultAvatar } from "./ui/avatars.js";
+import { ilustracao } from "./ui/ilustracao.js";
 import { RemoteAudio } from "./ui/audio.js";
 import { closeAudio } from "./core/audio-graph.js";
 import { InfiniteCanvas } from "./features/canvas.js";
@@ -3135,7 +3136,7 @@ function leaveCall({ motivo = null, por = "" } = {}) {
   const inicio = () => location.assign(location.origin + location.pathname);
   const tela = el("main.leave", { "aria-labelledby": "leaveTitle" }, [
     el("div.leave__art", { "aria-hidden": "true" }, [
-      el("img", { src: "/assets/illustrations/calling.svg", alt: "", width: 320, height: 275 }),
+      ilustracao("calling", { largura: 320, altura: 275 }),
     ]),
     el("div.leave__body", {}, [
       el("img.brand__mark", { src: "/assets/logo-mark.png", alt: "", width: 48, height: 48 }),

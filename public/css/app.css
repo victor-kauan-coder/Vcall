@@ -3334,3 +3334,21 @@ body.is-recording .topbar::after {
   }
 }
 
+
+/*
+ * O contêiner da ilustração embutida.
+ *
+ * O SVG entra depois da montagem; a proporção vai no contêiner para a página
+ * não saltar quando ele chega. `display: block` no svg mata a linha de base
+ * que deixaria uma fresta embaixo.
+ */
+.ilu {
+  display: block;
+  line-height: 0;
+}
+.ilu > svg,
+.ilu > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

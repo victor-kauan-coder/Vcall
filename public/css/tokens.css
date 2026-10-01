@@ -174,6 +174,29 @@
   --board-ink: #e9edf5;
 
   --glow-opacity: 0.22;
+
+  /*
+   * Ilustrações no tema escuro.
+   *
+   * O PAINEL BAIXA O BRILHO; O DESENHO NÃO SE INVERTE.
+   *
+   * A primeira tentativa inverteu tudo — painel escuro, figura clara. O
+   * resultado foi uma pessoa de cabelo cinza com o rosto virado num borrão
+   * pálido: o contraste INTERNO do desenho, que o ilustrador escolheu, foi
+   * destruído junto com o fundo. A figura é escura porque é escura; é o
+   * painel branco que ofusca numa tela preta.
+   *
+   * Então o painel vira um claro surdo, de monitor ligado num quarto escuro,
+   * e o resto da arte fica como foi desenhado. Tom de pele também não entra
+   * aqui; ver scripts/ilustracoes.mjs.
+   */
+  --ilu-marca: var(--accent);
+  --ilu-painel: #c5c9d1;
+  --ilu-painel-claro: #d9dce2;
+  --ilu-figura: #262636;
+  --ilu-figura-2: #363449;
+  --ilu-linha: #9aa0ab;
+  --ilu-tinta: #090814;
 }
 
 /* ------------------------------------------------------------------ *
@@ -234,6 +257,15 @@
   --board-grid: rgba(22, 16, 63, 0.07);
   --board-ink: #11161f;
 
+  /* No claro a cena original já está certa: só a marca segue a paleta. */
+  --ilu-marca: var(--accent);
+  --ilu-painel: #f4e6f0;
+  --ilu-painel-claro: #fdf5f9;
+  --ilu-figura: #2f2e41;
+  --ilu-figura-2: #3f3d56;
+  --ilu-linha: #d6d6e3;
+  --ilu-tinta: #090814;
+
   --glow-opacity: 0.13;
 }
 
@@ -276,6 +308,15 @@
     --board-paper: #ffffff;
     --board-grid: rgba(22, 16, 63, 0.07);
     --board-ink: #11161f;
+
+  /* No claro a cena original já está certa: só a marca segue a paleta. */
+  --ilu-marca: var(--accent);
+  --ilu-painel: #f4e6f0;
+  --ilu-painel-claro: #fdf5f9;
+  --ilu-figura: #2f2e41;
+  --ilu-figura-2: #3f3d56;
+  --ilu-linha: #d6d6e3;
+  --ilu-tinta: #090814;
     --glow-opacity: 0.13;
   }
 }

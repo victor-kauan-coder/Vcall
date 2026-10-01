@@ -15,6 +15,7 @@
  */
 import { el, icon, clear, on } from "../lib/dom.js";
 import { avatarEl } from "./avatars.js";
+import { ilustracao } from "./ilustracao.js";
 import { toast } from "./toast.js";
 import { newRoomId, prefs } from "../lib/util.js";
 
@@ -128,7 +129,7 @@ export class Dashboard {
       ]),
       el("div.dash__art", {}, [
         el("div.dash__stage", {}, [
-          el("img", { src: "/assets/illustrations/hero.svg", alt: "", width: 466, height: 379, decoding: "async" }),
+          ilustracao("hero", { largura: 466, altura: 379 }),
         ]),
         bubble("dash__bubble--a", "mic", "Oi! Tá me ouvindo?"),
         bubble("dash__bubble--b", "sparkles", "Bora desenhar?"),
@@ -182,7 +183,7 @@ export class Dashboard {
     this.#count = el("span.dash__count", { text: "…" });
     this.#list = el("div.dash__list", { role: "list" });
     this.#empty = el("div.dash__empty", {}, [
-      el("img.dash__emptyArt", { src: "/assets/illustrations/empty.svg", alt: "", width: 72, height: 48, decoding: "async" }),
+      ilustracao("empty", { largura: 72, altura: 48, classe: "dash__emptyArt" }),
       el("p.dash__emptyTitle", { text: "Nenhuma call pública no ar agora." }),
       el("p.field__hint", {
         text: "Salas privadas não aparecem aqui — o endereço delas é o segredo. Entre pelo link ou pelo código que você recebeu.",

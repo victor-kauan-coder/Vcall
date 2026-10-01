@@ -25,8 +25,8 @@
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(60% 50% at 50% 42%, #1c1356 0%, transparent 70%),
-    #0b0722;
+    radial-gradient(60% 50% at 50% 42%, #1b2230 0%, transparent 70%),
+    #0c0e13;
 }
 
 .intro__halo {
@@ -73,7 +73,7 @@
   font-size: 0.8rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: #8d85b8;
+  color: #8b97ac;
 }
 
 /* Sem JavaScript, ou com movimento reduzido, a intro não pode prender a tela. */
@@ -144,5 +144,140 @@
     opacity: 0;
     scale: 1.03;
     filter: blur(8px);
+  }
+}
+
+/* ================================================================== *
+ * Carregando — o estado em que a pessoa mais olha a tela
+ *
+ * Um disco girando diz "espere" e nada mais. Estas três barras sobem e
+ * descem como um medidor de voz, que é exatamente o que o programa faz: a
+ * espera passa a parecer parte da chamada, e não um travamento.
+ *
+ * O desenho é mínimo de propósito — ele aparece durante uma fração de
+ * segundo na maioria das vezes, e um bicho animado elaborado só seria visto
+ * por quem está com a rede ruim, que é quem menos quer ser entretido.
+ * ================================================================== */
+
+.carga {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 18px;
+}
+.carga i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: cargaOnda 900ms var(--ease-in-out) infinite;
+}
+.carga i:nth-child(2) {
+  animation-delay: 140ms;
+}
+.carga i:nth-child(3) {
+  animation-delay: 280ms;
+}
+.carga i:nth-child(4) {
+  animation-delay: 420ms;
+}
+
+@keyframes cargaOnda {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Versão em bloco, centralizada, para a tela inteira esperando. */
+.cargaTela {
+  display: grid;
+  place-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--accent);
+}
+.cargaTela__texto {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* ================================================================== *
+ * Entradas
+ *
+ * Um só gesto, repetido: sobe um pouco e ganha nitidez. O desfoque é o que
+ * faz parecer que o elemento veio de algum lugar em vez de piscar na tela —
+ * e some junto com o movimento, então não custa quadro nenhum depois.
+ * ================================================================== */
+
+@keyframes sobeEEntra {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@keyframes dialogoEntra {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal[open] .modal__card {
+  animation: dialogoEntra var(--dur-slow) var(--ease-out);
+}
+.modal::backdrop {
+  animation: fundoEntra var(--dur-base) var(--ease-out);
+}
+@keyframes fundoEntra {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * O pulo do botão principal quando ele vira a única coisa a fazer.
+ * Uma vez, no carregamento — não em laço: um botão que pulsa para sempre
+ * vira ruído e a pessoa para de ver em trinta segundos.
+ */
+@keyframes chamaAtencao {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: translateY(-3px);
+  }
+  70% {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carga i,
+  .modal[open] .modal__card,
+  .modal::backdrop {
+    animation: none;
+  }
+  .carga i {
+    opacity: 0.8;
+    transform: scaleY(0.7);
   }
 }

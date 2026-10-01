@@ -22,6 +22,35 @@
 import { Emitter } from "../lib/emitter.js";
 import { constrainScreenTrack, screenProfileFor } from "./tuning.js";
 
+/**
+ * Prazo para o seletor de tela responder.
+ *
+ * No Linux o seletor não é do navegador: é do sistema (xdg-desktop-portal).
+ * Quando o portal não está instalado, ou está instalado sem a peça certa para
+ * a área de trabalho em uso, o Chromium fica esperando uma resposta que nunca
+ * vem — e a promessa do `getDisplayMedia` não resolve nem rejeita. Para quem
+ * está na chamada isso é indistinguível de travamento: o botão fica pressionado
+ * e nada acontece, para sempre.
+ *
+ * Dois minutos são folgados de propósito: escolher a janela certa entre vinte
+ * abertas leva tempo, e cortar alguém no meio da escolha seria pior que o bug.
+ */
+const PRAZO_SELETOR_MS = 120_000;
+
+function comPrazo(promessa, ms = PRAZO_SELETOR_MS) {
+  return new Promise((resolve, reject) => {
+    const relogio = setTimeout(() => {
+      const err = new Error("o seletor de tela do sistema não respondeu");
+      err.name = "SeletorSemResposta";
+      reject(err);
+    }, ms);
+    promessa.then(
+      (v) => (clearTimeout(relogio), resolve(v)),
+      (e) => (clearTimeout(relogio), reject(e)),
+    );
+  });
+}
+
 /** Resoluções oferecidas ao usuário. */
 export const SCREEN_QUALITY = {
   auto: { label: "Automática", width: 1920, height: 1080, frameRate: 30 },
@@ -63,12 +92,12 @@ export class ScreenShare extends Emitter {
 
     let stream;
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia(this.#options(q, withAudio, surface));
+      stream = await comPrazo(navigator.mediaDevices.getDisplayMedia(this.#options(q, withAudio, surface)));
     } catch (err) {
       if (err?.name === "TypeError" || err?.name === "NotSupportedError") {
         // Alguma opção nova não foi aceita: tenta o conjunto mínimo.
         try {
-          stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: withAudio });
+          stream = await comPrazo(navigator.mediaDevices.getDisplayMedia({ video: true, audio: withAudio }));
         } catch (err2) {
           this.emit("error", err2);
           throw err2;
@@ -262,6 +291,10 @@ export function describeScreenError(err) {
       return "Clique no botão de compartilhar novamente — a permissão expirou.";
     case "AbortError":
       return "A captura foi interrompida.";
+    case "SeletorSemResposta":
+      return navigator.userAgent.includes("Linux")
+        ? "O seletor de tela do sistema não respondeu. Instale o xdg-desktop-portal da sua área de trabalho (xdg-desktop-portal-gnome, -kde ou -wlr) e tente de novo."
+        : "O seletor de tela não respondeu. Tente compartilhar de novo.";
     default:
       return "Não foi possível compartilhar a tela.";
   }

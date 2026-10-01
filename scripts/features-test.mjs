@@ -246,3 +246,34 @@ for (const rotulo of [
 for (const rotulo of ["Microfone (Realtek(R) Audio)", "USB Headset Microphone", "Microphone Array (Intel® Smart Sound)", ""])
   assert.ok(!isHandsFree(rotulo), `falso positivo: ${rotulo}`);
 console.log("✓ áudio: detecta o microfone Bluetooth em modo viva-voz sem confundir com fone USB");
+
+/* -- orçamento de banda: a soma não pode estourar o enlace -- */
+const { meshBudget } = await import("../public/js/core/tuning.js");
+
+// Enlace folgado: o piso por par cabe e vale.
+const folgado = meshBudget(4, { uplink: 20_000_000 });
+assert.ok(folgado.screen >= 600_000, "com banda sobrando, o piso de tela vale");
+
+/*
+ * Enlace apertado — o caso que derrubava a chamada ao compartilhar tela.
+ * Quatro pares num enlace de 1,5 Mbps: o piso de 600 kbps por par prometeria
+ * 2,4 Mbps de subida e entupiria o roteador. A soma tem de caber.
+ */
+const apertado = meshBudget(4, { uplink: 1_500_000 });
+assert.ok(
+  apertado.screen * 4 <= 1_500_000,
+  `a soma dos tetos de tela (${apertado.screen * 4}) estourou o enlace de 1,5 Mbps`,
+);
+assert.ok(
+  (apertado.screen + apertado.camera) * 4 <= 1_500_000,
+  "tela e câmera juntas também precisam caber no enlace",
+);
+
+// Mais gente na sala, menos banda por par — nunca o contrário.
+let anterior = Infinity;
+for (const n of [1, 2, 4, 8, 16]) {
+  const b = meshBudget(n, { uplink: 6_000_000 });
+  assert.ok(b.screen <= anterior, `o teto subiu de ${anterior} para ${b.screen} com ${n} pares`);
+  anterior = b.screen;
+}
+console.log("✓ rede: o orçamento da malha cabe no enlace medido, com ou sem gente na sala");

@@ -57,8 +57,24 @@ assert.equal(ws.readyState, WebSocket.OPEN, `rajada de ${rajada} mensagens não 
 
 const abuso = config.limits.rateBurst * 12;
 for (let i = 0; i < abuso; i++) if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "ping", n: i }));
-await new Promise((r) => setTimeout(r, 700));
-assert.notEqual(ws.readyState, WebSocket.OPEN, `abuso de ${abuso} mensagens tem de encerrar a conexão`);
+
+/*
+ * Espera a CONDIÇÃO, não um relógio.
+ *
+ * Com uma pausa fixa, este teste virava sorteio: numa máquina ocupada o
+ * servidor ainda não tinha terminado de processar as 2880 mensagens quando a
+ * verificação rodava, e a suíte acusava uma falha de segurança que não
+ * existia. Pior que um teste que falha é um teste que falha às vezes — ele
+ * ensina a ignorar o resultado.
+ */
+const fechouAte = async (ms) => {
+  const limite = Date.now() + ms;
+  while (Date.now() < limite && ws.readyState === WebSocket.OPEN) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return ws.readyState !== WebSocket.OPEN;
+};
+assert.ok(await fechouAte(10_000), `abuso de ${abuso} mensagens tem de encerrar a conexão`);
 
 /* -- cabeçalhos -- */
 const res = await fetch(`http://localhost:${PORT}/`);

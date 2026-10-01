@@ -125,9 +125,10 @@ export class HostPanel extends Emitter {
     }
   }
 
-  async #chamar(acao, opts = {}) {
+  async #chamar(acao, { params = null, ...opts } = {}) {
     if (!this.token) throw new Error("sem token de anfitrião");
-    const res = await fetch(`/__host/${acao}?t=${encodeURIComponent(this.token)}`, {
+    const busca = new URLSearchParams({ t: this.token, ...(params || {}) });
+    const res = await fetch(`/__host/${acao}?${busca}`, {
       cache: "no-store",
       ...opts,
     });
@@ -162,6 +163,19 @@ export class HostPanel extends Emitter {
       this.emit("status", { estado: "erro", erro: err.message });
       throw err;
     }
+  }
+
+  /**
+   * Existe versão nova publicada no GitHub?
+   *
+   * Quem confere é o executável, não a página: a página está dentro de um
+   * navegador e uma consulta a github.com daqui esbarraria na política de
+   * origem. E mais importante — a resposta diz qual versão esta máquina está
+   * rodando, então ela passa pelo caminho com token, que só responde a quem
+   * está na própria máquina.
+   */
+  async atualizacao({ forcar = false } = {}) {
+    return this.#chamar("atualizacao", { params: forcar ? { forcar: "1" } : null });
   }
 
   async fecharTunel() {

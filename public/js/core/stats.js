@@ -85,11 +85,50 @@ export class StatsMonitor extends Emitter {
     const peers = [...this.getPeers()];
     if (!peers.length) return;
 
-    const budgets = meshBudget(peers.length);
+    const budgets = meshBudget(peers.length, { uplink: this.#uplink() });
     const cpu = cpuCeiling(peers.length, navigator.hardwareConcurrency || 4);
 
     await Promise.all(peers.map((p) => this.#tickPeer(p, budgets, cpu)));
     this.emit("update", this.samples);
+  }
+
+  /**
+   * Quanto esta máquina consegue ENVIAR, somando todas as conexões.
+   *
+   * Era aqui que a chamada desmanchava ao compartilhar tela. O orçamento da
+   * malha partia de um palpite fixo de 8 Mbps de subida; quem tem 3 Mbps — ou
+   * está no 4G, ou num Wi-Fi ruim — recebia um teto três vezes maior do que o
+   * enlace aguenta. Cada conexão então enchia a fila do roteador até perder
+   * pacote, e o congelamento aparecia em TODO MUNDO ao mesmo tempo, não só em
+   * quem transmitia.
+   *
+   * `availableOutgoingBitrate` é a estimativa do controle de congestionamento
+   * de cada conexão. Numa malha elas dividem o mesmo enlace, então a soma
+   * aproxima a capacidade real — é o número que o navegador já descobriu na
+   * prática, e não um palpite nosso.
+   *
+   * A suavização é PROPOSITALMENTE assimétrica: cai na hora, sobe devagar.
+   * Reagir rápido à piora é o que evita o congelamento; subir devagar é o que
+   * evita ficar oscilando entre nítido e borrado a cada segundo.
+   *
+   * ponytail: estimativa agregada, boa o bastante para dimensionar o teto.
+   * Um medidor de verdade (sondagem ativa em banda) só se valer a pena.
+   */
+  #uplinkEma = 0;
+  #uplink() {
+    let total = 0;
+    for (const amostra of this.samples.values()) {
+      total += amostra?.transport?.availableOutgoing || 0;
+    }
+    if (!total) return this.#uplinkEma || undefined; // sem medida ainda: o padrão vale
+
+    const teto = clamp(total, 400_000, 25_000_000);
+    this.#uplinkEma = this.#uplinkEma
+      ? teto < this.#uplinkEma
+        ? teto // piorou: acompanha na hora
+        : this.#uplinkEma + (teto - this.#uplinkEma) * 0.15 // melhorou: com calma
+      : teto;
+    return this.#uplinkEma;
   }
 
   async #tickPeer(peer, budgets, cpu) {

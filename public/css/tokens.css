@@ -108,29 +108,38 @@
 }
 
 /* ------------------------------------------------------------------ *
- * Tema escuro — o padrão. Fundo azul-tinta da própria marca, não um
- * cinza genérico, para que o rosa e o laranja continuem parecendo parte
- * do mesmo objeto.
+ * Tema escuro — o padrão.
+ *
+ * A SALA É ESCURA PARA OS ROSTOS SEREM A ÚNICA COR DA TELA.
+ *
+ * A versão anterior pintava toda a interface de roxo saturado, o mesmo
+ * matiz da marca. Numa chamada de vídeo isso cobra caro duas vezes: o
+ * roxo sobra ao redor de cada ladrilho e puxa o tom da pele de quem
+ * aparece nele, e o rosa da marca deixa de ter onde se destacar porque
+ * já está no fundo. Aqui o neutro é tinta fria, com viés de azul —
+ * mantém o parentesco com a marca sem disputar com o vídeo — e o rosa e
+ * o laranja ficam reservados para o que exige ação.
  * ------------------------------------------------------------------ */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #0b0722;
-  --bg-elevated: #120c33;
-  --surface: #181147;
-  --surface-2: #211859;
-  --surface-3: #2c216e;
-  --surface-hover: #2a1f68;
+  --bg: #0c0e13;
+  --bg-elevated: #13161d;
+  --surface: #181c24;
+  --surface-2: #1f242e;
+  --surface-3: #272d39;
+  --surface-hover: #232935;
 
-  --border: #2f2570;
-  --border-strong: #3f3390;
-  --border-subtle: #221a55;
+  --border: #272d39;
+  --border-strong: #39414f;
+  --border-subtle: #1b1f28;
 
-  --text: #f3f0ff;
-  --text-secondary: #c4bce9;
-  --text-muted: #8d85b8;
-  --text-inverse: #110c3a;
+  --text: #e9edf5;
+  --text-secondary: #a8b1c2;
+  /* 4.68:1 até sobre a superfície mais clara — medido, não estimado. */
+  --text-muted: #8b97ac;
+  --text-inverse: #0c0e13;
 
   --accent: #fd4d87;
   --accent-hover: #ff679a;
@@ -154,39 +163,42 @@
   --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.65);
   --shadow-lg: 0 24px 56px -16px rgba(0, 0, 0, 0.75);
 
-  --tile-bg: #150e3d;
+  --tile-bg: #11141a;
+  /* Reserva: paletas.css redefine por paleta. Vale antes de o JS rodar. */
+  --tile-glow: #1a1f28;
   --tile-border: rgba(255, 255, 255, 0.07);
-  --scrim: rgba(7, 4, 22, 0.72);
+  --scrim: rgba(6, 8, 12, 0.74);
 
-  --board-paper: #150e3d;
+  --board-paper: #11141a;
   --board-grid: rgba(255, 255, 255, 0.06);
-  --board-ink: #f3f0ff;
+  --board-ink: #e9edf5;
 
   --glow-opacity: 0.22;
 }
 
 /* ------------------------------------------------------------------ *
- * Tema claro — mesmos matizes, escurecidos o bastante para contraste AA
- * sobre branco. O fundo tem um leve viés lilás (#f7f5fc), que é o próprio
- * fundo da arte original da marca.
+ * Tema claro — o mesmo neutro frio do escuro, virado do avesso. O fundo
+ * tem um viés de azul-ardósia, não de lilás: o claro é usado de dia, com
+ * luz de ambiente, e um fundo que puxa para o roxo cansa a vista numa
+ * reunião longa.
  * ------------------------------------------------------------------ */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f4f2fb;
+  --bg: #f5f6f9;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f2effa;
-  --surface-3: #e8e3f6;
-  --surface-hover: #ece7f8;
+  --surface-2: #eef1f5;
+  --surface-3: #e3e8ef;
+  --surface-hover: #e9edf3;
 
-  --border: #ded7f0;
-  --border-strong: #c7bce6;
-  --border-subtle: #eae5f7;
+  --border: #d8dee7;
+  --border-strong: #b9c2cf;
+  --border-subtle: #e7ebf1;
 
-  --text: #16103f;
-  --text-secondary: #453c72;
-  --text-muted: #6d6497;
+  --text: #11161f;
+  --text-secondary: #3c4654;
+  --text-muted: #5d6877;
   --text-inverse: #ffffff;
 
   --accent: #dd2f6b;
@@ -213,13 +225,14 @@
 
   /* Os quadros de vídeo continuam escuros no tema claro: vídeo com moldura
      clara cansa a vista e desvaloriza a imagem. */
-  --tile-bg: #1b1447;
+  --tile-bg: #1b212b;
+  --tile-glow: #2a323f;
   --tile-border: rgba(22, 16, 63, 0.1);
-  --scrim: rgba(22, 16, 63, 0.55);
+  --scrim: rgba(17, 22, 31, 0.55);
 
   --board-paper: #ffffff;
   --board-grid: rgba(22, 16, 63, 0.07);
-  --board-ink: #16103f;
+  --board-ink: #11161f;
 
   --glow-opacity: 0.13;
 }
@@ -228,18 +241,18 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
     color-scheme: light;
-    --bg: #f4f2fb;
+    --bg: #f5f6f9;
     --bg-elevated: #ffffff;
     --surface: #ffffff;
-    --surface-2: #f2effa;
-    --surface-3: #e8e3f6;
-    --surface-hover: #ece7f8;
-    --border: #ded7f0;
-    --border-strong: #c7bce6;
-    --border-subtle: #eae5f7;
-    --text: #16103f;
-    --text-secondary: #453c72;
-    --text-muted: #6d6497;
+    --surface-2: #eef1f5;
+    --surface-3: #e3e8ef;
+    --surface-hover: #e9edf3;
+    --border: #d8dee7;
+    --border-strong: #b9c2cf;
+    --border-subtle: #e7ebf1;
+    --text: #11161f;
+    --text-secondary: #3c4654;
+    --text-muted: #5d6877;
     --text-inverse: #ffffff;
     --accent: #dd2f6b;
     --accent-hover: #c62760;
@@ -256,12 +269,13 @@
     --shadow-sm: 0 1px 2px rgba(22, 16, 63, 0.08);
     --shadow-md: 0 8px 24px -10px rgba(22, 16, 63, 0.2);
     --shadow-lg: 0 24px 56px -18px rgba(22, 16, 63, 0.26);
-    --tile-bg: #1b1447;
+    --tile-bg: #1b212b;
+  --tile-glow: #2a323f;
     --tile-border: rgba(22, 16, 63, 0.1);
-    --scrim: rgba(22, 16, 63, 0.55);
+    --scrim: rgba(17, 22, 31, 0.55);
     --board-paper: #ffffff;
     --board-grid: rgba(22, 16, 63, 0.07);
-    --board-ink: #16103f;
+    --board-ink: #11161f;
     --glow-opacity: 0.13;
   }
 }

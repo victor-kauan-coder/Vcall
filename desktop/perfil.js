@@ -26,8 +26,22 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-/** A pasta de perfil do Vcall, separada da do navegador pessoal. */
-export const PASTA_PERFIL = path.join(os.homedir(), ".vcall", "navegador");
+/**
+ * A pasta de perfil do Vcall, separada da do navegador pessoal.
+ *
+ * NÃO é constante de propósito. No Ubuntu o navegador é um Snap, e o
+ * confinamento do Snap recusa pasta oculta dentro da pasta pessoal — era
+ * exatamente isto que impedia o aplicativo de abrir lá. Quando o navegador
+ * escolhido é confinado, `usarPerfil()` move o perfil para dentro da área
+ * dele, que é a única que ele consegue escrever. Ver desktop/navegador.js.
+ */
+export let PASTA_PERFIL = path.join(os.homedir(), ".vcall", "navegador");
+
+/** Aponta o perfil para outra pasta, antes de qualquer gravação. */
+export function usarPerfil(pasta) {
+  if (pasta) PASTA_PERFIL = pasta;
+  return PASTA_PERFIL;
+}
 
 /**
  * Carimbo de tempo do Chromium: microssegundos desde 1601.
@@ -113,8 +127,8 @@ export async function liberarPermissoesDaOrigem(origemBase, { camera = true, mic
  * primeira execução do perfil não vir cheia de tela de boas-vindas, importação
  * de favoritos e pedido para virar navegador padrão por cima da chamada.
  */
-export function argumentosDaJanela(url) {
-  return [
+export function argumentosDaJanela(url, navegador = null) {
+  const args = [
     `--app=${url}`,
     `--user-data-dir=${PASTA_PERFIL}`,
     "--window-size=1280,820",
@@ -124,4 +138,33 @@ export function argumentosDaJanela(url) {
     // Sem isto o Chromium encosta a janela no canto superior esquerdo.
     "--window-position=120,80",
   ];
+
+  if (process.platform === "linux") args.unshift(...opcoesLinux());
+
+  // O Flatpak não é o navegador: é quem o executa.
+  if (navegador?.flatpak) return ["run", `--filesystem=${PASTA_PERFIL}`, navegador.flatpak, ...args];
+  return args;
+}
+
+/**
+ * O que o Chromium precisa para compartilhar tela no Linux de hoje.
+ *
+ * COMPARTILHAR TELA NO WAYLAND NÃO PASSA PELO NAVEGADOR: passa pelo portal do
+ * sistema (xdg-desktop-portal + PipeWire), que é quem desenha o seletor de
+ * janelas e entrega o vídeo. Sem `WebRTCPipeWireCapturer`, o Chromium tenta
+ * capturar pelo X11; sob Wayland isso devolve tela preta — ou, pior, a
+ * promessa do `getDisplayMedia` nunca resolve e a chamada parece travada.
+ * Era este o congelamento ao clicar em compartilhar.
+ *
+ * `ozone-platform-hint=auto` faz o Chromium rodar em Wayland nativo quando a
+ * sessão é Wayland, em vez de pelo XWayland. Switches desconhecidos são
+ * ignorados pelo Chromium, então as duas linhas são seguras em versão antiga
+ * e em sessão X11.
+ */
+function opcoesLinux() {
+  const opcoes = ["--enable-features=WebRTCPipeWireCapturer"];
+  const wayland =
+    process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY);
+  if (wayland) opcoes.push("--ozone-platform-hint=auto");
+  return opcoes;
 }

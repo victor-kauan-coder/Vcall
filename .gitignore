@@ -18,3 +18,6 @@ dist/
 node_modules/
 .env
 *.log
+
+# Skill de terceiros clonada para inspecao, nao faz parte do projeto.
+.claude/skills/

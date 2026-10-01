@@ -12,8 +12,20 @@ import { styles, styleIds, createAvatar } from "../../vendor/avatars.js";
 import { el } from "../lib/dom.js";
 import { randomSeed } from "../lib/util.js";
 
-/** Paleta de fundo derivada da marca, para os avatares combinarem com o app. */
-const BACKGROUND = ["fd4d87", "fe9c5f", "8b7ef8", "37d399", "ffb648", "6ec6ff"];
+/**
+ * Fundo dos avatares: seis matizes distintos, nenhum deles roxo.
+ *
+ * O roxo saía igual ao fundo da interface antiga — o avatar sumia dentro do
+ * ladrilho, que é o oposto do que um avatar existe para fazer. Agora a
+ * interface é tinta fria e neutra, e estes seis são as únicas cores saturadas
+ * da tela junto com o rosa da marca: cada pessoa fica reconhecível de
+ * relance, de longe, numa grade de dezesseis.
+ *
+ * Os matizes estão espaçados de propósito (rosa, laranja, âmbar, verde,
+ * turquesa, azul) para não haver dois parecidos lado a lado — é o mesmo
+ * motivo de um mapa não usar dois tons do mesmo verde em países vizinhos.
+ */
+const BACKGROUND = ["fd4d87", "fe9c5f", "fbbf24", "34d399", "2dd4bf", "38bdf8"];
 
 export const AVATAR_STYLES = styleIds;
 

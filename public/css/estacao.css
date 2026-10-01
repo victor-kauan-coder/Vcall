@@ -1,0 +1,804 @@
+/* ==================================================================== *
+ * estacao.css — a recepção como estação de radioamador.
+ *
+ * O cartão QSL é a prova impressa, trocada pelo correio, de que duas
+ * estações se falaram sem ninguém no meio. É exatamente o que o Vcall faz,
+ * e vem com uma tradição gráfica inteira dos anos 30 aos 50: impressão
+ * barata de duas cores sobre cartão de cor saturada, gótico condensado,
+ * fios grossos, campos preenchidos à máquina de escrever, carimbo.
+ *
+ * O CARTÃO É OBJETO SOBRE MESA ESCURA, não uma página clara. A cena física
+ * manda: alguém num notebook, em casa, à noite, com a tela sendo a maior
+ * fonte de luz do cômodo. Por isso a mesa é azul-tinta quase preta e o
+ * cartão é a coisa iluminada em cima dela.
+ *
+ * ESTE ARQUIVO NÃO ALCANÇA A CHAMADA. Lá o vídeo manda, a paleta é a Tinta
+ * e a interface tem de sumir. O mundo vive onde a pessoa chega e espera.
+ * ==================================================================== */
+
+:root {
+  /* Cartão: âmbar-sinal. Cartões QSL vivem no espectro saturado — creme e
+     papel pardo são a rendição-padrão, não a tradição. */
+  --qsl-cartao: #e8b63d;
+  --qsl-cartao-sombra: #c9961f;
+  --qsl-tinta: #171310;
+  --qsl-tinta-fraca: #4a3f31;
+  /* A segunda cor da impressão é o magenta da marca: com o âmbar do cartão,
+     são as duas tintas de processo que uma gráfica barata já tinha. */
+  --qsl-spot: #e8356f;
+  --qsl-mesa: #0b1018;
+  --qsl-mesa-alta: #141b26;
+
+  --qsl-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  --qsl-maquina: "Courier Prime", ui-monospace, monospace;
+}
+
+/* ==================== A mesa ==================== */
+
+.estacao {
+  position: relative;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--qsl-mesa);
+  color: #cdd6e3;
+  overflow-x: hidden;
+}
+
+/*
+ * A luz da luminária da mesa. Um só foco, vindo de cima e à esquerda, que é
+ * de onde a luz cai sobre o cartão — e é o que faz a mesa parecer um lugar
+ * e não um retângulo escuro.
+ */
+.estacao::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(74% 56% at 28% 16%, rgba(232, 182, 61, 0.13), transparent 68%);
+}
+
+/* ==================== Faixa de cima ==================== */
+
+.estacao__topo {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid rgba(205, 214, 227, 0.1);
+  font-family: var(--qsl-maquina);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7d8da3;
+}
+
+.estacao__noAr {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--qsl-cartao);
+}
+.estacao__noAr i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: estacaoPulso 2.6s var(--ease-out) infinite;
+}
+@keyframes estacaoPulso {
+  0% {
+    box-shadow: 0 0 0 0 rgba(232, 182, 61, 0.5);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 9px rgba(232, 182, 61, 0);
+  }
+}
+
+.estacao__botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid rgba(205, 214, 227, 0.16);
+  border-radius: 2px;
+  background: transparent;
+  color: #9fadbf;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.estacao__botao:hover {
+  border-color: var(--qsl-cartao);
+  color: var(--qsl-cartao);
+  background: rgba(232, 182, 61, 0.08);
+}
+
+/* ==================== Área principal ==================== */
+
+/*
+ * A mesa ocupa a tela inteira e o cartão fica no centro dela.
+ *
+ * Encostado no topo, o cartão deixava 40% da tela como zona morta e parecia
+ * pequeno numa mesa grande demais. Centralizado, com o rodapé ancorado
+ * embaixo, a composição ganha o tamanho que a forma tem na vida: um objeto
+ * sobre uma mesa, não um bloco no cabeçalho de uma página.
+ */
+.estacao__mesa {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(290px, 0.65fr);
+  grid-template-rows: 1fr auto;
+  gap: clamp(var(--sp-5), 4vw, var(--sp-8));
+  align-content: safe center;
+  align-items: center;
+  padding: clamp(var(--sp-5), 3.5vw, var(--sp-8));
+  max-width: 1420px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+/* ==================== O cartão QSL ==================== */
+
+.qsl {
+  position: relative;
+  width: 100%;
+  max-width: 700px;
+  padding: clamp(18px, 2.4vw, 30px);
+  background: var(--qsl-cartao);
+  color: var(--qsl-tinta);
+  border-radius: 2px;
+  /* Objeto sobre mesa: deslocamento real e borrão largo. Halo colorido sem
+     deslocamento seria decoração, não profundidade. */
+  box-shadow:
+    0 2px 0 var(--qsl-cartao-sombra),
+    0 26px 50px -18px rgba(0, 0, 0, 0.75),
+    0 60px 90px -60px rgba(0, 0, 0, 0.9);
+  transform: rotate(-0.55deg);
+}
+
+/*
+ * Registro de impressão fora do lugar.
+ *
+ * Numa gráfica barata as duas chapas nunca batem exatamente: a segunda cor
+ * sai um fio deslocada. É o detalhe que separa "impresso de verdade" de
+ * "retângulo amarelo com fonte antiga", e custa um pseudo-elemento.
+ */
+.qsl::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  pointer-events: none;
+  border: 1px solid var(--qsl-spot);
+  opacity: 0.22;
+  transform: translate(1.5px, 1.5px);
+}
+
+.qsl__cabeca {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--qsl-tinta);
+}
+
+.qsl__rotulo {
+  font-family: var(--qsl-maquina);
+  font-size: 10px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--qsl-tinta-fraca);
+}
+
+.qsl__indicativo {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--qsl-display);
+  font-weight: 800;
+  font-size: clamp(44px, 8.4vw, 104px);
+  line-height: 0.82;
+  letter-spacing: 0.012em;
+  text-transform: uppercase;
+}
+
+/* O selo circular do canto: a marca de carimbo do cartão. */
+.qsl__selo {
+  flex: none;
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border: 2.5px solid var(--qsl-spot);
+  border-radius: 50%;
+  color: var(--qsl-spot);
+  transform: rotate(-9deg);
+  opacity: 0.92;
+}
+/* Anel interno: é assim que um carimbo de borracha é gravado. */
+.qsl__selo::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.55;
+}
+.qsl__selo span {
+  display: grid;
+  gap: 1px;
+}
+.qsl__selo b {
+  font-family: var(--qsl-display);
+  font-weight: 800;
+  font-size: 23px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+}
+.qsl__selo i {
+  font-family: var(--qsl-maquina);
+  font-style: normal;
+  font-size: 7.5px;
+  line-height: 1.3;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* -- os campos preenchíveis -- */
+
+.qsl__campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 0;
+  margin-top: 16px;
+  border-top: 1px solid rgba(23, 19, 16, 0.26);
+}
+
+.qsl__campo {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid rgba(23, 19, 16, 0.26);
+}
+.qsl__campo dt {
+  font-family: var(--qsl-maquina);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--qsl-tinta-fraca);
+}
+.qsl__campo dd {
+  margin: 3px 0 0;
+  font-family: var(--qsl-display);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.qsl__frase {
+  margin: 16px 0 0;
+  max-width: 46ch;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--qsl-tinta-fraca);
+}
+
+/* -- o carimbo: a ação principal -- */
+
+.qsl__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 3px solid var(--qsl-tinta);
+}
+
+.carimbo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 22px;
+  border: 2.5px solid var(--qsl-spot);
+  border-radius: 2px;
+  background: var(--qsl-spot);
+  color: #fff5f8;
+  font-family: var(--qsl-display);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transform: rotate(-1.4deg);
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+  box-shadow: 0 3px 0 rgba(23, 19, 16, 0.3);
+}
+.carimbo:hover {
+  transform: rotate(-1.4deg) translateY(-2px);
+  box-shadow: 0 5px 0 rgba(23, 19, 16, 0.3);
+}
+/* O carimbo bate: afunda no papel em vez de deslizar. */
+.carimbo:active {
+  transform: rotate(-1.4deg) translateY(2px);
+  box-shadow: 0 0 0 rgba(23, 19, 16, 0.3);
+}
+.carimbo .icon {
+  width: 21px;
+  height: 21px;
+}
+
+/* O campo de indicativo é a linha preenchível do cartão, não uma caixa. */
+.qsl__entrada {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 210px;
+  min-width: 0;
+}
+.qsl__entrada input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 2px;
+  border: 0;
+  border-bottom: 2px solid rgba(23, 19, 16, 0.45);
+  background: transparent;
+  color: var(--qsl-tinta);
+  font-family: var(--qsl-maquina);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.qsl__entrada input::placeholder {
+  /* 4.6:1 sobre o âmbar — conferido, não estimado. */
+  color: #6b5c48;
+  letter-spacing: 0.1em;
+}
+.qsl__entrada input:focus {
+  outline: none;
+  border-bottom-color: var(--qsl-spot);
+}
+.qsl__entrada button {
+  flex: none;
+  padding: 9px 13px;
+  border: 2px solid var(--qsl-tinta);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--qsl-tinta);
+  font-family: var(--qsl-display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.qsl__entrada button:hover {
+  background: var(--qsl-tinta);
+  color: var(--qsl-cartao);
+}
+
+/* ==================== O caderno de registro ==================== */
+
+.registro {
+  font-family: var(--qsl-maquina);
+  font-size: 12px;
+  color: #93a2b6;
+}
+
+.registro__painel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid rgba(205, 214, 227, 0.1);
+}
+.registro__painel dt {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #68788c;
+}
+.registro__painel dd {
+  margin: 4px 0 0;
+  font-family: var(--qsl-display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--qsl-cartao);
+}
+
+.registro__cabeca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(205, 214, 227, 0.22);
+  font-size: 10px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: #7d8da3;
+}
+
+.registro__lista {
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Cada sala é uma LINHA DE LOG, não um cartão.
+ *
+ * O caderno de estação é uma lista de contatos em linhas regradas: data,
+ * indicativo, sinal. Cartões arredondados empilhados seriam a listagem que
+ * qualquer app entrega — e o caderno é mais denso, mais rápido de varrer e
+ * pertence a este mundo.
+ */
+.registro__linha {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(205, 214, 227, 0.1);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), padding-left var(--dur-fast) var(--ease-out);
+}
+.registro__linha:hover {
+  background: rgba(232, 182, 61, 0.07);
+  padding-left: 7px;
+}
+.registro__nome {
+  color: #dce4ee;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.registro__dado {
+  color: #7d8da3;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.registro__sinal {
+  color: var(--qsl-cartao);
+}
+
+.registro__vazio {
+  padding: 18px 0;
+  line-height: 1.7;
+  color: #7d8da3;
+}
+.registro__vazio strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #cdd6e3;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+/* ==================== Rodapé da estação ==================== */
+
+.estacao__pe {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: end;
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid rgba(205, 214, 227, 0.1);
+  font-family: var(--qsl-maquina);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5f6d80;
+}
+.estacao__pe a {
+  color: #7d8da3;
+  text-decoration-color: rgba(125, 141, 163, 0.4);
+  text-underline-offset: 3px;
+}
+.estacao__pe a:hover {
+  color: var(--qsl-cartao);
+}
+
+/* ==================== Entrada ==================== */
+
+/*
+ * O cartão chega como objeto que foi POUSADO na mesa: desce, assenta e
+ * ganha foco. Um só gesto, e só no carregamento — a página não se mexe
+ * sozinha depois disso.
+ */
+@keyframes qslPousa {
+  from {
+    opacity: 0;
+    transform: rotate(-2.6deg) translateY(-26px) scale(1.03);
+    filter: blur(7px);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-0.55deg) translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+.qsl {
+  animation: qslPousa 620ms var(--ease-out) both;
+}
+
+@keyframes registroEntra {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+.registro {
+  animation: registroEntra 520ms var(--ease-out) 180ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qsl,
+  .registro {
+    animation: none;
+  }
+  .estacao__noAr i {
+    animation: none;
+  }
+}
+
+/* ==================== Telas estreitas ==================== */
+
+@media (max-width: 900px) {
+  .estacao__mesa {
+    grid-template-columns: minmax(0, 1fr);
+    /* `auto` e não a trilha de duas linhas do desktop: numa coluna só, o
+       `grid-row: 2` do rodapé o jogava para o meio, entre o cartão e o
+       caderno. Aqui a ordem do documento é a ordem certa. */
+    grid-template-rows: none;
+    align-content: start;
+    gap: var(--sp-6);
+  }
+  .estacao__pe {
+    grid-row: auto;
+    order: 2;
+  }
+  .qsl {
+    max-width: none;
+    transform: none;
+  }
+  .qsl {
+    animation-name: qslPousaReto;
+  }
+  @keyframes qslPousaReto {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+      filter: blur(6px);
+    }
+  }
+}
+
+@media (max-width: 560px) {
+  .estacao__topo {
+    padding: var(--sp-2) var(--sp-3);
+    font-size: 10px;
+  }
+  .qsl__selo {
+    display: none;
+  }
+  .qsl__acoes {
+    gap: 10px;
+  }
+  .carimbo {
+    width: 100%;
+    justify-content: center;
+    transform: none;
+  }
+  .carimbo:hover,
+  .carimbo:active {
+    transform: translateY(-2px);
+  }
+  .qsl__entrada {
+    flex-basis: 100%;
+  }
+}
+
+/* ==================================================================== *
+ * A antessala — o verso do cartão
+ *
+ * O cartão QSL tem dois lados: na frente a arte e o indicativo, no verso os
+ * campos que o operador preenche à mão antes de pôr no correio — para quem,
+ * em que data, com que sinal. A antessala É esse verso: a pessoa preenche
+ * quem é e como quer aparecer, e só então transmite.
+ *
+ * A pré-visualização da câmera fica do lado do monitor da estação, escura,
+ * porque vídeo pede fundo escuro mesmo num mundo impresso.
+ * ==================================================================== */
+
+.lobby {
+  background: var(--qsl-mesa);
+}
+.lobby::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(70% 55% at 30% 12%, rgba(232, 182, 61, 0.11), transparent 66%);
+}
+
+.lobby__card {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  border-radius: 3px;
+  background: var(--qsl-cartao);
+  box-shadow:
+    0 2px 0 var(--qsl-cartao-sombra),
+    0 30px 60px -22px rgba(0, 0, 0, 0.8);
+  animation: qslPousa 620ms var(--ease-out) both;
+}
+
+/* A pré-visualização é o monitor da bancada, não parte do papel. */
+.lobby__preview {
+  background: var(--qsl-mesa);
+  margin: 14px 0 14px 14px;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+.lobby__form {
+  color: var(--qsl-tinta);
+  padding: clamp(18px, 2.2vw, 28px);
+}
+
+.lobby__cabeca {
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--qsl-tinta);
+}
+.lobby__rotulo {
+  font-family: var(--qsl-maquina);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qsl-tinta-fraca);
+}
+.lobby__titulo {
+  margin-top: 2px;
+  font-family: var(--qsl-display);
+  font-weight: 800;
+  font-size: 34px;
+  line-height: 0.92;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/* Todo rótulo do formulário vira rótulo de campo de cartão. */
+.lobby__form .field__label,
+.lobby__form .avatarPicker .field__label {
+  font-family: var(--qsl-maquina);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--qsl-tinta-fraca);
+}
+
+/* O campo é a linha preenchível, não uma caixa com fundo. */
+.lobby__form .input {
+  border: 0;
+  border-bottom: 2px solid rgba(23, 19, 16, 0.42);
+  border-radius: 0;
+  background: transparent;
+  color: var(--qsl-tinta);
+  font-family: var(--qsl-maquina);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  padding-inline: 2px;
+}
+.lobby__form .input::placeholder {
+  color: #6b5c48;
+  letter-spacing: 0.04em;
+}
+.lobby__form .input:focus {
+  outline: none;
+  border-bottom-color: var(--qsl-spot);
+  box-shadow: none;
+}
+.lobby__form select.input {
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+
+/* Os botões secundários do cartão: contorno de tinta, cantos retos. */
+.lobby__form .btn--ghost {
+  border: 1.5px solid rgba(23, 19, 16, 0.4);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--qsl-tinta);
+  font-family: var(--qsl-maquina);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lobby__form .btn--ghost:hover {
+  background: var(--qsl-tinta);
+  color: var(--qsl-cartao);
+  border-color: var(--qsl-tinta);
+}
+
+.lobby__form .avatarPicker__option {
+  border-radius: 2px;
+  border: 1.5px solid rgba(23, 19, 16, 0.22);
+}
+.lobby__form .avatarPicker__option[aria-checked="true"] {
+  border-color: var(--qsl-spot);
+  box-shadow: 0 0 0 2px rgba(232, 53, 111, 0.28);
+}
+
+/* Entrar é bater o carimbo. */
+.lobby__form #joinBtn {
+  border: 2.5px solid var(--qsl-spot);
+  border-radius: 2px;
+  background: var(--qsl-spot);
+  color: #fff5f8;
+  font-family: var(--qsl-display);
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 0 rgba(23, 19, 16, 0.3);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.lobby__form #joinBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 rgba(23, 19, 16, 0.3);
+}
+.lobby__form #joinBtn:active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 rgba(23, 19, 16, 0.3);
+}
+
+.lobby__form .field__hint {
+  font-family: var(--qsl-maquina);
+  font-size: 10.5px;
+  line-height: 1.65;
+  letter-spacing: 0.02em;
+  color: var(--qsl-tinta-fraca);
+}
+
+/* Os controles sobre a prévia continuam no mundo escuro do monitor. */
+.lobby__previewBar .ctrl {
+  border-radius: 2px;
+}
+
+@media (max-width: 820px) {
+  .lobby__preview {
+    margin: 0;
+    border-radius: 0;
+  }
+  .lobby__titulo {
+    font-size: 28px;
+  }
+}

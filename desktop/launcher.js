@@ -23,7 +23,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { access, appendFile, constants, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createHttpServer } from "../src/http.js";
@@ -32,7 +32,9 @@ import { RoomRegistry } from "../src/rooms.js";
 import { config } from "../src/config.js";
 import { Tunnel } from "./tunnel.js";
 import { assets } from "./assets.js";
-import { argumentosDaJanela, liberarPermissoes, liberarPermissoesDaOrigem } from "./perfil.js";
+import { argumentosDaJanela, liberarPermissoes, liberarPermissoesDaOrigem, usarPerfil } from "./perfil.js";
+import { acharNavegador, perfilPara } from "./navegador.js";
+import { conferir } from "./atualizacao.js";
 import { BATIMENTO_MS, Vida } from "./vida.js";
 import { hostControl } from "./guard.js";
 import {
@@ -86,61 +88,43 @@ function json(res, headers, code, body) {
 }
 
 /**
- * Onde procurar um navegador que abra em modo aplicativo.
- *
- * `--app=` é o que transforma a janela do Chromium numa janela de programa:
- * sem abas, sem barra de endereço, com ícone próprio na barra de tarefas. É a
- * diferença entre "abriu uma aba" e "abriu o Vcall", e não custa nada — o
- * motor é o mesmo que renderizaria a chamada de qualquer jeito.
- */
-function navegadores() {
-  if (process.platform === "darwin") {
-    return [
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-      "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-    ];
-  }
-  if (process.platform !== "win32") {
-    return ["/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/microsoft-edge"];
-  }
-  // Montado com path.join: escrever a barra invertida à mão dentro de uma
-  // string JavaScript é pedir para que "\M" e "\A" virem outra coisa.
-  const bases = [
-    process.env["ProgramFiles(x86)"],
-    process.env.ProgramFiles,
-    process.env.LOCALAPPDATA,
-  ].filter(Boolean);
-  const alvos = [
-    ["Microsoft", "Edge", "Application", "msedge.exe"],
-    ["Google", "Chrome", "Application", "chrome.exe"],
-    ["BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
-  ];
-  const saida = [];
-  for (const alvo of alvos) {
-    for (const base of bases) saida.push(path.join(base, ...alvo));
-  }
-  return saida;
-}
-
-/**
  * Abre a interface. Tenta primeiro uma janela de aplicativo; se não houver
  * navegador baseado em Chromium instalado, cai para o navegador padrão — a
  * chamada funciona igual, só com a moldura do navegador em volta.
  */
+/**
+ * O navegador desta execução, decidido uma vez só.
+ *
+ * Decidir cedo importa: é a escolha do navegador que define ONDE o perfil
+ * pode ficar. Um Snap não escreve em pasta oculta da pasta pessoal, então a
+ * permissão de câmera precisa ser gravada já no lugar certo — gravar antes e
+ * descobrir depois significaria o navegador subir sem permissão nenhuma.
+ */
+let navegadorCache;
+async function navegadorEscolhido() {
+  if (navegadorCache !== undefined) return navegadorCache;
+  navegadorCache = await acharNavegador();
+  if (navegadorCache) {
+    usarPerfil(perfilPara(navegadorCache));
+    await anotar(`navegador: ${navegadorCache.rotulo} em ${navegadorCache.bin}`);
+  } else {
+    await anotar("nenhum navegador Chromium encontrado; caindo para o navegador padrão");
+  }
+  return navegadorCache;
+}
+
 async function abrirJanela(url) {
-  for (const bin of navegadores()) {
-    if (!bin || !(await existeArquivo(bin))) continue;
+  const navegador = await navegadorEscolhido();
+  if (navegador) {
     try {
-      const p = spawn(bin, argumentosDaJanela(url), {
+      spawn(navegador.bin, argumentosDaJanela(url, navegador), {
         detached: true,
         stdio: "ignore",
         windowsHide: false,
-      });
-      p.unref();
+      }).unref();
       return "janela";
-    } catch {
-      /* tenta o próximo */
+    } catch (err) {
+      await anotar(`navegador ${navegador.rotulo} não abriu: ${err.message}`);
     }
   }
 
@@ -155,15 +139,6 @@ async function abrirJanela(url) {
     return "navegador";
   } catch {
     return "nenhum";
-  }
-}
-
-async function existeArquivo(p) {
-  try {
-    await access(p, constants.X_OK);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -360,6 +335,13 @@ export async function main() {
        * a sala é o que o sistema operacional não consegue fazer sozinho: ele
        * só sabe executar o programa de novo.
        */
+      /*
+       * Atualização. Sem token não dá: a resposta diz qual versão a máquina
+       * está rodando, e isso é informação de quem está dentro, não de quem
+       * entrou na sala pelo link.
+       */
+      atualizacao: async (url) => conferir({ forcar: url.searchParams.get("forcar") === "1" }),
+
       abrir: async (url) => {
         const remoto = url.searchParams.get("url");
         const sala = url.searchParams.get("sala");
@@ -431,7 +413,11 @@ export async function main() {
    * A permissão é gravada ANTES de a janela abrir. Depois não adianta: o
    * Chromium lê as preferências do perfil no arranque, e uma alteração feita
    * com ele já rodando é ignorada — ou sobrescrita quando ele fecha.
+   *
+   * E é gravada DEPOIS de escolher o navegador, porque é a escolha que diz em
+   * qual pasta o perfil cabe: num Snap, não é a de sempre.
    */
+  await navegadorEscolhido();
   const liberou = await liberarPermissoes(porta);
 
   const como =

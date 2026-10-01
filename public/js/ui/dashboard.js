@@ -22,6 +22,28 @@ const POLL_MS = 5000;
 /** Quantas salas cabem na tela inicial sem rolagem; o resto vira "+N". */
 const MAX_VISIVEIS = 3;
 
+/**
+ * O indicativo desta estação.
+ *
+ * No radioamadorismo o indicativo é a identidade do operador: dado uma vez,
+ * usado a vida toda, e é o que aparece grande no cartão QSL. Aqui ele é
+ * sorteado na primeira abertura e guardado — é o que faz o cartão ser DESTA
+ * máquina e não um pôster igual para todo mundo.
+ *
+ * O prefixo PY é o real do Brasil na alocação da UIT, o que ancora a peça
+ * em algo verdadeiro em vez de inventar um código decorativo.
+ */
+function indicativo() {
+  const guardado = prefs.get("indicativo", null);
+  if (guardado) return guardado;
+  const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const sorteia = (alfabeto, n) =>
+    Array.from({ length: n }, () => alfabeto[Math.floor(Math.random() * alfabeto.length)]).join("");
+  const novo = `PY${Math.floor(Math.random() * 9) + 1}${sorteia(letras, 3)}`;
+  prefs.set("indicativo", novo);
+  return novo;
+}
+
 function saudacao() {
   const h = new Date().getHours();
   const greet = h < 5 ? "Boa noite" : h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
@@ -37,16 +59,30 @@ export class Dashboard {
   #count = null;
   #node = null;
 
-  constructor({ onEnter }) {
+  constructor({ onEnter, ...opts } = {}) {
     /** onEnter({ roomId, pass, meta, isNew }) */
     this.onEnter = onEnter;
+    /** { nome, theme, onSettings } — tudo opcional. */
+    this.opts = opts;
   }
 
   mount(root) {
     // Tela cheia, sem cartão: a recepção É o app, não uma janela dentro dele.
-    this.#node = el("section.dash", { "aria-label": "Início" }, [
+    this.#node = el("section.estacao", { "aria-label": "Início" }, [
       this.#header(),
-      el("main.dash__main", {}, [this.#hero()]),
+      el("main.estacao__mesa", {}, [
+        this.#hero(),
+        this.#body(),
+        el("div.estacao__pe", {}, [
+          el("span", { text: "Vcall · contato direto, sem intermediário · " }),
+          el("a", {
+            href: "https://github.com/victor-kauan-coder",
+            target: "_blank",
+            rel: "noopener noreferrer",
+            text: "victor-kauan-coder",
+          }),
+        ]),
+      ]),
     ]);
     root.append(this.#node);
     this.refresh();
@@ -67,113 +103,146 @@ export class Dashboard {
 
   /* ---------------------------------------------------------------- */
 
+  /**
+   * A faixa de cima.
+   *
+   * SEM LOGOTIPO. Quem abriu o programa sabe que programa é; a marca já está
+   * no ícone da janela, na barra de tarefas e no título. Repetir aqui gastava
+   * o canto mais nobre da tela com a única informação que ninguém precisa.
+   *
+   * No lugar entra o que é útil: o cumprimento pelo nome, se o aparelho está
+   * pronto para chamar, e o acesso às configurações — que antes só existia
+   * dentro de uma chamada, ou seja, tarde demais para quem queria escolher a
+   * câmera ANTES de aparecer para alguém.
+   */
+  /*
+   * A faixa de cima da estação: só o que muda. Sem logotipo — quem abriu o
+   * programa sabe que programa é, e a marca já está no ícone da janela.
+   */
   #header() {
-    return el("header.dash__head", {}, [
-      el("img.brand__mark", { src: "/assets/logo-mark.png", alt: "", width: 36, height: 36 }),
-      el("div.brand__name", { text: "Vcall" }),
+    const botao = (iconName, rotulo, aoClicar) => {
+      const b = el("button.estacao__botao", {
+        type: "button",
+        "aria-label": rotulo,
+        onClick: aoClicar,
+      });
+      b.append(icon(iconName, { size: "sm" }), el("span", { text: rotulo }));
+      return b;
+    };
+
+    const tema = botao("laptop", "Tema", () => {});
+    this.opts.theme?.bindButton?.(tema);
+
+    return el("header.estacao__topo", {}, [
+      el("span.estacao__noAr", {}, [el("i", { "aria-hidden": "true" }), el("span", { text: "Estação no ar" })]),
       el("span.spacer"),
-      el("span.dash__greet", { text: saudacao() }),
-      el("span.dash__status", {}, [el("i"), el("span", { text: "Pronto para chamar" })]),
+      el("span", { text: saudacao() + (this.opts.nome ? `, ${this.opts.nome}` : "") }),
+      tema,
+      botao("settings", "Ajustes", () => this.opts.onSettings?.()),
     ]);
   }
 
   /**
-   * A recepção: quem abre o app é cumprimentado pelo nome (se já entrou
-   * antes), entende em uma frase o que dá para fazer, e tem a ação principal
-   * ao alcance do polegar. A ilustração ocupa o outro lado e dá rosto à tela.
+   * O cartão QSL.
+   *
+   * No radioamadorismo o cartão é a prova impressa de um contato direto
+   * entre duas estações, trocada pelo correio, sem ninguém no meio — que é
+   * exatamente o que o Vcall faz. Por isso os campos do cartão são os campos
+   * de verdade do produto, e não decoração: PARA é quem você chama, VIA é a
+   * rota (direta, sem servidor), MODO é o que a sala faz, SINAL é a cifra.
+   *
+   * A ação principal mora DENTRO do cartão, como o carimbo mora no papel.
    */
   #hero() {
-    const chip = (iconName, text) => el("li", {}, [icon(iconName, { size: "sm" }), el("span", { text })]);
-    const bubble = (cls, iconName, text) =>
-      el(`div.dash__bubble.${cls}`, { "aria-hidden": "true" }, [icon(iconName, { size: "sm" }), el("span", { text })]);
+    const campo = (rotulo, valor) =>
+      el("div.qsl__campo", {}, [el("dt", { text: rotulo }), el("dd", { text: valor })]);
 
-    return el("div.dash__hero", {}, [
-      el("div.dash__intro", {}, [
-        el("h1.dash__headline", {}, ["Chame quem importa, ", this.#scribble("direto"), " de um computador para o outro."]),
-        el("p.dash__lead", {
-          text: "Vídeo, voz, tela e um quadro infinito para desenhar junto. Criptografado de ponta a ponta — quem você convida não precisa de conta.",
-        }),
-        this.#actions(),
-        el("ul.dash__trust", {}, [
-          chip("shield-check", "Ponta a ponta"),
-          chip("users", "Até 16 pessoas"),
-          chip("pencil", "Quadro colaborativo"),
-        ]),
-        this.#body(),
-      ]),
-      el("div.dash__art", {}, [
-        el("div.dash__stage", {}, [
-          el("img", { src: "/assets/illustrations/hero.svg", alt: "", width: 466, height: 379, decoding: "async" }),
-        ]),
-        bubble("dash__bubble--a", "mic", "Oi! Tá me ouvindo?"),
-        bubble("dash__bubble--b", "sparkles", "Bora desenhar?"),
-        bubble("dash__bubble--c", "shield-check", "Só entre nós"),
-      ]),
-    ]);
-  }
-
-  /** Palavra com um traço feito à mão embaixo — ui/motion.js desenha o traço. */
-  #scribble(word) {
-    const span = el("em.dash__scribble", { text: word });
-    span.insertAdjacentHTML(
-      "beforeend",
-      '<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M3 14 C 40 5, 80 4, 120 9 S 180 15, 197 6"/></svg>',
-    );
-    return span;
-  }
-
-  #actions() {
-    const codeInput = el("input.input.mono", {
+    const entrada = el("input", {
       type: "text",
-      placeholder: "Código da sala",
+      placeholder: "Indicativo",
       maxLength: 8,
-      "aria-label": "Entrar com um código",
+      "aria-label": "Entrar com o indicativo da sala",
       autocapitalize: "characters",
       spellcheck: false,
     });
-    codeInput.addEventListener("input", () => {
-      codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    entrada.addEventListener("input", () => {
+      entrada.value = entrada.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
     });
-    codeInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.#enterByCode(codeInput.value);
+    entrada.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.#enterByCode(entrada.value);
     });
 
-    return el("div.dash__actions", {}, [
-      el("button.btn.btn--primary.btn--lg", {
-        type: "button",
-        onClick: () => this.#openCreate(),
-      }, [icon("video"), el("span", { text: "Criar nova call" })]),
-      el("div.dash__code", {}, [
-        codeInput,
-        el("button.btn", { type: "button", onClick: () => this.#enterByCode(codeInput.value) }, [
-          icon("arrow-right", { size: "sm" }),
-          el("span", { text: "Entrar" }),
+    const carimbo = el("button.carimbo", { type: "button", onClick: () => this.#openCreate() });
+    carimbo.append(icon("video"), el("span", { text: "Abrir estação" }));
+
+    return el("div.qsl", {}, [
+      el("div.qsl__cabeca", {}, [
+        el("div", {}, [
+          el("span.qsl__rotulo", { text: "Indicativo desta estação" }),
+          el("strong.qsl__indicativo", { text: indicativo() }),
+        ]),
+        el("div.qsl__selo", {}, [
+          el("span", {}, [
+            el("b", { text: "QSL" }),
+            el("i", { text: "contato direto" }),
+            el("i", { text: "confirmado" }),
+          ]),
+        ]),
+      ]),
+
+      el("dl.qsl__campos", {}, [
+        campo("Para", "Quem importa"),
+        campo("Via", "Direto, sem servidor"),
+        campo("Modo", "Voz · vídeo · tela · quadro"),
+        campo("Sinal", "Ponta a ponta"),
+      ]),
+
+      el("p.qsl__frase", {
+        text: "Áudio, vídeo e tela vão de um computador ao outro sem passar por lugar nenhum. Quem você chamar não precisa instalar nada nem criar conta.",
+      }),
+
+      el("div.qsl__acoes", {}, [
+        carimbo,
+        el("div.qsl__entrada", {}, [
+          entrada,
+          el("button", { type: "button", onClick: () => this.#enterByCode(entrada.value), text: "Entrar" }),
         ]),
       ]),
     ]);
   }
 
+  /**
+   * O caderno de registro.
+   *
+   * Um operador anota cada contato numa linha regrada: indicativo, horário,
+   * sinal. É mais denso e mais rápido de varrer que cartões empilhados — e
+   * cartões empilhados é o que qualquer aplicativo entregaria.
+   */
   #body() {
-    this.#count = el("span.dash__count", { text: "…" });
-    this.#list = el("div.dash__list", { role: "list" });
-    this.#empty = el("div.dash__empty", {}, [
-      el("img.dash__emptyArt", { src: "/assets/illustrations/empty.svg", alt: "", width: 72, height: 48, decoding: "async" }),
-      el("p.dash__emptyTitle", { text: "Nenhuma call pública no ar agora." }),
-      el("p.field__hint", {
-        text: "Salas privadas não aparecem aqui — o endereço delas é o segredo. Entre pelo link ou pelo código que você recebeu.",
+    this.#count = el("span", { text: "…" });
+    this.#list = el("div.registro__lista", { role: "list" });
+    this.#empty = el("div.registro__vazio", {}, [
+      el("strong", { text: "Nenhuma estação pública no ar." }),
+      el("span", {
+        text: "Sala privada não aparece no caderno — o indicativo dela é o segredo. Entre pelo link ou pelo código que você recebeu.",
       }),
     ]);
-    return el("div.dash__body", {}, [
-      el("div.row", {}, [
-        el("h2.dash__title", {}, [el("i.dash__live", { "aria-hidden": "true" }), "Ao vivo agora"]),
-        this.#count,
+
+    return el("div.registro", {}, [
+      el("dl.registro__painel", {}, [
+        el("div", {}, [el("dt", { text: "Potência" }), el("dd", { text: "16 estações" })]),
+        el("div", {}, [el("dt", { text: "Modo" }), el("dd", { text: "P2P malha" })]),
+        el("div", {}, [el("dt", { text: "Cifra" }), el("dd", { text: "DTLS-SRTP" })]),
+      ]),
+      el("div.registro__cabeca", {}, [
+        el("span", { text: "Caderno de registro" }),
         el("span.spacer"),
-        el("button.btn.btn--icon.btn--ghost", {
+        this.#count,
+        el("button.estacao__botao", {
           type: "button",
-          "aria-label": "Atualizar lista",
-          dataset: { tip: "Atualizar", "tip-placement": "bottom" },
+          "aria-label": "Atualizar o caderno",
           onClick: () => this.refresh(),
-        }, [icon("refresh-cw")]),
+        }, [icon("refresh-cw", { size: "sm" })]),
       ]),
       this.#list,
       this.#empty,
@@ -193,7 +262,7 @@ export class Dashboard {
       this.#rooms = Array.isArray(data.rooms) ? data.rooms : [];
       this.#render();
     } catch {
-      if (this.#count) this.#count.textContent = "sem contato com o servidor";
+      if (this.#count) this.#count.textContent = "sem contato";
     }
   }
 
@@ -202,67 +271,44 @@ export class Dashboard {
     clear(this.#list);
     const n = this.#rooms.length;
     const people = this.#rooms.reduce((a, r) => a + r.size, 0);
-    this.#count.textContent = n
-      ? `${n} ${n === 1 ? "sala" : "salas"} · ${people} ${people === 1 ? "pessoa" : "pessoas"}`
-      : "";
+    this.#count.textContent = n ? `${n} no ar · ${people} op.` : "";
     this.#empty.hidden = n > 0;
 
     // A tela inicial não rola: mostra as mais cheias e resume o resto.
     const ordenadas = [...this.#rooms].sort((a, b) => b.size - a.size);
     for (const room of ordenadas.slice(0, MAX_VISIVEIS)) this.#list.append(this.#card(room));
     if (ordenadas.length > MAX_VISIVEIS) {
-      this.#list.append(el("p.dash__more", { text: `+ ${ordenadas.length - MAX_VISIVEIS} salas públicas no ar — entre pelo código` }));
+      this.#list.append(
+        el("p.registro__vazio", { text: `+ ${ordenadas.length - MAX_VISIVEIS} no ar — entre pelo indicativo` }),
+      );
     }
   }
 
+  /** Uma sala é uma linha do caderno, não um cartão. */
   #card(room) {
-    const status = room.full
-      ? { tone: "danger", text: "Sala cheia" }
+    const estado = room.full
+      ? "CHEIA"
       : room.sharing
-        ? { tone: "ok", text: "Compartilhando tela" }
+        ? "TELA"
         : room.size > 1
-          ? { tone: "ok", text: "Em conversa" }
-          : { tone: "warn", text: "Aguardando alguém" };
+          ? "EM CONTATO"
+          : "CHAMANDO";
 
-    const enter = el("button.btn.btn--primary", {
+    const linha = el("button.registro__linha", {
       type: "button",
+      role: "listitem",
       disabled: room.full,
+      dataset: { key: room.code || room.name },
+      "aria-label": `Entrar na sala ${room.name}`,
       onClick: () => this.#enter(room),
-    }, [icon("arrow-right", { size: "sm" }), el("span", { text: room.full ? "Cheia" : "Entrar" })]);
-
-    return el("div.dashRoom", { role: "listitem", dataset: { key: room.code || room.name } }, [
-      el("div.dashRoom__avatar", {}, [
-        room.host?.avatar
-          ? avatarEl(room.host.avatar, { size: 44, title: `Avatar de ${room.host.name}` })
-          : el("div.avatar", { style: { width: "44px", height: "44px" } }),
+    }, [
+      el("span.registro__nome", { text: `${room.locked ? "· " : ""}${room.name}` }),
+      el("span.registro__dado", {}, [
+        el("span.registro__sinal", { text: estado }),
+        el("span", { text: `  ${room.size}/${room.max}  ${room.code}` }),
       ]),
-      el("div.dashRoom__info", {}, [
-        el("div.dashRoom__name", {}, [
-          el("span", { text: room.name }),
-          room.locked ? icon("lock", { size: "sm", label: "Sala com senha" }) : null,
-        ]),
-        el("div.dashRoom__meta", {}, [
-          el("span", { text: room.host?.name ? `por ${room.host.name}` : "sem anfitrião" }),
-          el("span.dot-sep", { text: `${room.size}/${room.max} ${room.size === 1 ? "pessoa" : "pessoas"}` }),
-          el("span.dot-sep.mono", { text: room.code }),
-        ]),
-      ]),
-      el("span.spacer"),
-      el(`span.badge.badge--${status.tone}`, { text: status.text }),
-      el("button.btn.btn--icon.btn--ghost", {
-        type: "button",
-        "aria-label": "Copiar link de convite",
-        dataset: { tip: "Copiar link", "tip-placement": "left" },
-        onClick: () => copy(linkFor(room.id), "Link copiado"),
-      }, [icon("link")]),
-      el("button.btn.btn--icon.btn--ghost", {
-        type: "button",
-        "aria-label": "Copiar código P2P",
-        dataset: { tip: "Copiar código", "tip-placement": "left" },
-        onClick: () => copy(room.code, `Código ${room.code} copiado`),
-      }, [icon("copy")]),
-      enter,
     ]);
+    return linha;
   }
 
   /* ---------------------------------------------------------------- *

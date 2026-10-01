@@ -232,9 +232,23 @@ export function screenProfileFor(mode) {
 export function meshBudget(peerCount, { uplink = 8_000_000 } = {}) {
   const n = Math.max(1, peerCount);
   const share = uplink / n;
+
+  /*
+   * O PISO É POR PAR, MAS O ENLACE É UM SÓ.
+   *
+   * Um piso generoso parece gentileza e é o contrário: com quatro pares e um
+   * piso de 600 kbps cada, o programa promete 2,4 Mbps de subida mesmo num
+   * enlace de 1,5 Mbps — e volta a entupir exatamente o que o orçamento
+   * existia para proteger. Então o piso só vale enquanto a soma couber; a
+   * partir daí a divisão honesta vence, e a imagem fica feia em vez de a
+   * chamada cair. Feio e estável é melhor que bonito e travando.
+   */
+  const cabe = (600_000 + 150_000) * n <= uplink * 0.95;
+  const piso = cabe ? { screen: 600_000, camera: 150_000 } : { screen: 0, camera: 0 };
+
   return {
-    screen: Math.round(Math.min(PROFILES.screenMotion.maxBitrate, Math.max(600_000, share * 0.7))),
-    camera: Math.round(Math.min(PROFILES.camera.maxBitrate, Math.max(150_000, share * 0.25))),
+    screen: Math.round(Math.min(PROFILES.screenMotion.maxBitrate, Math.max(piso.screen, share * 0.7))),
+    camera: Math.round(Math.min(PROFILES.camera.maxBitrate, Math.max(piso.camera, share * 0.25))),
   };
 }
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0722" />
+    <meta name="theme-color" content="#0c0e13" />
     <meta
       name="description"
       content="Vcall — salas de vídeo criptografadas ponta a ponta, com compartilhamento de tela nítido e quadro branco colaborativo."
@@ -15,11 +15,21 @@
     <link rel="apple-touch-icon" href="/assets/icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
+    <!--
+      Antes de qualquer folha de estilo e sem defer: aplica tema e paleta
+      antes da primeira pintura. Externo porque a CSP recusa script embutido.
+    -->
+    <script src="/js/boot-tema.js"></script>
+
     <link rel="stylesheet" href="/css/tokens.css" />
+    <!-- Depois dos tokens, antes de tudo que é de componente. -->
+    <link rel="stylesheet" href="/css/paletas.css" />
     <link rel="stylesheet" href="/css/base.css" />
     <link rel="stylesheet" href="/css/app.css" />
     <link rel="stylesheet" href="/css/board.css" />
     <link rel="stylesheet" href="/css/dashboard.css" />
+    <link rel="stylesheet" href="/vendor/fontes/fontes.css" />
+    <link rel="stylesheet" href="/css/estacao.css" />
     <link rel="stylesheet" href="/css/motion.css" />
     <link rel="stylesheet" href="/css/call.css" />
     <!-- Por último de propósito: é a última palavra sobre telas pequenas. -->
@@ -80,11 +90,15 @@
           </div>
 
           <div class="lobby__form">
-            <div class="row">
-              <img class="brand__mark" src="/assets/logo-mark.png" alt="" width="44" height="44" />
+            <!--
+              O verso do cartão QSL: é nele que o operador preenche à mão os
+              dados do contato antes de mandar pelo correio. Aqui a pessoa
+              preenche quem é e como quer aparecer, antes de entrar.
+            -->
+            <div class="row lobby__cabeca">
               <div>
-                <div class="brand__name">Vcall</div>
-                <div class="brand__tag">Conversas diretas entre navegadores, sem intermediário</div>
+                <div class="lobby__rotulo">Verso do cartão · preencha antes de transmitir</div>
+                <div class="lobby__titulo">Dados da estação</div>
               </div>
               <span class="spacer"></span>
               <button
@@ -148,15 +162,15 @@
       </section>
 
       <!-- ============================= CHAMADA ============================= -->
+      <!--
+        Sem marca aqui, de propósito. Quem está na chamada já sabe em que
+        programa está; o logotipo só ocupava o lugar da única informação que
+        muda — o nome da sala, o tempo e quantas pessoas estão dentro.
+      -->
       <header class="topbar" id="topbar" hidden>
-        <div class="topbar__brand">
-          <img src="/assets/logo-mark.png" alt="" width="26" height="26" />
-          <span>Vcall</span>
-        </div>
-
         <div class="topbar__meta">
           <span class="topbar__room" id="roomName" hidden></span>
-          <span class="badge badge--ok" id="linkBadge">
+          <span class="topbar__selo" id="linkBadge">
             <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-shield-check" /></svg>
             <span id="linkText">Criptografada ponta a ponta</span>
           </span>

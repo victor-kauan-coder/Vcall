@@ -15,6 +15,7 @@ import { ScreenShare, SCREEN_QUALITY, describeScreenError } from "./core/screen.
 import { Mesh } from "./core/mesh.js";
 
 import { Theme } from "./ui/theme.js";
+import { PALETAS } from "./ui/paletas.js";
 import { Lobby } from "./ui/lobby.js";
 import { Stage } from "./ui/stage.js";
 import { Panel } from "./ui/panel.js";
@@ -140,6 +141,9 @@ if (isGuest) {
         showLobby({ isGuest: !meta });
       });
     },
+    nome: app.profile?.name || "",
+    theme,
+    onSettings: () => openSettings({ naRecepcao: true }),
   });
   dashboard.mount($(".app"));
 }
@@ -169,6 +173,8 @@ async function enterCall(profile) {
 
   await swap(() => {
     lobby.hide();
+    // O brilho da marca é da antessala; dentro da chamada ele some.
+    document.body.classList.add("na-chamada");
     $("#topbar").hidden = false;
     $("#stage").hidden = false;
     $("#dock").hidden = false;
@@ -708,7 +714,186 @@ function openShortcuts() {
       ]),
     );
   }
+  // -- atualizacao --
+  if (host.disponivel) section("Atualizações", [blocoDeAtualizacao()]);
+
   $("#settingsModal").showModal();
+  animarEntradaDoDialogo($("#settingsModal"));
+}
+
+/**
+ * A entrada do diálogo.
+ *
+ * `showModal()` não dispara animação de entrada sozinho quando o diálogo já
+ * existe no documento — o navegador só troca o estado. Reaplicar a animação
+ * à mão é o que faz a segunda abertura parecer com a primeira.
+ */
+function animarEntradaDoDialogo(dialogo) {
+  const card = dialogo?.querySelector(".modal__card");
+  if (!card || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  card.style.animation = "none";
+  // Força o navegador a recalcular antes de devolver a animação.
+  void card.offsetWidth;
+  card.style.animation = "";
+}
+
+/** Três barrinhas de voz, para qualquer espera do app. */
+export function carga(texto = "") {
+  const barras = el("span.carga", { "aria-hidden": "true" }, [el("i"), el("i"), el("i"), el("i")]);
+  if (!texto) return barras;
+  return el("div.cargaTela", { role: "status", "aria-live": "polite" }, [
+    barras,
+    el("span.cargaTela__texto", { text: texto }),
+  ]);
+}
+
+/** A fileira de botões claro / escuro / sistema. */
+function themeRowDeConfiguracoes() {
+  const linha = el("div.row");
+  for (const [mode, label, iconName] of [
+    ["system", "Sistema", "laptop"],
+    ["light", "Claro", "sun"],
+    ["dark", "Escuro", "moon"],
+  ]) {
+    const b = el("button.btn", {
+      type: "button",
+      class: theme.mode === mode ? "btn--primary" : "",
+      onClick: () => {
+        theme.set(mode);
+        for (const outro of linha.children) outro.classList.remove("btn--primary");
+        b.classList.add("btn--primary");
+      },
+    });
+    b.append(icon(iconName, { size: "sm" }), el("span", { text: label }));
+    linha.append(b);
+  }
+  return linha;
+}
+
+/**
+ * Os botões de paleta.
+ *
+ * Cada botão MOSTRA a paleta em vez de nomeá-la: três faixas com o fundo, a
+ * superfície e o acento daquela escolha. Uma lista de nomes — "Tinta",
+ * "Ametista", "Carvão" — obrigaria a escolher no escuro e trocar cinco vezes
+ * até achar a certa.
+ *
+ * A troca é imediata e sem recarregar: o CSS inteiro pende de um único
+ * atributo no <html>.
+ */
+function seletorDePaletas() {
+  const grade = el("div.paletaGrade", { role: "radiogroup", "aria-label": "Paleta de cores" });
+
+  for (const p of PALETAS) {
+    const botao = el("button.paletaOpcao", {
+      type: "button",
+      role: "radio",
+      "aria-checked": String(theme.paleta === p.id),
+      "data-paleta-amostra": p.id,
+      title: p.descricao,
+      onClick: () => {
+        theme.setPaleta(p.id);
+        for (const outro of grade.children) {
+          outro.setAttribute("aria-checked", String(outro.dataset.paletaAmostra === p.id));
+        }
+        toast(`Paleta ${p.nome}`, { tone: "ok", ms: 1600, key: "paleta" });
+      },
+    });
+    botao.append(
+      el("span.paletaOpcao__amostra", { "aria-hidden": "true" }, [
+        el("i.paletaOpcao__fundo"),
+        el("i.paletaOpcao__superficie"),
+        el("i.paletaOpcao__acento"),
+      ]),
+      el("span.paletaOpcao__nome", { text: p.nome }),
+    );
+    grade.append(botao);
+  }
+
+  return el("div.stack", {}, [
+    el("div.field__label", { text: "Paleta" }),
+    grade,
+    el("div.field__hint", { text: "Vale junto com o tema claro ou escuro — são duas escolhas, não dez." }),
+  ]);
+}
+
+/**
+ * Aviso discreto de versão nova, uma vez por abertura.
+ *
+ * Deliberadamente sem ação automática e sem janela modal: quem abriu o
+ * programa quer entrar numa chamada, não fazer manutenção. O aviso espera a
+ * tela assentar, some sozinho, e o caminho para baixar continua nas
+ * configurações quando a pessoa tiver tempo.
+ */
+function avisarDeAtualizacao() {
+  setTimeout(async () => {
+    try {
+      const r = await host.atualizacao();
+      if (!r?.tem) return;
+      toast(`Versão ${r.versao} disponível — veja em Configurações › Atualizações.`, {
+        tone: "info",
+        ms: 9000,
+      });
+    } catch {
+      /* sem internet ou GitHub fora do ar: não é assunto de quem vai ligar */
+    }
+  }, 6000);
+}
+
+/**
+ * O bloco "verificar atualizações" das configurações.
+ *
+ * Só aparece dentro do executável: no navegador comum quem atualiza a página
+ * é o próprio servidor, e um botão de atualizar programa não teria o que
+ * fazer. O botão força a consulta — sem ele, a resposta vem do cache de
+ * algumas horas que o aplicativo guarda para não bater no GitHub a cada
+ * abertura.
+ */
+function blocoDeAtualizacao() {
+  const estado = el("div.field__hint", { text: "Conferindo…" });
+  const notas = el("div.field__hint", { style: { opacity: "0.7" } });
+  const baixar = el("a.btn.btn--primary", {
+    target: "_blank",
+    rel: "noopener noreferrer",
+    text: "Baixar a nova versão",
+    hidden: true,
+  });
+  const botao = el("button.btn", { type: "button", text: "Verificar agora" });
+
+  const pintar = (r) => {
+    notas.textContent = "";
+    baixar.hidden = true;
+    if (r?.erro) {
+      estado.textContent = `Não deu para conferir agora (${r.erro}). Versão instalada: ${r.atual}.`;
+      return;
+    }
+    if (r?.tem) {
+      estado.textContent = `Versão ${r.versao} disponível. Você está na ${r.atual}.`;
+      baixar.href = r.url;
+      baixar.hidden = false;
+      // As notas do GitHub vêm em Markdown; como texto puro já informam.
+      if (r.notas) notas.textContent = r.notas.replace(/<[^>]*>/g, " ").slice(0, 300);
+      return;
+    }
+    estado.textContent = `Você está na versão mais recente (${r?.atual || "?"}).`;
+  };
+
+  const conferir = async (forcar) => {
+    botao.disabled = true;
+    estado.textContent = forcar ? "Conferindo…" : "Conferindo…";
+    try {
+      pintar(await host.atualizacao({ forcar }));
+    } catch (err) {
+      estado.textContent = `Não deu para conferir: ${err.message}`;
+    } finally {
+      botao.disabled = false;
+    }
+  };
+
+  botao.addEventListener("click", () => conferir(true));
+  conferir(false);
+
+  return el("div.stack", {}, [estado, notas, el("div.row", {}, [botao, baixar])]);
 }
 
 /**
@@ -1553,10 +1738,10 @@ function wireMesh() {
     const badge = $("#linkBadge");
     const text = $("#linkText");
     if (status === "reconnecting" || status === "offline") {
-      badge.className = "badge badge--warn";
+      badge.className = "topbar__selo topbar__selo--aviso";
       text.textContent = "Reconectando à sala…";
     } else if (status === "error") {
-      badge.className = "badge badge--danger";
+      badge.className = "topbar__selo topbar__selo--erro";
       text.textContent = reason === "room-full" ? "Sala cheia" : "Erro de conexão";
       if (reason === "room-full") {
         toast(`Esta sala já tem ${app.maxPeers} pessoas — o limite da conexão direta.`, {
@@ -1565,7 +1750,7 @@ function wireMesh() {
         });
       }
     } else {
-      badge.className = "badge badge--ok";
+      badge.className = "topbar__selo";
       text.textContent = "Criptografada ponta a ponta";
     }
   });
@@ -1729,11 +1914,11 @@ if ($("#tunnelBtn")) {
   if (host.disponivel) host.manterVivo();
 
   host.descobrir().then((sim) => {
-    if (sim) {
-      syncTunnelUi();
-      syncAppLink();
-      host.status().catch(() => {});
-    }
+    if (!sim) return;
+    syncTunnelUi();
+    syncAppLink();
+    host.status().catch(() => {});
+    avisarDeAtualizacao();
   });
 
   on($("#copyAppLinkBtn"), "click", () => {
@@ -1772,7 +1957,19 @@ on($("#copyCodeBtn"), "click", () => {
  * Configurações
  * ================================================================== */
 
-function openSettings() {
+/**
+ * As configurações.
+ *
+ * Abre em dois lugares com conteúdos diferentes. Na RECEPÇÃO — antes de
+ * entrar em qualquer sala — só existe o que faz sentido ali: perfil,
+ * dispositivos, aparência e atualizações. Sensibilidade do microfone,
+ * legendas, diagnóstico e qualidade da conexão dependem de uma chamada em
+ * andamento e dariam erro, ou pior, mostrariam zeros convincentes.
+ *
+ * Poder escolher a câmera ANTES de aparecer para alguém era o motivo de
+ * existir o botão na tela inicial.
+ */
+function openSettings({ naRecepcao = false } = {}) {
   const body = $("#settingsBody");
   body.replaceChildren();
   // A folha de atalhos usa o mesmo diálogo e troca o título; devolver aqui
@@ -1783,18 +1980,21 @@ function openSettings() {
     body.append(el("div.stack", {}, [el("h3", { text: title, style: { fontSize: "var(--text-md)" } }), ...children]));
 
   // -- identidade --
-  const nameInput = el("input.input", { type: "text", value: app.profile.name, maxLength: 32 });
+  const nameInput = el("input.input", { type: "text", value: app.profile?.name || "", maxLength: 32 });
   nameInput.addEventListener("change", () => {
     const name = nameInput.value.trim().slice(0, 32);
     if (!name) return;
+    app.profile ||= {};
     app.profile.name = name;
     prefs.set("name", name);
-    mesh.updateProfile(app.profile);
-    stage.get("self", "cam")?.setName(`${name} (você)`);
+    if (!naRecepcao) {
+      mesh.updateProfile(app.profile);
+      stage.get("self", "cam")?.setName(`${name} (você)`);
+    }
     toast("Nome atualizado", { tone: "ok", ms: 1800 });
   });
   section("Seu perfil", [
-    el("div.row", {}, [avatarEl(app.profile.avatar, { size: 44 }), nameInput]),
+    el("div.row", {}, [avatarEl(app.profile?.avatar, { size: 44 }), nameInput]),
   ]);
 
   // -- dispositivos --
@@ -1818,6 +2018,20 @@ function openSettings() {
   mk("videoinput", media.devices.videoinput, "Câmera");
   mk("audiooutput", media.devices.audiooutput, "Alto-falante");
   if (deviceRows.length) section("Dispositivos", deviceRows);
+
+  /*
+   * Caminho curto da recepção. Tudo daqui para baixo — sensibilidade do
+   * microfone, legendas, diagnóstico, qualidade da conexão — lê o estado de
+   * uma chamada que ainda não começou. Mostrar esses painéis fora dela daria
+   * erro ou, pior, números zerados com cara de medição de verdade.
+   */
+  if (naRecepcao) {
+    section("Aparência", [themeRowDeConfiguracoes(), seletorDePaletas()]);
+    if (host.disponivel) section("Atualizações", [blocoDeAtualizacao()]);
+    $("#settingsModal").showModal();
+    animarEntradaDoDialogo($("#settingsModal"));
+    return;
+  }
 
   // -- áudio --
   const procToggle = el("input", { type: "checkbox", checked: media.processing });
@@ -1981,24 +2195,8 @@ function openSettings() {
   section("Legendas e avisos", capRows);
 
   // -- tema --
-  const themeRow = el("div.row");
-  for (const [mode, label, iconName] of [
-    ["system", "Sistema", "laptop"],
-    ["light", "Claro", "sun"],
-    ["dark", "Escuro", "moon"],
-  ]) {
-    const b = el("button.btn", {
-      type: "button",
-      class: theme.mode === mode ? "btn--primary" : "",
-      onClick: () => {
-        theme.set(mode);
-        openSettings();
-      },
-    });
-    b.append(icon(iconName, { size: "sm" }), el("span", { text: label }));
-    themeRow.append(b);
-  }
-  section("Aparência", [themeRow]);
+  const themeRow = themeRowDeConfiguracoes();
+  section("Aparência", [themeRow, seletorDePaletas()]);
 
   // -- diagnóstico de áudio: responde "por que não ouço ninguém?" --
   const audioReport = el("div.field__hint", { text: "Medindo…" });

@@ -30,6 +30,19 @@
   filter: blur(120px);
   opacity: var(--glow-opacity);
 }
+/*
+ * NA CHAMADA O FUNDO SAI DE CENA.
+ *
+ * As duas manchas de rosa e laranja são a assinatura da marca na antessala e
+ * no painel — lá elas têm o que fazer. Atrás de uma grade de vídeo elas
+ * viram sujeira: tingem a borda de cada ladrilho, brigam com o tom de pele de
+ * quem aparece e deixam a sala com cara de papel de parede. Dentro da
+ * chamada o fundo é tinta chapada e o olho vai para os rostos.
+ */
+body.na-chamada .ambient {
+  display: none;
+}
+
 .ambient::before {
   background: var(--brand-pink);
   top: -22vmax;
@@ -92,7 +105,7 @@
   place-items: center;
   gap: var(--sp-3);
   color: var(--text-muted);
-  background: radial-gradient(circle at 50% 40%, var(--surface-2), var(--tile-bg) 70%);
+  background: radial-gradient(circle at 50% 40%, var(--tile-glow), var(--tile-bg) 70%);
 }
 
 .lobby__placeholder .avatar {
@@ -205,33 +218,74 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  padding-top: max(var(--sp-3), env(safe-area-inset-top));
+  padding: var(--sp-2) var(--sp-4);
+  padding-top: max(var(--sp-2), env(safe-area-inset-top));
   border-bottom: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--bg);
   z-index: var(--z-dock);
 }
 
-.topbar__brand {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.02em;
-}
-.topbar__brand img {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-xs);
-}
-
+/*
+ * A faixa de estado da chamada.
+ *
+ * O que ela mostra é tudo que MUDA: o nome da sala, se a conversa continua
+ * cifrada, há quanto tempo e com quantas pessoas. Nada de marca — ver o
+ * comentário no index.html. O nome da sala é o elemento principal porque é a
+ * única coisa aqui que a pessoa pode não saber de cor.
+ */
 .topbar__meta {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   color: var(--text-muted);
   font-size: var(--text-xs);
+  min-width: 0;
+}
+
+.topbar__room {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34ch;
+}
+
+/*
+ * O selo de criptografia é informação de fundo, não um aviso.
+ *
+ * Como `.badge--ok` ele vinha com pastilha verde preenchida e disputava
+ * atenção com o botão de convidar a dois dedos de distância — num estado que
+ * é o normal e vale a chamada inteira. Aqui ele é só o ícone e o texto, no
+ * mesmo tom do resto da faixa; a cor volta quando algo sai do lugar, que é
+ * quando a cor significa alguma coisa.
+ */
+.topbar__selo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  white-space: nowrap;
+}
+.topbar__selo .icon {
+  color: var(--ok);
+  opacity: 0.85;
+}
+.topbar__selo--aviso {
+  color: var(--warn);
+}
+.topbar__selo--aviso .icon {
+  color: var(--warn);
+  opacity: 1;
+}
+.topbar__selo--erro {
+  color: var(--danger);
+  font-weight: var(--weight-semibold);
+}
+.topbar__selo--erro .icon {
+  color: var(--danger);
+  opacity: 1;
 }
 
 .dot-sep::before {
@@ -380,12 +434,24 @@
   background: #000;
 }
 
+/*
+ * O fundo do ladrilho quando não há vídeo.
+ *
+ * ERA O BUG MAIS FEIO DO TEMA CLARO: o gradiente ia de `--surface-2` até
+ * `--tile-bg`. No escuro os dois são escuros e o resultado é um halo discreto;
+ * no claro, `--surface-2` é quase branco e `--tile-bg` é escuro — saía um
+ * holofote branco desbotando para cinza-chumbo, como um retrato velho.
+ *
+ * Agora os dois extremos são tons do PRÓPRIO ladrilho (`--tile-glow` e
+ * `--tile-bg`), que são escuros nos dois temas porque vídeo pede fundo
+ * escuro em qualquer luz. O halo fica igual com qualquer paleta.
+ */
 .tile__avatar {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at 50% 42%, var(--surface-2), var(--tile-bg) 72%);
+  background: radial-gradient(circle at 50% 42%, var(--tile-glow), var(--tile-bg) 70%);
 }
 .tile__avatar .avatar {
   width: clamp(56px, 26%, 128px);
@@ -2156,4 +2222,76 @@ body.is-recording .topbar::after {
 }
 .is-desktop:has(.dash, #topbar:not([hidden])) .win-drag {
   display: none;
+}
+
+/* ================================================================== *
+ * Escolha de paleta
+ *
+ * A amostra é a própria paleta em miniatura — fundo, superfície e acento,
+ * na mesma proporção em que aparecem na tela de verdade. É mais honesto que
+ * uma bolinha colorida: mostra o que vai dominar e o que vai ser raro.
+ * ================================================================== */
+
+.paletaGrade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: var(--sp-2);
+}
+
+.paletaOpcao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.paletaOpcao:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.paletaOpcao[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.paletaOpcao__amostra {
+  display: flex;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+.paletaOpcao__amostra i {
+  display: block;
+  height: 100%;
+}
+/* A proporção não é decorativa: é quanto de cada um a tela realmente usa. */
+.paletaOpcao__fundo {
+  flex: 5;
+}
+.paletaOpcao__superficie {
+  flex: 2;
+}
+.paletaOpcao__acento {
+  flex: 1;
+}
+
+/*
+ * As amostras precisam mostrar a paleta DELAS, não a que está ligada. Como
+ * as variáveis vêm do <html>, cada amostra redeclara as suas localmente —
+ * é por isso que paletas.css também define estas classes por id.
+ */
+.paletaOpcao__nome {
+  text-align: center;
 }

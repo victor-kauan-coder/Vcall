@@ -1,0 +1,100 @@
+# Gera os instaladores e publica a Release no GitHub.
+#
+# Dispara de duas formas:
+#   - empurrando uma tag:   git tag v3.1.0 && git push origin v3.1.0
+#   - à mão, na aba Actions → "Release" → Run workflow (informando a versão)
+#
+# Os instaladores NÃO vão para o repositório (passam de 100 MB, o limite do
+# GitHub para arquivos). Eles vão para a página de Releases, que aceita até
+# 2 GB por arquivo.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão (ex.: 3.1.0)"
+        required: true
+        default: "3.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Ferramentas dos pacotes (.rpm e pacman)
+        run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools
+      - run: npm ci --include=dev
+      - name: Motor das legendas (Whisper) para dentro do app
+        run: npm run vendor
+      - name: AppImage, .deb, .rpm, pacman e .tar.gz
+        run: npx electron-builder --config electron-builder.yml --linux --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pacman
+            dist/*.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --include=dev
+      - name: Motor das legendas (Whisper) para dentro do app
+        run: npm run vendor
+      - name: cloudflared (vai junto do Vcall.exe para o link público)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .cache-cloudflared | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile ".cache-cloudflared/win32-cloudflared.exe"
+      - name: Instalador do Windows
+        run: npx electron-builder --config electron-builder.yml --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.exe
+
+  publicar:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: pacotes
+          merge-multiple: true
+      - name: Versão
+        id: v
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then V="${{ inputs.versao }}"; else V="${GITHUB_REF_NAME#v}"; fi
+          echo "versao=$V" >> "$GITHUB_OUTPUT"
+      - name: Somas de verificação
+        run: cd pacotes && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.versao }}
+          name: Vcall ${{ steps.v.outputs.versao }}
+          body_path: docs/release/v${{ steps.v.outputs.versao }}.md
+          target_commitish: ${{ github.sha }}
+          files: pacotes/*
+          make_latest: true

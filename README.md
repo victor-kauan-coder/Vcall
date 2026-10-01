@@ -1,11 +1,61 @@
-# Vcall
+<p align="center">
+  <img src="public/assets/logo-wordmark.png" alt="Vcall" width="380">
+</p>
+
+<p align="center">
+  <b>Chamadas de vídeo diretas de um computador para o outro — criptografadas, sem conta e sem intermediário.</b>
+</p>
+
+<p align="center">
+  <a href="https://github.com/victor-kauan-coder/Vcall/releases/latest"><img alt="Baixar" src="https://img.shields.io/github/v/release/victor-kauan-coder/Vcall?label=baixar&color=dd2f6b"></a>
+  <a href="https://github.com/victor-kauan-coder/Vcall/actions/workflows/ci.yml"><img alt="Testes" src="https://github.com/victor-kauan-coder/Vcall/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/victor-kauan-coder/Vcall/wiki"><img alt="Wiki" src="https://img.shields.io/badge/wiki-documentação-453c72"></a>
+</p>
+
+<p align="center">
+  <img src="docs/wiki/imagens/painel-claro.png" alt="Painel inicial do Vcall" width="820">
+</p>
 
 Salas de vídeo em malha ponto a ponto, criptografadas fim a fim, com
-compartilhamento de tela de alta fidelidade e quadro branco colaborativo.
+compartilhamento de tela e de janelas, canvas colaborativo infinito, legendas,
+moderação e aplicativo para Windows e Linux.
 
 O servidor apresenta os participantes uns aos outros e para por aí. Áudio,
-vídeo, tela, chat e quadro vão direto de um navegador ao outro, cifrados por
-DTLS-SRTP. Nenhum conteúdo de conversa passa pelo servidor ou fica em disco.
+vídeo, tela, canvas e arquivos vão direto de um computador ao outro, cifrados
+por DTLS-SRTP; o texto do chat passa pela sinalização sem ser guardado. Nenhum
+conteúdo de conversa fica em disco.
+
+## Baixar
+
+| Sistema | Arquivo |
+| --- | --- |
+| Windows 10/11 | `VcallSetup-3.4.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.4.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.4.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.4.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.4.0-x86_64.AppImage` ou `.tar.gz` |
+
+Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
+passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
+o que mudou em **[Novidades da 3.3](docs/wiki/Novidades-3.3.md)**.
+
+## Recursos
+
+- Vídeo, voz e tela ponto a ponto, até 16 pessoas, sem conta e sem limite de tempo
+- Compartilhar **uma janela** ou a tela inteira, com nitidez ou fluidez
+- Canvas colaborativo infinito e anotação sobre a tela
+- Chat com arquivos de até 25 MB, entregues inteiros
+- Legendas com **Whisper** no app (no seu computador) e **transcrição ao vivo** com busca e .srt
+- **Supressão de ruído por IA** e sensibilidade de entrada, como no Discord
+- Trocar a janela compartilhada **sem parar** a transmissão
+- Moderação: silenciar, remover, trancar a sala, **sala de espera**, fila de mãos
+- Convite clicável no **WhatsApp** que abre direto no app
+- **Foco na voz** (quem fala acende, quem está calado apaga) e **modo jogo** com sobreposição e atalhos globais
+- App para **Windows** e **Linux** (AppImage, .deb, .rpm, pacman, .tar.gz)
+
+<p align="center">
+  <img src="docs/wiki/imagens/moderacao.png" alt="Chamada com moderação" width="820">
+</p>
 
 > **Só quer rodar?** Veja **[COMECE-AQUI.md](COMECE-AQUI.md)** — são dois
 > comandos. Este README é para quem vai mexer no código.
@@ -24,7 +74,7 @@ Para desenvolver, instale também as ferramentas (ícones, avatares, testes):
 ```bash
 npm install --include=dev
 npm run dev        # recarrega o servidor a cada alteração
-npm test           # verificação estática + dois navegadores + túnel
+npm test           # estática + servidor + dois navegadores + interface + túnel
 npm run vendor     # regenera o sprite de ícones e o pacote de avatares
 ```
 
@@ -296,11 +346,18 @@ Ele não vê o conteúdo de nada.
 ## Testes
 
 ```bash
-node scripts/check.mjs        # estático
+npm run check                 # estático + servidor + correções da 3.1 (segundos)
+node scripts/fixes-test.mjs   # servidor real: senha, reconexão, moderação, sala de espera…
 node scripts/e2e.mjs          # dois navegadores de verdade
+node scripts/ui-test.mjs      # 49 verificações clicando na interface
 node scripts/proxy-test.mjs   # atrás de um túnel HTTPS
+xvfb-run -a sh -c 'openbox & node scripts/desktop-test.mjs'   # app de mesa (Linux)
 CHROMIUM_PATH=/caminho/do/chrome node scripts/e2e.mjs
 ```
+
+Tudo roda no GitHub Actions a cada push (`.github/workflows/ci.yml`); o
+`release.yml` gera os instaladores de Windows e Linux e publica a Release.
+Detalhes em [Para desenvolvedores](docs/wiki/Para-desenvolvedores.md).
 
 O teste de ponta a ponta sobe o servidor, abre dois navegadores com mídia
 falsa, entra na mesma sala e verifica: descoberta, conexão P2P, quadros
@@ -316,6 +373,7 @@ e a saída limpa de um participante.
 - [Lucide](https://lucide.dev) — ícones, licença ISC
 - [DiceBear](https://dicebear.com) — avatares, licença MIT
 - [ws](https://github.com/websockets/ws) — WebSocket, licença MIT
+- [vosk-browser](https://github.com/ccoreilly/vosk-browser) / [Vosk](https://alphacephei.com/vosk/) — reconhecimento de fala offline, licença Apache-2.0
 
 Os arquivos em `public/vendor/` são gerados por `npm run vendor` a partir
 dessas bibliotecas.

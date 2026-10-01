@@ -21,17 +21,20 @@ import { Stage } from "./ui/stage.js";
 import { Panel } from "./ui/panel.js";
 import { Dock, REACTIONS } from "./ui/dock.js";
 import { toast, chime } from "./ui/toast.js";
-import { avatarEl, colorFor } from "./ui/avatars.js";
+import { avatarEl, colorFor, defaultAvatar } from "./ui/avatars.js";
 import { RemoteAudio } from "./ui/audio.js";
 import { closeAudio } from "./core/audio-graph.js";
 import { InfiniteCanvas } from "./features/canvas.js";
-import { Captions, captionsSupported } from "./features/captions.js";
+import { createBoardNotice } from "./features/board-notice.js";
+import { Captions, captionsSupported, idiomaPadrao } from "./features/captions.js";
 import { CallRecorder, canRecord } from "./features/recorder.js";
 import { FileTransfer, MAX_FILE, formatSize } from "./features/transfer.js";
 import { HostPanel } from "./features/host.js";
 import { pedirPermissoes, revisarPermissoes } from "./ui/permissions.js";
 import { escolherCompartilhamento } from "./ui/sharesheet.js";
+import { profileSection } from "./ui/profile-editor.js";
 import { Dashboard, copy, linkFor } from "./ui/dashboard.js";
+import { linkAbrir, linkWhatsApp } from "./lib/invite.js";
 import { installMotion, magnifyDock, playIntro, signal, swap, stagger } from "./ui/motion.js";
 import { MiniCall } from "./ui/minicall.js";
 import { watchHandsFree } from "./ui/handsfree.js";
@@ -56,12 +59,22 @@ const mesh = new Mesh({ signaling, media, screen });
 const audio = new RemoteAudio();
 
 /** Legendas ao vivo, gravação local e anexos: recursos da chamada, não da mídia. */
-const captions = new Captions({ lang: prefs.get("captions:lang", navigator.language || "pt-BR") });
+const captions = new Captions({
+  lang: idiomaPadrao(prefs.get("captions:lang", null)),
+  nivel: prefs.get("captions:nivel", "equilibrada"),
+});
+document.documentElement.dataset.legenda = prefs.get("captions:tamanho", "m");
+// O motor offline (app de mesa) ouve o MESMO microfone da chamada.
+captions.micTrack = () => media.micTrack;
 const recorder = new CallRecorder();
 const transfer = new FileTransfer();
 
 /** Controle do túnel. Inerte fora do aplicativo de mesa. */
 const host = new HostPanel();
+
+/** "Fulano está desenhando no canvas": uma vez por chamada, não a cada traço. */
+const boardNotice = createBoardNotice();
+const shouldAnnounceBoard = (op) => boardNotice.shouldAnnounce(op);
 
 const app = {
   room: null,
@@ -315,13 +328,370 @@ function buildPanel() {
     },
     onClose: () => panel.setOpen(false),
     onFiles: (files) => sendFiles(files),
+    // Clicar numa pessoa da lista: você mesmo abre o seu perfil; os outros
+    // vão para o destaque (e clicar de novo tira).
+    onPerson: (p) => {
+      if (p.self) {
+        openSettings();
+        return;
+      }
+      const id = stage.tileId(p.id, "cam");
+      if (stage.tiles.has(id)) stage.togglePin(id);
+    },
     onChange: ({ open, tab, unread }) => {
+      // A lista de pessoas só era desenhada quando alguém entrava ou saía:
+      // abrir a aba numa sala estável mostrava um painel em branco. Agora ela
+      // é desenhada ao abrir, com quem já está na sala.
+      if (open && tab === "people" && panel) renderPeopleNow();
+      if (open && tab === "stats" && panel) {
+        panel.renderStats(mesh.stats.samples, mesh.roster(), { history: (id) => mesh.stats.historyFor(id) });
+      }
       dock?.update("chat", { active: open && tab === "chat", badge: unread });
       dock?.update("people", { active: open && tab === "people" });
       dock?.update("stats", { active: open && tab === "stats" });
     },
   });
   $("#stage").append(panel.node);
+  panel.animate = (fn) => (stage ? stage.animateChange(fn) : fn());
+
+  // Transcrição ao vivo: o que já foi dito nesta chamada, e o que vier.
+  for (const t of captions.transcript) panel.addTranscript(t);
+  panel.setTranscriptActions([
+    {
+      iconName: "copy",
+      label: "Copiar tudo",
+      onClick: () => {
+        const texto = captions.asText();
+        if (!texto) return toast("Nada foi legendado nesta chamada ainda.", { tone: "info" });
+        copy(texto, "Transcrição copiada");
+      },
+    },
+    { iconName: "download", label: "Baixar (.txt)", onClick: () => baixarTranscricao("txt") },
+    { iconName: "captions", label: "Baixar como legenda (.srt)", onClick: () => baixarTranscricao("srt") },
+  ]);
+}
+
+/** Salva a transcrição: texto corrido (.txt) ou legenda para vídeo (.srt). */
+function baixarTranscricao(formato = "txt") {
+  const texto = formato === "srt" ? captions.asSrt() : captions.asText();
+  if (!texto) {
+    toast("Nada foi legendado nesta chamada ainda.", { tone: "info" });
+    return;
+  }
+  const blob = new Blob([texto], { type: formato === "srt" ? "application/x-subrip" : "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const carimbo = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  const a = el("a", { href: url, download: `vcall-transcricao-${carimbo}.${formato}` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/* ================================================================== *
+ * Moderação (anfitrião)
+ * ================================================================== */
+
+/**
+ * Tempo de fala de cada um, medido pelo mesmo detector de voz que acende o
+ * contorno de quem fala. Fica só nesta tela: não trafega pela rede.
+ */
+const falas = new Map(); // id -> { total, desde }
+function marcarFala(id, falando) {
+  const f = falas.get(id) || { total: 0, desde: 0 };
+  if (falando && !f.desde) f.desde = performance.now();
+  if (!falando && f.desde) {
+    f.total += performance.now() - f.desde;
+    f.desde = 0;
+  }
+  falas.set(id, f);
+}
+function tempoDeFala(id) {
+  const f = falas.get(id);
+  if (!f) return 0;
+  return f.total + (f.desde ? performance.now() - f.desde : 0);
+}
+
+/** Desenha a lista de pessoas, com os controles de anfitrião quando cabe. */
+function renderPeopleNow(lista = mesh.roster()) {
+  const roster = lista.map((p) => ({ ...p, falaMs: tempoDeFala(p.id) }));
+  const mod = mesh.isHost
+    ? {
+        onLowerHand: (p) => mesh.moderate("lower-hand", p.id),
+        closed: !!mesh.roomInfo?.closed,
+        onMute: (p) => {
+          mesh.moderate("mute", p.id);
+          toast(`Pedido enviado: ${p.name} foi silenciado`, { tone: "ok", ms: 2200, key: "mod" });
+        },
+        onCamOff: (p) => {
+          mesh.moderate("cam-off", p.id);
+          toast(`Câmera de ${p.name} desligada`, { tone: "ok", ms: 2200, key: "mod" });
+        },
+        onKick: (p) => confirmKick(p),
+        onMuteAll: () => {
+          mesh.moderate("mute-all");
+          toast("Todos foram silenciados", { tone: "ok", ms: 2200, key: "mod" });
+        },
+        onLock: (fechar) => mesh.moderate(fechar ? "lock" : "unlock"),
+        banned: mesh.banned,
+        onUnban: (b) => mesh.moderate("unban", b.id),
+      }
+    : null;
+  panel.renderPeople(roster, mod);
+}
+
+/** Remover alguém é definitivo nesta sala: pede confirmação antes. */
+function confirmKick(p) {
+  const dlg = el("dialog.modal");
+  const remover = el("button.btn.btn--danger", { type: "button" }, [icon("user-x", { size: "sm" }), el("span", { text: "Remover" })]);
+  const cancelar = el("button.btn.btn--ghost", { type: "button", text: "Cancelar" });
+  dlg.append(
+    el("div.modal__card", {}, [
+      el("div.modal__head", {}, [el("h2.modal__title", { text: `Remover ${p.name || "participante"}?` })]),
+      el("div.modal__body", {}, [
+        el("p.muted", {
+          text: "A pessoa sai da chamada na hora e não consegue voltar pelo mesmo aparelho — até você deixar, em Pessoas → Removidos.",
+        }),
+        el("div.row", { style: { justifyContent: "flex-end", gap: "var(--sp-2)" } }, [cancelar, remover]),
+      ]),
+    ]),
+  );
+  const fechar = () => (dlg.close(), dlg.remove());
+  cancelar.addEventListener("click", fechar);
+  dlg.addEventListener("close", () => dlg.remove());
+  remover.addEventListener("click", () => {
+    mesh.moderate("kick", p.id);
+    fechar();
+  });
+  document.body.append(dlg);
+  dlg.showModal();
+  cancelar.focus();
+}
+
+function wireModeration() {
+  mesh.on("moderated", (m) => {
+    const por = m.by || "O anfitrião";
+    if (m.action === "mute") {
+      if (media.micEnabled) {
+        media.setMic(false);
+        syncDockMedia();
+      }
+      toast(`${por} silenciou o seu microfone. Ligue de novo quando quiser falar.`, {
+        tone: "info",
+        ms: 5000,
+        key: "mod-mute",
+      });
+    } else if (m.action === "cam-off") {
+      if (media.camEnabled) media.setCam(false).then(syncDockMedia);
+      toast(`${por} desligou a sua câmera.`, { tone: "info", ms: 5000, key: "mod-cam" });
+    } else if (m.action === "lower-hand") {
+      if (app.hand) toggleHand();
+      toast(`${por} baixou a sua mão.`, { tone: "info", ms: 3000, key: "mod-hand" });
+    } else if (m.action === "kick") {
+      leaveCall({ motivo: "kicked", por });
+    } else if (m.action === "kicked") {
+      panel.addSystem(`${m.name || "Alguém"} foi removido da sala por ${por}`);
+    }
+  });
+
+  mesh.on("banned", ({ list, readmitted }) => {
+    if (readmitted) {
+      toast(`${readmitted} pode voltar: é só abrir o link da sala de novo`, { tone: "ok", ms: 4000, key: "unban" });
+    } else if (mesh.isHost && list.length) {
+      // Recém-removido: um "desfazer" na hora, para o clique errado.
+      const ultimo = [...list].sort((a, b) => b.at - a.at)[0];
+      if (ultimo && Date.now() - ultimo.at < 5000) {
+        toast(`${ultimo.name || "A pessoa"} foi removido da sala`, {
+          tone: "info",
+          ms: 6000,
+          key: "kick-undo",
+          action: { label: "Deixar voltar", onClick: () => mesh.moderate("unban", ultimo.id) },
+        });
+      }
+    }
+    if (panel.open && panel.tab === "people") renderPeopleNow();
+  });
+
+  mesh.on("room-closed", ({ closed, by }) => {
+    toast(closed ? `${by || "O anfitrião"} trancou a sala: ninguém novo entra` : `${by || "O anfitrião"} destrancou a sala`, {
+      tone: "info",
+      ms: 3500,
+      key: "room-closed",
+    });
+    if (panel.open && panel.tab === "people") renderPeopleNow();
+  });
+
+  mesh.on("host", ({ self }) => {
+    if (self) toast("Você é o anfitrião desta sala", { tone: "ok", ms: 2600, key: "host" });
+    if (panel.open && panel.tab === "people") renderPeopleNow();
+  });
+
+  mesh.on("speaking", ({ id, speaking }) => marcarFala(id, speaking));
+
+  /* -- sala de espera: quem espera -- */
+  mesh.on("waiting", () => mostrarEspera(true));
+  mesh.on("joined", () => mostrarEspera(false));
+
+  /* -- sala de espera: o anfitrião decide -- */
+  mesh.on("knock", (k) => {
+    mostrarBatida(k);
+    chime("join");
+    notify("Alguém quer entrar", `${k.name} está na sala de espera`);
+  });
+  mesh.on("knock-gone", ({ id }) => {
+    const card = document.querySelector(`.knock[data-id="${CSS.escape(id)}"]`);
+    if (!card) return;
+    card.classList.add("is-leaving");
+    setTimeout(() => card.remove(), 200);
+  });
+}
+
+/* ================================================================== *
+ * Foco na voz e modo jogo
+ * ================================================================== */
+
+/** Quem está falando agora (ids do mesh, inclusive o próprio). */
+const falandoAgora = new Set();
+
+/**
+ * Foco na voz: quem está calado fica apagadinho e quem fala acende — como o
+ * overlay do Discord, dentro da própria chamada. Vale para qualquer um, no
+ * navegador ou no app. Tecla G.
+ */
+function setFocoVoz(on) {
+  app.focoVoz = !!on;
+  prefs.set("foco-voz", app.focoVoz);
+  $("#stage")?.classList.toggle("stage--foco", app.focoVoz);
+  return app.focoVoz;
+}
+
+/** Monta e manda à sobreposição (app de mesa) o retrato da sala. */
+const enviarSobreposicao = throttle(() => {
+  if (!app.modoJogo || !window.vcallDesktop?.estadoSobreposicao || !mesh.selfId) return;
+  const pessoas = mesh.roster().map((p) => ({
+    id: p.id,
+    nome: p.name || "Convidado",
+    avatar: p.avatar || null,
+    falando: falandoAgora.has(p.id),
+    mudo: !p.state?.mic,
+    eu: !!p.self,
+  }));
+  window.vcallDesktop.estadoSobreposicao({ pessoas });
+}, 80);
+
+/**
+ * Modo jogo (app de mesa): a sobreposição transparente por cima do jogo e os
+ * atalhos globais Ctrl+Shift+M (microfone) e Ctrl+Shift+O (sobreposição).
+ */
+async function setModoJogo(on, { avisar = true } = {}) {
+  const desktop = window.vcallDesktop;
+  if (!desktop?.modoJogo) return false;
+  app.modoJogo = !!on;
+  prefs.set("modo-jogo", app.modoJogo);
+  const r = await desktop.modoJogo(app.modoJogo, prefs.get("modo-jogo:canto", "tl")).catch(() => null);
+  if (app.modoJogo) {
+    // A janela nova precisa do retrato completo logo de cara.
+    setTimeout(() => enviarSobreposicao(), 400);
+    setTimeout(() => enviarSobreposicao(), 1200);
+    if (avisar) {
+      const semAtalho = r && (!r.mic || !r.sobreposicao);
+      toast(
+        semAtalho
+          ? "Modo jogo ligado. Algum programa já usa Ctrl+Shift+M ou O — os atalhos globais não foram registrados."
+          : "Modo jogo ligado · Ctrl+Shift+M liga/desliga o microfone e Ctrl+Shift+O mostra/esconde a sobreposição, mesmo dentro do jogo.",
+        { tone: semAtalho ? "warn" : "ok", ms: 6500, key: "modo-jogo" },
+      );
+    }
+  } else if (avisar) {
+    toast("Modo jogo desligado", { tone: "info", ms: 2000, key: "modo-jogo" });
+  }
+  return app.modoJogo;
+}
+
+/**
+ * Janela escondida (minimizada, outra aba, jogo em tela cheia) por mais de
+ * alguns segundos: os outros param de mandar câmera para cá. Voz e tela
+ * continuam. Com a mini-janela aberta a pessoa ainda está assistindo: nada muda.
+ */
+function wireEconomia() {
+  let timer = 0;
+  const avaliar = () => {
+    clearTimeout(timer);
+    const assistindo = !document.hidden || !!app.mini?.open;
+    if (assistindo) mesh.verVideo(true);
+    else timer = setTimeout(() => mesh.verVideo(!!app.mini?.open), 5000);
+  };
+  document.addEventListener("visibilitychange", avaliar);
+  avaliar();
+}
+
+function wireModoJogo() {
+  setFocoVoz(prefs.get("foco-voz", false));
+
+  mesh.on("speaking", ({ id, speaking }) => {
+    if (speaking) falandoAgora.add(id);
+    else falandoAgora.delete(id);
+    enviarSobreposicao();
+  });
+  mesh.on("roster", () => enviarSobreposicao());
+  mesh.on("self-state", () => enviarSobreposicao());
+  mesh.on("peer-removed", ({ id }) => falandoAgora.delete(id));
+
+  const desktop = window.vcallDesktop;
+  if (!desktop?.modoJogo) return;
+  mesh.on("joined", ({ reconnected }) => {
+    if (!reconnected && prefs.get("modo-jogo", false)) setModoJogo(true, { avisar: false });
+  });
+  desktop.aoAtalho?.((acao) => {
+    if (acao !== "mic" || !app.joined || app.left) return;
+    media.toggleMic();
+    syncDockMedia();
+    toast(media.micEnabled ? "Microfone ligado" : "Microfone mudo", { tone: "info", ms: 1200, key: "atalho-mic" });
+  });
+}
+
+/** Tela de "aguardando o anfitrião" por cima do palco. */
+function mostrarEspera(on) {
+  let tela = $(".waitRoom");
+  if (!on) {
+    tela?.remove();
+    return;
+  }
+  if (tela) return;
+  tela = el("div.waitRoom", { role: "status", "aria-live": "polite" }, [
+    el("div.waitRoom__card", {}, [
+      el("img.brand__mark", { src: "/assets/logo-mark.png", alt: "", width: 56, height: 56 }),
+      el("h2", { text: "Aguardando o anfitrião" }),
+      el("p", { text: "A sala está trancada. O anfitrião já sabe que você chegou e vai decidir se você entra." }),
+      el("div.waitRoom__pulse", { "aria-hidden": "true" }, [el("i"), el("i"), el("i")]),
+      el("button.btn.btn--ghost", { type: "button", onClick: () => leaveCall() }, [icon("log-out", { size: "sm" }), el("span", { text: "Desistir" })]),
+    ]),
+  ]);
+  document.body.append(tela);
+}
+
+/** Cartão "Fulano quer entrar" para o anfitrião, com as duas respostas. */
+function mostrarBatida(k) {
+  let pilha = $(".knocks");
+  if (!pilha) {
+    pilha = el("div.knocks", { "aria-live": "polite" });
+    document.body.append(pilha);
+  }
+  if (pilha.querySelector(`[data-id="${CSS.escape(k.id)}"]`)) return;
+  const responder = (acao) => {
+    mesh.moderate(acao, k.id);
+    card.classList.add("is-leaving");
+    setTimeout(() => card.remove(), 200);
+  };
+  const card = el("div.knock", { dataset: { id: k.id }, role: "alertdialog", "aria-label": `${k.name} quer entrar` }, [
+    avatarEl(k.avatar, { title: k.name }),
+    el("div.knock__texto", {}, [el("strong.truncate", { text: k.name || "Convidado" }), el("span", { text: "quer entrar na sala" })]),
+    el("div.knock__acoes", {}, [
+      el("button.btn.btn--ghost", { type: "button", onClick: () => responder("deny") }, [el("span", { text: "Recusar" })]),
+      el("button.btn.btn--primary", { type: "button", onClick: () => responder("admit") }, [el("span", { text: "Deixar entrar" })]),
+    ]),
+  ]);
+  pilha.append(card);
 }
 
 /* ================================================================== *
@@ -343,21 +713,34 @@ async function sendFiles(files) {
     }
     const sent = await transfer.send(f);
     if (!sent) continue;
+    const { envio, ...arquivo } = sent;
     panel.addFile({
       id: mesh.selfId || "self",
       name: app.profile.name,
       avatar: app.profile.avatar,
-      file: sent,
+      file: arquivo,
       self: true,
     });
-    panel.setFileProgress(sent.id, 1);
+    panel.setFileProgress(arquivo.id, 0.02);
+    // O próximo arquivo espera este terminar: dois ao mesmo tempo só dividem
+    // a mesma rede e deixam os dois mais lentos.
+    const { falhou } = await envio;
+    panel.setFileProgress(arquivo.id, 1);
+    if (falhou.length) {
+      const nomes = falhou.map((id) => mesh.profiles.get(id)?.name || "um participante").join(", ");
+      toast(`“${arquivo.name}” não chegou para ${nomes} — a conexão direta caiu no meio. Tente de novo.`, {
+        tone: "warn",
+        ms: 7000,
+      });
+    }
   }
 }
 
 function wireTransfer() {
   // O arquivo segue o mesmo caminho das imagens do canvas: canal de carga
   // pesada, fatiado, com espera de buffer entre os pedaços.
-  transfer.on("blob", (payload) => mesh.broadcastBlob(payload));
+  // `sender` espera cada pedaço sair antes do próximo (fila por participante).
+  transfer.sender = (payload) => mesh.broadcastBlob(payload);
 
   transfer.on("start", ({ id, from, meta }) => {
     const profile = mesh.profiles.get(from) || {};
@@ -371,14 +754,14 @@ function wireTransfer() {
     panel.setFileProgress(id, 0.02);
   });
 
-  transfer.on("progress", ({ id, sent, total, outgoing }) => {
-    if (!outgoing) panel.setFileProgress(id, sent / total);
+  transfer.on("progress", ({ id, sent, total }) => {
+    panel.setFileProgress(id, Math.max(0.02, sent / total));
   });
 
   transfer.on("file", (file) => {
     // O cartão já está na conversa desde o "file-begin"; agora ele ganha o
     // endereço do arquivo pronto e a barra de progresso sai.
-    panel.completeFile(file.id, file.url);
+    panel.completeFile(file.id, file.url, file.blob);
     const who = mesh.profiles.get(file.from)?.name || "Alguém";
     notify(`${who} enviou um arquivo`, file.name);
     if (!panel.open || panel.tab !== "chat") {
@@ -613,6 +996,9 @@ function openMoreMenu() {
       pop.append(el("div.popover__sep"));
     }
     item("hand", app.hand ? "Baixar a mão" : "Levantar a mão", toggleHand, app.hand);
+    item("eye", "Foco na voz · G", () => setFocoVoz(!app.focoVoz), !!app.focoVoz);
+    item("captions", "Transcrição ao vivo", () => panel.setOpen(true, "transcript"));
+    if (window.vcallDesktop?.modoJogo) item("zap", "Modo jogo (sobreposição)", () => setModoJogo(!app.modoJogo), !!app.modoJogo);
     item("smile", "Reagir", () => {
       // Reabre como menu de reações, ancorado no mesmo botão.
       setTimeout(() => dock.openPopover("more", (p2, c2) => {
@@ -670,6 +1056,9 @@ const SHORTCUTS = [
     ["P", "Pessoas"],
     ["L", "Alternar o layout"],
     ["J", "Mini-janela flutuante, por cima dos outros programas"],
+    ["G", "Foco na voz: apagar quem está calado"],
+    ["Ctrl+Shift+M", "Microfone, mesmo dentro de um jogo (app, modo jogo)"],
+    ["Ctrl+Shift+O", "Mostrar/esconder a sobreposição (app, modo jogo)"],
     ["Q", "Abrir e fechar o canvas"],
     ["?", "Esta lista"],
     ["Esc", "Fechar o que estiver aberto"],
@@ -980,16 +1369,45 @@ async function toggleScreen(opts = {}) {
    * tela/janela/aba vira a preferência `displaySurface`, e o seletor do
    * navegador já abre na aba certa em vez de a pessoa ter que procurar.
    */
-  const escolha = opts.pular ? null : await escolherCompartilhamento({ podeAudio: true });
+  // No app de mesa a lista de telas e janelas é nossa (desktop/main.js).
+  const desktop = window.vcallDesktop?.fontes ? window.vcallDesktop : null;
+  const escolha = opts.pular ? null : await escolherCompartilhamento({ podeAudio: true, desktop });
   if (!opts.pular && !escolha) return; // desistiu no painel
 
   try {
+    // Avisa o processo principal do que foi escolhido ANTES de pedir a
+    // captura: é ele quem responde ao getDisplayMedia no app de mesa.
+    if (desktop && escolha) await desktop.escolherFonte(escolha.fonte || "", escolha.withAudio);
     await screen.start({
       quality: escolha?.quality || prefs.get("screen:quality", "auto"),
       mode: escolha?.mode || screen.mode,
-      withAudio: escolha ? escolha.withAudio : true,
+      // Sem painel (atalho direto), sem som: o som só vai quando pedido.
+      withAudio: escolha ? escolha.withAudio : false,
       surface: escolha?.surface || null,
       ...opts,
+    });
+  } catch (err) {
+    // Falhar ao compartilhar nunca tira ninguém da chamada: só avisa.
+    if (err?.name !== "NotAllowedError") toast(describeScreenError(err), { tone: "warn" });
+  }
+}
+
+/**
+ * Troca o que está sendo mostrado — outra janela, outra tela, com ou sem som —
+ * sem parar a transmissão: quem assiste continua no mesmo ladrilho.
+ */
+async function trocarFonte() {
+  if (!screen.active) return toggleScreen();
+  const desktop = window.vcallDesktop?.fontes ? window.vcallDesktop : null;
+  const escolha = await escolherCompartilhamento({ podeAudio: true, desktop, trocando: true });
+  if (!escolha) return;
+  try {
+    if (desktop) await desktop.escolherFonte(escolha.fonte || "", escolha.withAudio);
+    await screen.switchSource({
+      quality: escolha.quality || screen.quality,
+      mode: escolha.mode || screen.mode,
+      withAudio: escolha.withAudio,
+      surface: escolha.surface || null,
     });
   } catch (err) {
     if (err?.name !== "NotAllowedError") toast(describeScreenError(err), { tone: "warn" });
@@ -1044,6 +1462,14 @@ function openScreenMenu(ownerId = "screenOpts") {
       pop.append(
         el("div.popover__sep"),
         Dock.item({
+          iconName: "refresh-cw",
+          label: "Trocar o que estou mostrando…",
+          onClick: () => {
+            close();
+            trocarFonte();
+          },
+        }),
+        Dock.item({
           iconName: "screen-share-off",
           label: "Parar de compartilhar",
           onClick: () => {
@@ -1071,18 +1497,40 @@ screen.on("start", () => {
   tile.setStream(screen.stream);
   tile.setMic(true);
   tile.setQuality("good");
+  if (!tile.botaoTrocar) {
+    tile.botaoTrocar = tile.addAction({ iconName: "refresh-cw", label: "Trocar o que estou mostrando", onClick: () => trocarFonte() });
+  }
+  // Tela inteira: nada de prévia ao vivo (efeito espelho). Janela: a prévia
+  // fica, porque não tem como a janela conter a chamada.
+  const superficie = screen.videoTrack?.getSettings?.().displaySurface || screen.surface;
+  tile.setPresenting(superficie === "monitor");
   stage.relayout();
 
   const s = screen.settings;
   const detail = s?.width ? `${s.width}×${s.height} a ${Math.round(s.frameRate || 0)} fps` : "";
   toast(`Compartilhando sua tela${detail ? ` · ${detail}` : ""}`, { tone: "ok" });
 
-  if (!screen.audioTrack) {
+  // Só avisa sobre o som quando a pessoa pediu som e ele não veio.
+  if (screen.wantedAudio && !screen.audioTrack) {
     toast(
-      "O som do sistema não foi capturado. No Chrome, marque “Compartilhar áudio” na janela de seleção; no Firefox e no Safari isso ainda não existe.",
+      window.vcallDesktop
+        ? "O som do computador não foi capturado — neste sistema a tela vai sem som."
+        : "O som não foi capturado. No Chrome, marque “Compartilhar áudio” na janela de seleção; no Firefox e no Safari isso ainda não existe.",
       { tone: "info", ms: 6000, key: "screen-audio" },
     );
   }
+});
+
+screen.on("switch", () => {
+  const tile = stage.get("self", "screen");
+  if (tile) {
+    tile.setStream(screen.stream);
+    const superficie = screen.videoTrack?.getSettings?.().displaySurface || screen.surface;
+    tile.setPresenting(superficie === "monitor");
+  }
+  const s = screen.settings;
+  const detalhe = s?.width ? ` · ${s.width}×${s.height}` : "";
+  toast(`Transmissão trocada, sem interromper${detalhe}`, { tone: "ok", ms: 2600, key: "screen-switch" });
 });
 
 screen.on("stop", ({ reason }) => {
@@ -1093,9 +1541,12 @@ screen.on("stop", ({ reason }) => {
 });
 
 screen.on("surface", (s) => {
-  // A resolução mudou no meio do caminho (o usuário trocou de janela). Sem
-  // reavaliar o teto, a imagem desmancha silenciosamente.
-  toast(`Agora mostrando ${s.width}×${s.height}`, { tone: "info", ms: 2000, key: "surface" });
+  // A resolução mudou no meio do caminho (o usuário trocou de janela). O teto
+  // do encoder já foi reavaliado em core/screen.js; aqui só se atualiza a
+  // prévia. Sem aviso na tela: ele disparava logo no começo de todo
+  // compartilhamento e era só mais uma notificação pulando.
+  const tile = stage.get("self", "screen");
+  if (tile) tile.setPresenting((s.displaySurface || screen.surface) === "monitor");
 });
 
 screen.on("error", (err) => {
@@ -1189,6 +1640,7 @@ function openBoardMenu() {
 function openBoard(mode) {
   closeBoard();
   app.boardMode = mode;
+  boardNotice.seen();
 
   // O quadro ocupa o lugar do destaque, não a tela inteira: quem desenha
   // continua vendo os outros na faixa ao lado. No modo anotação ele é uma
@@ -1201,12 +1653,17 @@ function openBoard(mode) {
 
   // Pede o estado atual a quem já estava no quadro.
   mesh.broadcastBoard({ type: "hello" });
-  toast(
-    mode === "board"
-      ? "Canvas aberto · espaço arrasta, Ctrl+roda dá zoom, N cria nota, Ctrl+Z desfaz"
-      : "Anotando sobre a tela",
-    { tone: "info", ms: 4000 },
-  );
+  // A dica de atalhos também é uma vez só: quem abre e fecha o canvas várias
+  // vezes numa chamada não precisa reler o mesmo texto a cada abertura.
+  if (!app.boardTipShown?.[mode]) {
+    app.boardTipShown = { ...app.boardTipShown, [mode]: true };
+    toast(
+      mode === "board"
+        ? "Canvas aberto · espaço arrasta, Ctrl+roda dá zoom, N cria nota, Ctrl+Z desfaz"
+        : "Anotando sobre a tela",
+      { tone: "info", ms: 4000, key: "board-tip" },
+    );
+  }
 }
 
 function closeBoard() {
@@ -1246,23 +1703,31 @@ function wireCaptions() {
    * legenda parcial que chega atrasada não serve para nada, e a frase final
    * vem logo atrás de qualquer jeito.
    */
-  const sendInterim = throttle((text) => {
-    mesh.broadcastBoard({ type: "caption", text: text.slice(0, 300), final: false }, { fallback: false });
+  const sendInterim = throttle((text, confirmado = 0) => {
+    mesh.broadcastBoard({ type: "caption", text: text.slice(0, 300), final: false, c: Math.min(confirmado, 300) }, { fallback: false });
   }, 350);
 
-  captions.on("local", ({ text, final }) => {
+  captions.on("local", ({ text, final, confirmado = 0 }) => {
     // A própria fala aparece na sua tela e vai para os outros como texto.
     captions.show(mesh.selfId || "self", {
       name: `${app.profile.name} (você)`,
       text,
       final,
       color: colorFor(mesh.selfId || "self"),
+      avatar: app.profile.avatar,
+      confirmado,
     });
     // A frase encerrada vai inteira e com direito ao plano B: é ela que entra
     // na transcrição de quem está do outro lado.
     if (final) mesh.broadcastBoard({ type: "caption", text: text.slice(0, 300), final: true });
-    else sendInterim(text);
+    else sendInterim(text, confirmado);
   });
+
+  // Whisper: enquanto a frase é reconhecida, a pessoa vê que está sendo ouvida.
+  captions.on("falando", (on) => {
+    if (on) captions.ouvindo(mesh.selfId || "self", { name: `${app.profile.name} (você)`, color: colorFor(mesh.selfId || "self"), avatar: app.profile.avatar });
+  });
+  captions.on("linha", (item) => panel?.addTranscript(item));
 
   captions.on("state", (on) => {
     dock?.update("captions", {
@@ -1273,13 +1738,50 @@ function wireCaptions() {
   });
 
   captions.on("error", (err) => {
-    toast(
+    const texto =
       err === "not-allowed" || err === "service-not-allowed"
         ? "O navegador não liberou o reconhecimento de fala. Verifique a permissão do microfone."
-        : `Legendas interrompidas (${err}).`,
-      { tone: "warn", key: "captions" },
-    );
+        : err === "network"
+          ? "O reconhecimento de fala do navegador precisa de internet e não respondeu. Tente de novo em instantes."
+          : err === "audio-capture"
+            ? "Nenhum microfone disponível para a legenda."
+            : `Legendas interrompidas: ${String(err).replace(/\.+$/, "")}.`;
+    toast(texto, { tone: "warn", key: "captions", ms: 6000 });
   });
+
+  // App de mesa: o reconhecedor offline baixa o modelo do idioma na primeira vez.
+  captions.on("status", ({ fase, p }) => {
+    if (fase === "baixando") {
+      toast(`Baixando o reconhecedor de fala (só na primeira vez)… ${Math.round((p || 0) * 100)}%`, {
+        tone: "info",
+        key: "fala",
+        ms: 60_000,
+      });
+    } else if (fase === "carregando") {
+      toast("Preparando as legendas…", { tone: "info", key: "fala", ms: 30_000 });
+    } else if (fase === "reserva") {
+      toast("O reconhecedor principal não abriu; usando o reserva, menos preciso.", { tone: "warn", key: "fala", ms: 5000 });
+    } else if (fase === "pronto") {
+      toast("Legendas ligadas. A sua fala é reconhecida aqui mesmo, sem sair do computador.", {
+        tone: "ok",
+        key: "fala",
+        ms: 3500,
+      });
+    }
+  });
+
+  // Microfone mudo = legenda em pausa (nada do que é dito no mudo vai para a
+  // sala). Trocar de microfone religa o reconhecedor na trilha nova.
+  let ultimaTrilha = media.micTrack;
+  media.on("change", () => {
+    captions.setPaused(!media.micEnabled);
+    if (captions.enabled && media.micTrack && media.micTrack !== ultimaTrilha && window.vcallDesktop) {
+      captions.stop();
+      captions.start();
+    }
+    ultimaTrilha = media.micTrack;
+  });
+  captions.setPaused(!media.micEnabled);
 }
 
 function toggleCaptions() {
@@ -1291,9 +1793,13 @@ function toggleCaptions() {
     return;
   }
   const on = captions.toggle();
+  // No app de mesa o aviso vem do próprio reconhecedor (baixando, pronto).
+  if (on && window.vcallDesktop) return;
   toast(
     on
-      ? "Legendando sua fala. Todos na sala leem o que você diz."
+      ? media.micEnabled
+        ? "Legendando sua fala. Todos na sala leem o que você diz."
+        : "Legenda ligada — ela começa quando você ligar o microfone."
       : "Legendas desligadas.",
     { tone: "info", ms: 3000, key: "captions" },
   );
@@ -1477,17 +1983,27 @@ function wireMesh() {
   });
 
   mesh.on("peer-join", (peer) => {
+    // Quem caiu e voltou não "entrou" de novo: sem som e sem aviso de sistema.
+    if (peer.reconnected) {
+      panel.addSystem(`${peer.name} reconectou`);
+      return;
+    }
     panel.addSystem(`${peer.name} entrou`);
     chime("join");
     notify("Alguém entrou na sala", `${peer.name} está na chamada`);
   });
 
-  mesh.on("peer-leave", ({ id, profile }) => {
+  mesh.on("peer-leave", ({ id, profile, replaced }) => {
     stage.removePeer(id);
+    updateHeader();
+    if (replaced) return; // a mesma pessoa está voltando com outra conexão
     panel.addSystem(`${profile?.name || "Alguém"} saiu`);
     chime("leave");
-    updateHeader();
   });
+
+  wireModeration();
+  wireModoJogo();
+  wireEconomia();
 
   /**
    * As trilhas recebidas e o estado anunciado chegam em ordens diferentes, e o
@@ -1525,7 +2041,11 @@ function wireMesh() {
     // conecta, o vídeo aparece e não sai som nenhum.
     if (role === "mic" || role === "screenAudio") {
       audio.attach(id, role, live ? stream : null);
-      if (role === "screenAudio" && live && stream) {
+      // A linha de som da tela existe desde o começo da chamada e pode "acordar"
+      // sem ninguém compartilhar nada (o navegador recebe silêncio). O aviso só
+      // vale quando a pessoa está de fato compartilhando a tela — antes ele
+      // aparecia do nada, para todo mundo.
+      if (role === "screenAudio" && live && stream && mesh.states.get(id)?.screen) {
         toast(`${mesh.profiles.get(id)?.name || "Alguém"} está compartilhando o som da tela`, {
           tone: "info",
           ms: 3500,
@@ -1535,8 +2055,18 @@ function wireMesh() {
       return;
     }
     if (role !== "cam" && role !== "screen") return;
+    /*
+     * `mute` NÃO é "parou de compartilhar". A trilha recebida silencia sempre
+     * que os pacotes param de chegar por alguns segundos — e a captura de tela
+     * do Linux (PipeWire e X11) só entrega quadro quando algo muda na tela.
+     * Tela parada = trilha muda = o ladrilho sumia e voltava sem parar, com o
+     * aviso "está compartilhando" pulando a cada volta. Quem diz se a pessoa
+     * está compartilhando é o estado anunciado por ela; aqui só guardamos o
+     * stream enquanto ele existir, e o <video> segura o último quadro.
+     */
     const got = remoteMedia.get(id) || {};
-    got[role] = live ? stream : null;
+    if (stream) got[role] = stream;
+    else if (!live) got[role] = null;
     remoteMedia.set(id, got);
     syncTiles(id);
   });
@@ -1663,6 +2193,8 @@ function wireMesh() {
         text: String(op.text || "").slice(0, 300),
         final: !!op.final,
         color: colorFor(from),
+        avatar: profile.avatar,
+        confirmado: Number(op.c) || 0,
       });
       return;
     }
@@ -1671,7 +2203,11 @@ function wireMesh() {
     // Abrir o quadro por conta própria tiraria a pessoa do que ela estava
     // vendo. Melhor avisar e deixá-la decidir; as operações já ficam guardadas,
     // então ao abrir ela vê tudo o que foi desenhado até ali.
-    if (!app.boardMode && (op?.type === "add" || op?.type === "stroke-chunk")) {
+    //
+    // O aviso aparece UMA vez por chamada. Antes ele renascia a cada traço
+    // (cada pedaço de traço é uma operação), e quem não estava no canvas via
+    // a mesma notificação pulando na tela sem parar enquanto alguém desenhava.
+    if (!app.boardMode && shouldAnnounceBoard(op)) {
       const who = mesh.profiles.get(from)?.name || "Alguém";
       toast(`${who} está desenhando no canvas`, {
         tone: "info",
@@ -1708,7 +2244,7 @@ function wireMesh() {
   mesh.on("active-speaker", (id) => stage.setActiveSpeaker(id));
 
   mesh.on("roster", (roster) => {
-    if (panel.open && panel.tab === "people") panel.renderPeople(roster);
+    if (panel.open && panel.tab === "people") renderPeopleNow(roster);
     updateHeader(roster);
   });
 
@@ -1741,6 +2277,11 @@ function wireMesh() {
       badge.className = "topbar__selo topbar__selo--aviso";
       text.textContent = "Reconectando à sala…";
     } else if (status === "error") {
+      // Removido ou barrado pelo anfitrião: não há o que reconectar.
+      if (reason === "kicked" || reason === "room-locked") {
+        leaveCall({ motivo: reason });
+        return;
+      }
       badge.className = "topbar__selo topbar__selo--erro";
       text.textContent = reason === "room-full" ? "Sala cheia" : "Erro de conexão";
       if (reason === "room-full") {
@@ -1857,14 +2398,22 @@ function openInvite() {
 function syncAppLink() {
   const box = $("#appLinkBox");
   if (!box) return;
-  box.hidden = !host.disponivel;
-  if (!host.disponivel) return;
+  $("#appLink").value = inviteLink() || "";
+  const local = /^http:\/\/(127\.|localhost)/.test(inviteLink() || "");
+  $("#appLinkHint").textContent = local
+    ? "Este endereço só funciona neste computador. Gere o link público abaixo para mandar pelo WhatsApp."
+    : host.url || !host.disponivel
+      ? "Clicável no WhatsApp. Abre direto no Vcall de quem tem o aplicativo; quem não tem entra pelo navegador."
+      : "Funciona para quem está na mesma rede que você. Para quem está fora dela, gere o link público abaixo.";
+}
 
-  const link = host.linkDoApp(roomLink());
-  $("#appLink").value = link || "";
-  $("#appLinkHint").textContent = host.url
-    ? "Abre direto no Vcall, de qualquer rede. Quem não tem o aplicativo deve receber o link de cima."
-    : "Abre direto no Vcall, para quem está na mesma rede que você. Gere o link público abaixo para quem está fora dela.";
+/**
+ * O convite para mensageiros: a página /abrir (https, clicável no WhatsApp)
+ * sobre o endereço público quando o túnel está de pé, ou sobre o atual.
+ */
+function inviteLink() {
+  const base = (host.url && host.linkPublico(roomLink())) || roomLink();
+  return linkAbrir(base);
 }
 
 function syncTunnelUi() {
@@ -1921,10 +2470,6 @@ if ($("#tunnelBtn")) {
     avisarDeAtualizacao();
   });
 
-  on($("#copyAppLinkBtn"), "click", () => {
-    const link = host.linkDoApp(roomLink());
-    if (link) copy(link, "Link do aplicativo copiado");
-  });
 
   on($("#tunnelBtn"), "click", async () => {
     // Com o túnel já de pé, o botão vira "copiar": é o que se quer fazer em
@@ -1947,6 +2492,23 @@ if ($("#tunnelBtn")) {
 
 on($("#inviteBtn"), "click", openInvite);
 
+on($("#copyAppLinkBtn"), "click", () => {
+  const link = inviteLink();
+  if (link) copy(link, "Convite copiado");
+});
+on($("#whatsappBtn"), "click", () => {
+  const link = inviteLink();
+  if (!link) return;
+  if (/^http:\/\/(127\.|localhost)/.test(link)) {
+    toast("Esse link só abre neste computador. Gere o link público antes de mandar pelo WhatsApp.", {
+      tone: "warn",
+      ms: 6000,
+    });
+    return;
+  }
+  window.open(linkWhatsApp(link, { nomeSala: app.roomName || "" }), "_blank", "noopener");
+});
+
 on($("#copyLinkBtn"), "click", () => copy(roomLink(), "Link copiado"));
 on($("#copyCodeBtn"), "click", () => {
   if (!app.roomCode) return;
@@ -1956,6 +2518,96 @@ on($("#copyCodeBtn"), "click", () => {
 /* ================================================================== *
  * Configurações
  * ================================================================== */
+
+/**
+ * Supressão de ruído por IA e sensibilidade de entrada, como no Discord: um
+ * medidor mostra o seu volume ao vivo e a marca do limiar; o que fica abaixo
+ * dela não é transmitido.
+ */
+function linhasVoz() {
+  const ia = el("input", { type: "checkbox", checked: !!media.voz.ruido });
+  ia.addEventListener("change", async () => {
+    await media.setVoz({ ruido: ia.checked });
+    toast(ia.checked ? "Supressão de ruído por IA ligada" : "Supressão de ruído por IA desligada", { tone: "info", ms: 2000, key: "voz" });
+  });
+
+  const limiar = media.voz.limiar;
+  const modo = el("select.input", { "aria-label": "Sensibilidade de entrada" });
+  for (const [v, t] of [
+    ["auto", "Automática — a IA decide o que é voz"],
+    ["manual", "Manual — eu escolho o volume mínimo"],
+    ["off", "Desligada — o microfone transmite sempre"],
+  ]) {
+    modo.append(el("option", { value: v, text: t, selected: (typeof limiar === "number" ? "manual" : limiar) === v }));
+  }
+  const valor = typeof limiar === "number" ? limiar : -50;
+  const faixa = el("input.medidor__faixa", { type: "range", min: "-80", max: "-10", step: "1", value: String(valor), "aria-label": "Volume mínimo para transmitir (dB)" });
+  const nivel = el("span.medidor__nivel");
+  const marca = el("span.medidor__marca");
+  const rotulo = el("span.mono", { text: `${valor} dB` });
+  const medidor = el("div.medidor", {}, [el("div.medidor__trilho", {}, [nivel, marca]), faixa]);
+  const pos = (db) => `${Math.max(0, Math.min(100, ((db + 80) / 70) * 100))}%`;
+  const pintarMarca = () => {
+    marca.style.left = pos(Number(faixa.value));
+    rotulo.textContent = `${faixa.value} dB`;
+  };
+  const linhaManual = el("div.row", { hidden: modo.value !== "manual" }, [medidor, rotulo]);
+  pintarMarca();
+  modo.addEventListener("change", () => {
+    linhaManual.hidden = modo.value !== "manual";
+    media.setVoz({ limiar: modo.value === "manual" ? Number(faixa.value) : modo.value });
+  });
+  faixa.addEventListener("input", () => {
+    pintarMarca();
+    media.setVoz({ limiar: Number(faixa.value) });
+  });
+  const aoNivel = ({ db, aberto }) => {
+    if (!medidor.isConnected) return media.off?.("voz-nivel", aoNivel);
+    nivel.style.width = pos(db);
+    medidor.classList.toggle("is-aberto", !!aberto);
+  };
+  media.on("voz-nivel", aoNivel);
+
+  return [
+    el("label.row", {}, [
+      ia,
+      el("div", {}, [
+        el("div", { text: "Supressão de ruído por IA" }),
+        el("div.field__hint", {
+          text: "Uma rede neural (RNNoise) tira teclado, ventilador e barulho de fundo da sua voz — no seu computador, sem enviar áudio a ninguém.",
+        }),
+      ]),
+    ]),
+    el("label.field", {}, [
+      el("span.field__label", { text: "Sensibilidade de entrada" }),
+      modo,
+      linhaManual,
+      el("div.field__hint", {
+        text: "Entre uma frase e outra o microfone fecha sozinho: a sala não ouve o que sobra do ambiente. A barra acende quando a sua voz está passando.",
+      }),
+    ]),
+  ];
+}
+
+/** Nome ou avatar trocados no meio da chamada: vale aqui e para os outros. */
+function applyProfile(profile) {
+  app.profile = { ...app.profile, ...profile };
+  /*
+   * Na recepção não há sala nem palco: as configurações abrem antes de
+   * entrar, e mexer na malha aqui daria erro. Grava a preferência e para.
+   */
+  if (!app.room || !mesh?.selfId) {
+    prefs.set("name", app.profile.name);
+    prefs.set("avatar", app.profile.avatar);
+    return;
+  }
+  mesh.updateProfile(app.profile);
+  const tile = stage.get("self", "cam");
+  tile?.setName(`${app.profile.name} (você)`);
+  tile?.setAvatarSpec(app.profile.avatar, app.profile.name);
+  stage.get("self", "screen")?.setAvatarSpec(app.profile.avatar, app.profile.name);
+  if (panel?.open && panel.tab === "people") renderPeopleNow();
+}
 
 /**
  * As configurações.
@@ -1980,22 +2632,19 @@ function openSettings({ naRecepcao = false } = {}) {
     body.append(el("div.stack", {}, [el("h3", { text: title, style: { fontSize: "var(--text-md)" } }), ...children]));
 
   // -- identidade --
-  const nameInput = el("input.input", { type: "text", value: app.profile?.name || "", maxLength: 32 });
-  nameInput.addEventListener("change", () => {
-    const name = nameInput.value.trim().slice(0, 32);
-    if (!name) return;
-    app.profile ||= {};
-    app.profile.name = name;
-    prefs.set("name", name);
-    if (!naRecepcao) {
-      mesh.updateProfile(app.profile);
-      stage.get("self", "cam")?.setName(`${name} (você)`);
-    }
-    toast("Nome atualizado", { tone: "ok", ms: 1800 });
-  });
-  section("Seu perfil", [
-    el("div.row", {}, [avatarEl(app.profile?.avatar, { size: 44 }), nameInput]),
-  ]);
+  // O avatar é um botão: abre a grade de avatares (estilos, sortear, foto) e
+  // a troca vale na hora, para você e para todo mundo da sala.
+  /*
+   * Na recepção ainda não existe perfil montado — ele nasce ao entrar na
+   * sala. O editor precisa de um objeto de verdade, então aqui ele vem das
+   * preferências guardadas, que é a mesma fonte que a antessala usa.
+   */
+  body.append(
+    profileSection({
+      profile: app.profile || { name: prefs.get("name", ""), avatar: prefs.get("avatar", null) || defaultAvatar() },
+      onChange: (profile) => applyProfile(profile),
+    }),
+  );
 
   // -- dispositivos --
   const deviceRows = [];
@@ -2099,7 +2748,53 @@ function openSettings({ naRecepcao = false } = {}) {
         }),
       ]),
     ]),
+    ...linhasVoz(),
   ]);
+
+  // -- jogos e voz --
+  const foco = el("input", { type: "checkbox", checked: !!app.focoVoz });
+  foco.addEventListener("change", () => setFocoVoz(foco.checked));
+  const linhasJogo = [
+    el("label.row", {}, [
+      foco,
+      el("div", {}, [
+        el("div", { text: "Foco na voz — apagar quem está calado" }),
+        el("div.field__hint", {
+          text: "Quem não está falando fica apagadinho e sem cor; quem fala acende com o anel da marca. Ótimo para jogar junto e para salas cheias. Tecla G.",
+        }),
+      ]),
+    ]),
+  ];
+  if (window.vcallDesktop?.modoJogo) {
+    const jogo = el("input", { type: "checkbox", checked: !!app.modoJogo });
+    jogo.addEventListener("change", () => setModoJogo(jogo.checked));
+    const canto = el("select.input", { "aria-label": "Canto da sobreposição" });
+    for (const [v, t] of [
+      ["tl", "Canto superior esquerdo"],
+      ["tr", "Canto superior direito"],
+      ["bl", "Canto inferior esquerdo"],
+      ["br", "Canto inferior direito"],
+    ]) {
+      canto.append(el("option", { value: v, text: t, selected: prefs.get("modo-jogo:canto", "tl") === v }));
+    }
+    canto.addEventListener("change", () => {
+      prefs.set("modo-jogo:canto", canto.value);
+      if (app.modoJogo) setModoJogo(true, { avisar: false });
+    });
+    linhasJogo.push(
+      el("label.row", {}, [
+        jogo,
+        el("div", {}, [
+          el("div", { text: "Modo jogo — sobreposição por cima dos outros programas" }),
+          el("div.field__hint", {
+            text: "Uma janelinha transparente mostra quem está na chamada e acende quem fala, por cima do jogo (use o jogo em modo janela ou tela cheia sem bordas). Os cliques passam direto. Atalhos que valem dentro do jogo: Ctrl+Shift+M microfone, Ctrl+Shift+O mostra/esconde.",
+          }),
+        ]),
+      ]),
+      el("label.field", {}, [el("span.field__label", { text: "Onde a sobreposição fica" }), canto]),
+    );
+  }
+  section("Jogos e voz", linhasJogo);
 
   // -- legendas, transcrição e avisos --
   const notifyToggle = el("input", { type: "checkbox", checked: app.notify });
@@ -2122,6 +2817,7 @@ function openSettings({ naRecepcao = false } = {}) {
   if (captionsSupported) {
     const langs = [
       ["pt-BR", "Português (Brasil)"],
+      ["pt-PT", "Português (Portugal)"],
       ["en-US", "Inglês"],
       ["es-ES", "Espanhol"],
       ["fr-FR", "Francês"],
@@ -2142,6 +2838,32 @@ function openSettings({ naRecepcao = false } = {}) {
         captions.start();
       }
     });
+    if (window.vcallDesktop?.prepararWhisper) {
+      const niveis = [
+        ["rapida", "Rápida — 80 MB, para computadores modestos"],
+        ["equilibrada", "Equilibrada — 250 MB, bem mais precisa (recomendada)"],
+        ["maxima", "Máxima — a mais precisa, legenda mais lenta (mesmo download)"],
+      ];
+      const selN = el("select.input", { "aria-label": "Precisão das legendas" });
+      for (const [v, t] of niveis) selN.append(el("option", { value: v, text: t, selected: captions.nivel === v }));
+      selN.addEventListener("change", () => {
+        captions.nivel = selN.value;
+        prefs.set("captions:nivel", selN.value);
+        if (captions.enabled) {
+          captions.stop();
+          captions.start();
+        }
+      });
+      capRows.push(
+        el("label.field", {}, [
+          el("span.field__label", { text: "Precisão das legendas" }),
+          selN,
+          el("div.field__hint", {
+            text: "Reconhecimento com o Whisper, no seu próprio computador: nenhum áudio sai daqui. O modelo é baixado uma vez.",
+          }),
+        ]),
+      );
+    }
     capRows.push(
       el("label.field", {}, [
         el("span.field__label", { text: "Idioma das legendas" }),
@@ -2162,21 +2884,17 @@ function openSettings({ naRecepcao = false } = {}) {
   const saveTranscript = el("button.btn", {
     type: "button",
     text: "Baixar a transcrição",
-    onClick: () => {
-      const text = captions.asText();
-      if (!text) {
-        toast("Nada foi legendado nesta chamada ainda.", { tone: "info" });
-        return;
-      }
-      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = el("a", { href: url, download: `vcall-transcricao-${Date.now()}.txt` });
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    },
+    onClick: () => baixarTranscricao("txt"),
   });
+  const selT = el("select.input", { "aria-label": "Tamanho das legendas" });
+  for (const [v, t] of [["p", "Pequena"], ["m", "Média"], ["g", "Grande"]]) {
+    selT.append(el("option", { value: v, text: t, selected: (prefs.get("captions:tamanho", "m")) === v }));
+  }
+  selT.addEventListener("change", () => {
+    prefs.set("captions:tamanho", selT.value);
+    document.documentElement.dataset.legenda = selT.value;
+  });
+  capRows.push(el("label.field", {}, [el("span.field__label", { text: "Tamanho das legendas na tela" }), selT]));
   capRows.push(
     el("div.row", {}, [
       saveTranscript,
@@ -2289,7 +3007,12 @@ function openSettings({ naRecepcao = false } = {}) {
 function bindShortcuts() {
   on(document, "keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.target instanceof HTMLSelectElement || e.target?.isContentEditable) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    // Com um diálogo aberto (Configurações, perfil, convite), as teclas são
+    // dele. Antes o Escape era capturado aqui e o diálogo não fechava, e uma
+    // letra como "P" mexia no painel por trás dele.
+    if (document.querySelector("dialog[open]")) return;
 
     /*
      * Com o canvas aberto, as letras pertencem a ele. Antes as duas camadas
@@ -2340,6 +3063,13 @@ function bindShortcuts() {
       case "j":
         dock.get("mini")?.click();
         break;
+      case "g":
+        toast(setFocoVoz(!app.focoVoz) ? "Foco na voz: quem está calado fica apagado" : "Foco na voz desligado", {
+          tone: "info",
+          ms: 2200,
+          key: "foco",
+        });
+        break;
       case "escape":
         // Com algo selecionado, Escape desfaz a seleção — fechar o canvas
         // inteiro por causa de um clique errado seria um exagero. O próprio
@@ -2381,7 +3111,11 @@ function bindShortcuts() {
  * Saída
  * ================================================================== */
 
-function leaveCall() {
+function leaveCall({ motivo = null, por = "" } = {}) {
+  if (app.left) return;
+  app.left = true;
+  // A sobreposição e os atalhos globais só fazem sentido dentro da chamada.
+  if (app.modoJogo) window.vcallDesktop?.modoJogo?.(false).catch?.(() => {});
   clearInterval(app.timerId);
   app.mini?.close();
   closeBoard();
@@ -2405,14 +3139,29 @@ function leaveCall() {
     ]),
     el("div.leave__body", {}, [
       el("img.brand__mark", { src: "/assets/logo-mark.png", alt: "", width: 48, height: 48 }),
-      el("h1.leave__title", { id: "leaveTitle", text: "Você saiu da chamada" }),
+      el("h1.leave__title", {
+        id: "leaveTitle",
+        text:
+          motivo === "kicked"
+            ? "Você foi removido da sala"
+            : motivo === "room-locked"
+              ? "Esta sala está trancada"
+              : "Você saiu da chamada",
+      }),
       el("p.leave__lead", {
-        text: `Foram ${minutos} de conversa. A sala continua aberta enquanto alguém estiver nela — dá para voltar pelo mesmo link.`,
+        text:
+          motivo === "kicked"
+            ? `${por || "O anfitrião"} removeu você desta chamada. Se foi um engano, peça para ele deixar você voltar e tente de novo.`
+            : motivo === "room-locked"
+              ? "O anfitrião trancou a sala ou não liberou a sua entrada. Combine com quem te convidou e tente de novo."
+              : `Foram ${minutos} de conversa. A sala continua aberta enquanto alguém estiver nela — dá para voltar pelo mesmo link.`,
       }),
       el("div.leave__actions", {}, [
         el("button.btn.btn--primary.btn--lg", { type: "button", onClick: () => location.reload() }, [
           icon("rotate-ccw"),
-          el("span", { text: "Voltar para a sala" }),
+          el("span", {
+            text: motivo === "kicked" ? "Tentar entrar de novo" : motivo === "room-locked" ? "Tentar de novo" : "Voltar para a sala",
+          }),
         ]),
         el("button.btn.btn--lg", { type: "button", onClick: inicio }, [
           icon("layout-grid"),
@@ -2461,6 +3210,8 @@ window.vcall = {
   get stats() {
     return mesh.stats.samples;
   },
+  setFocoVoz,
+  setModoJogo,
 };
 console.info(
   "%cVcall%c — mídia ponto a ponto, criptografada. `window.vcall` expõe o estado para depuração." +

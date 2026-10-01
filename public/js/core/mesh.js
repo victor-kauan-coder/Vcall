@@ -8,9 +8,27 @@
  * — com N pessoas, cada uma codifica N−1 vezes.
  */
 import { Emitter } from "../lib/emitter.js";
+import { deviceToken, hostKeyFor, sessionToken } from "../lib/identity.js";
 import { Peer } from "./peer.js";
 import { StatsMonitor } from "./stats.js";
 import { VoiceActivity } from "./vad.js";
+
+/**
+ * Entrega um pedaço no canal de carga pesada de um participante, esperando o
+ * buffer esvaziar quantas vezes for preciso. Só desiste se o canal não abrir
+ * a tempo ou fechar no meio.
+ */
+async function entregarBlob(peer, data, { limiteMs = 60_000 } = {}) {
+  const ate = Date.now() + limiteMs;
+  while (Date.now() < ate) {
+    if (peer.sendBlob(data)) return true;
+    const aberto = peer.blob?.readyState === "open";
+    if (aberto) await peer.drainBlob();
+    else await new Promise((r) => setTimeout(r, 250)); // canal ainda abrindo
+    if (peer.blob && (peer.blob.readyState === "closing" || peer.blob.readyState === "closed")) return false;
+  }
+  return false;
+}
 
 export class Mesh extends Emitter {
   /** @type {Map<string, Peer>} */ peers = new Map();
@@ -41,6 +59,13 @@ export class Mesh extends Emitter {
     return this.peers.size + 1;
   }
 
+  /** peerId -> quando levantou a mão (ordem da fila). */
+  handAt = new Map();
+  /** Sala de espera, para o anfitrião: id -> { id, name, avatar }. */
+  knocks = new Map();
+  /** (Anfitrião) quem foi removido e pode ser readmitido. */
+  banned = [];
+
   get isHost() {
     return this.hostId === this.selfId;
   }
@@ -54,7 +79,21 @@ export class Mesh extends Emitter {
     this.emit("ice", this.iceConfig);
     this.room = room;
     this.roomMeta = meta;
-    this.signaling.join({ room, profile, state, meta, pass });
+    this.signaling.join({
+      room,
+      profile,
+      state,
+      meta,
+      pass,
+      hostKey: hostKeyFor(room),
+      session: sessionToken(),
+      device: deviceToken(),
+    });
+  }
+
+  /** Ação de anfitrião. O servidor confere se quem pede é mesmo o anfitrião. */
+  moderate(action, target = "") {
+    return this.signaling.send({ t: "moderate", action, target });
   }
 
   /**
@@ -119,17 +158,50 @@ export class Mesh extends Emitter {
     });
 
     sig.on("peer-join", (m) => {
+      // Reconexão de alguém que caiu: o id antigo sai antes de o novo entrar.
+      // O servidor já avisou a saída; isto cobre o caso de o aviso se perder.
+      if (m.replaces && this.peers.has(m.replaces)) {
+        const profile = this.profiles.get(m.replaces);
+        this.#dropPeer(m.replaces);
+        this.emit("peer-leave", { id: m.replaces, profile, replaced: true });
+      }
       this.#addPeer(m.peer);
-      this.emit("peer-join", m.peer);
+      this.emit("peer-join", { ...m.peer, reconnected: !!m.replaces });
       this.emit("roster", this.roster());
     });
 
     sig.on("peer-leave", (m) => {
+      if (!this.peers.has(m.id) && !this.profiles.has(m.id)) return; // já tratado
       const profile = this.profiles.get(m.id);
       this.#dropPeer(m.id);
       if (m.newHost) this.hostId = m.newHost;
-      this.emit("peer-leave", { id: m.id, profile });
+      this.emit("peer-leave", { id: m.id, profile, replaced: !!m.replacedBy });
       this.emit("roster", this.roster());
+    });
+
+    sig.on("host", (m) => {
+      this.hostId = m.id;
+      this.emit("host", { id: m.id, self: m.id === this.selfId });
+      this.emit("roster", this.roster());
+    });
+    sig.on("moderated", (m) => this.emit("moderated", m));
+    // Sala de espera: quem espera recebe "waiting"; o anfitrião, "knock".
+    sig.on("waiting", (m) => this.emit("waiting", m));
+    sig.on("knock", (m) => {
+      this.knocks.set(m.id, { id: m.id, name: m.name, avatar: m.avatar });
+      this.emit("knock", m);
+    });
+    sig.on("knock-gone", (m) => {
+      this.knocks.delete(m.id);
+      this.emit("knock-gone", m);
+    });
+    sig.on("banned", (m) => {
+      this.banned = Array.isArray(m.list) ? m.list : [];
+      this.emit("banned", { list: this.banned, readmitted: m.readmitted || null });
+    });
+    sig.on("room", (m) => {
+      this.roomInfo = { ...(this.roomInfo || {}), closed: !!m.closed };
+      this.emit("room-closed", { closed: !!m.closed, by: m.by });
     });
 
     sig.on("signal", (m) => {
@@ -147,6 +219,10 @@ export class Mesh extends Emitter {
     });
 
     sig.on("state", (m) => {
+      // Ordem das mãos levantadas: guarda quando cada uma subiu.
+      const antes = this.states.get(m.id) || {};
+      if (m.state?.hand && !antes.hand) this.handAt.set(m.id, Date.now());
+      if (!m.state?.hand) this.handAt.delete(m.id);
       this.states.set(m.id, m.state);
       this.emit("peer-state", { id: m.id, state: m.state });
       this.emit("roster", this.roster());
@@ -211,7 +287,11 @@ export class Mesh extends Emitter {
      * reconstrução. Nos dois casos o outro lado pode ter perdido operações
      * enquanto o canal esteve fechado, e é aqui que a reconciliação começa.
      */
-    peer.on("board:open", () => this.emit("board-channel", { id: info.id }));
+    peer.on("board:open", () => {
+      this.emit("board-channel", { id: info.id });
+      // Quem chegou agora precisa saber que esta janela está escondida.
+      if (!this.#vendo) peer.sendBoard({ type: "ver", cam: false });
+    });
     peer.on("board:message", (raw) => this.#onPeerData(info.id, raw, "board"));
     peer.on("cursor:message", (raw) => this.#onPeerData(info.id, raw, "cursor"));
     peer.on("audio:message", (raw) => this.#onPeerData(info.id, raw, "audio"));
@@ -224,6 +304,7 @@ export class Mesh extends Emitter {
   #dropPeer(id) {
     const peer = this.peers.get(id);
     if (!peer) return;
+    this.#blobFilas.delete(id);
     peer.close();
     this.peers.delete(id);
     this.profiles.delete(id);
@@ -251,7 +332,24 @@ export class Mesh extends Emitter {
       this.emit("speaking", { id: from, speaking: !!msg.speaking, level: msg.level || 0, via: "p2p" });
       return;
     }
+    // "Não estou vendo o seu vídeo": a câmera para de ser enviada a este par.
+    if (msg?.type === "ver") {
+      this.peers.get(from)?.pausarCamera(msg.cam === false);
+      return;
+    }
     this.emit("board", { from, op: msg, via: "p2p" });
+  }
+
+  /**
+   * Janela minimizada ou em outra aba: os outros param de mandar câmera para
+   * cá (voz e tela continuam). É banda de subida que eles economizam — numa
+   * malha, cada câmera é codificada uma vez por pessoa que a recebe.
+   */
+  #vendo = true;
+  verVideo(vendo) {
+    if (this.#vendo === !!vendo) return;
+    this.#vendo = !!vendo;
+    for (const peer of this.peers.values()) peer.sendBoard({ type: "ver", cam: this.#vendo });
   }
 
   /* ---------------------------------------------------------------- *
@@ -262,7 +360,7 @@ export class Mesh extends Emitter {
     return {
       mic: this.media.micTrack,
       cam: this.media.camTrack,
-      screen: this.screen.videoTrack,
+      screen: this.screen.sendTrack || this.screen.videoTrack,
       screenAudio: this.screen.audioTrack,
       screenProfile: this.screen.profile,
     };
@@ -350,6 +448,8 @@ export class Mesh extends Emitter {
       board: !!this.localState?.board,
       ...extra,
     };
+    if (state.hand && !this.localState?.hand) this.handAt.set(this.selfId, Date.now());
+    if (!state.hand) this.handAt.delete(this.selfId);
     this.localState = state;
     this.signaling.updateState(state);
     this.emit("self-state", state);
@@ -394,15 +494,33 @@ export class Mesh extends Emitter {
    * Carga pesada do canvas (imagens). Vai pelo canal separado, e espera o
    * buffer esvaziar entre os pedaços em vez de empurrar tudo de uma vez.
    */
-  async broadcastBlob(payload) {
+  broadcastBlob(payload) {
+    /*
+     * ANTES: cada pedaço tentava uma vez, esperava o buffer no máximo 3 s e
+     * tentava de novo — se ainda não coubesse, o pedaço era DESCARTADO em
+     * silêncio. Como quem chamava não esperava um pedaço sair antes de mandar
+     * o próximo, arquivos de alguns MB perdiam pedaços e nunca terminavam de
+     * chegar, e a ordem podia se embaralhar.
+     *
+     * AGORA: uma fila por participante. Cada pedaço só sai depois do
+     * anterior, espera o buffer quanto for preciso e só desiste se o canal
+     * fechar. A promessa diz para quem chegou e para quem não chegou.
+     */
     const data = JSON.stringify(payload);
-    for (const peer of this.peers.values()) {
-      if (!peer.sendBlob(data)) {
-        await peer.drainBlob();
-        peer.sendBlob(data);
-      }
-    }
+    const envios = [...this.peers.entries()].map(([id, peer]) => {
+      const anterior = this.#blobFilas.get(id) || Promise.resolve(true);
+      const proximo = anterior.then(() => entregarBlob(peer, data)).catch(() => false);
+      this.#blobFilas.set(id, proximo);
+      return proximo.then((ok) => ({ id, ok }));
+    });
+    return Promise.all(envios).then((r) => ({
+      ok: r.filter((x) => x.ok).map((x) => x.id),
+      falhou: r.filter((x) => !x.ok).map((x) => x.id),
+    }));
   }
+
+  /** peerId -> promessa do último pedaço na fila daquele participante. */
+  #blobFilas = new Map();
 
   sendChat(text) {
     this.signaling.chat(text);
@@ -423,6 +541,7 @@ export class Mesh extends Emitter {
         name: this.self.name,
         avatar: this.self.avatar,
         state: this.localState || {},
+        handAt: this.localState?.hand ? this.handAt.get(this.selfId) || 0 : 0,
         host: this.hostId === this.selfId,
         connection: "connected",
         quality: "good",
@@ -436,6 +555,7 @@ export class Mesh extends Emitter {
         name: profile.name,
         avatar: profile.avatar,
         state: this.states.get(id) || {},
+        handAt: this.handAt.get(id) || 0,
         host: this.hostId === id,
         connection: peer.connectionState,
         quality: this.stats.samples.get(id)?.quality || "unknown",

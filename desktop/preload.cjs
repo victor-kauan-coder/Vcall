@@ -15,6 +15,67 @@ contextBridge.exposeInMainWorld("vcallDesktop", {
   info: () => ipcRenderer.invoke("vcall:info"),
   /** Liga/desliga o modo mini-janela (compacta, sempre por cima). */
   mini: (ligar) => ipcRenderer.invoke("vcall:mini", !!ligar),
+  /**
+   * Telas e janelas que dá para compartilhar, com miniatura. No Wayland volta
+   * `{ portal: true }`: quem mostra a lista é o portal do sistema.
+   */
+  //
+  // SEGURANÇA: a lista traz miniaturas e títulos das suas janelas. Ela só é
+  // entregue logo depois de um clique real (ativação do usuário, que página
+  // nenhuma consegue forjar) — um site não consegue espiar as suas janelas
+  // em segundo plano. O processo principal ainda confere a origem.
+  fontes: () =>
+    navigator.userActivation?.isActive === false
+      ? Promise.reject(new Error("a lista de janelas só abre a partir de um clique"))
+      : ipcRenderer.invoke("vcall:fontes"),
+  /**
+   * Legendas no app: garante o modelo de fala do idioma (baixa na primeira
+   * vez) e devolve o endereço dele. `aoProgresso` recebe de 0 a 1.
+   */
+  prepararFala: async (lang, aoProgresso) => {
+    const ouvir = (_e, m) => {
+      if (m?.lang === lang || !lang) aoProgresso?.(m.p);
+    };
+    ipcRenderer.on("vcall:fala-progresso", ouvir);
+    try {
+      return await ipcRenderer.invoke("vcall:fala-preparar", String(lang || "pt-BR"));
+    } finally {
+      ipcRenderer.removeListener("vcall:fala-progresso", ouvir);
+    }
+  },
+  /**
+   * Modo jogo: sobreposição transparente por cima dos outros programas e
+   * atalhos globais (Ctrl+Shift+M microfone, Ctrl+Shift+O sobreposição).
+   */
+  modoJogo: (ligar, canto = "tl") => ipcRenderer.invoke("vcall:modo-jogo", { ligar: !!ligar, canto: String(canto) }),
+  /** Manda à sobreposição quem está na chamada e quem está falando. */
+  estadoSobreposicao: (estado) => ipcRenderer.send("vcall:sobreposicao-estado", estado),
+  /** Atalhos globais chegando do sistema ("mic"). */
+  aoAtalho: (fn) => {
+    const ouvir = (_e, acao) => fn(String(acao));
+    ipcRenderer.on("vcall:atalho", ouvir);
+    return () => ipcRenderer.removeListener("vcall:atalho", ouvir);
+  },
+  /**
+   * Legendas com Whisper: garante o modelo do tamanho pedido ("rapida",
+   * "equilibrada", "maxima") e devolve onde ele está. `aoProgresso` de 0 a 1.
+   */
+  prepararWhisper: async (nivel, aoProgresso) => {
+    const ouvir = (_e, m) => {
+      if (m?.whisper) aoProgresso?.(m.p);
+    };
+    ipcRenderer.on("vcall:fala-progresso", ouvir);
+    try {
+      return await ipcRenderer.invoke("vcall:whisper-preparar", String(nivel || ""));
+    } finally {
+      ipcRenderer.removeListener("vcall:fala-progresso", ouvir);
+    }
+  },
+  descartarWhisper: (nivel) => ipcRenderer.invoke("vcall:whisper-descartar", String(nivel || "")),
+  /** Apaga o modelo de fala guardado (corrompido): a próxima vez baixa de novo. */
+  descartarFala: (lang) => ipcRenderer.invoke("vcall:fala-descartar", String(lang || "pt-BR")),
+  /** Diz qual fonte a próxima captura deve usar, e se leva o som do sistema. */
+  escolherFonte: (id, audio) => ipcRenderer.invoke("vcall:escolher", { id: String(id || ""), audio: !!audio }),
 });
 
 window.addEventListener("DOMContentLoaded", () => {

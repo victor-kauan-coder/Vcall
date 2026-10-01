@@ -24,6 +24,16 @@
  * É o mesmo desenho que Meet e Teams usam: painel próprio, depois a janela do
  * sistema. A diferença entre parecer um aplicativo e parecer uma página é
  * justamente este passo.
+ *
+ * NO APLICATIVO DE MESA É DIFERENTE, e melhor: lá quem responde ao pedido de
+ * captura é o próprio Vcall (desktop/main.js), então esta tela mostra a lista
+ * de verdade — cada tela e cada janela aberta, com miniatura — e a pessoa
+ * escolhe o aplicativo que quer mostrar. No Linux com Wayland a lista é do
+ * portal do sistema, que abre logo em seguida.
+ *
+ * O SOM vem DESLIGADO por padrão. No Windows o "som do computador" é o som
+ * de tudo, inclusive das vozes da própria chamada: ligado sem querer, quem
+ * está do outro lado se ouve de volta, com atraso.
  */
 import { el, icon, $ } from "../lib/dom.js";
 import { prefs } from "../lib/util.js";
@@ -70,14 +80,19 @@ const MODOS = [
  *
  * @returns {Promise<{surface:string, quality:string, mode:string, withAudio:boolean}|null>}
  */
-export function escolherCompartilhamento({ podeAudio = true } = {}) {
+export function escolherCompartilhamento({ podeAudio = true, desktop = null, trocando = false } = {}) {
   return new Promise((resolve) => {
     const escolha = {
       surface: prefs.get("share:surface", "window"),
       quality: prefs.get("screen:quality", "auto"),
       mode: prefs.get("share:mode", "text"),
-      withAudio: prefs.get("share:audio", true),
+      // Chave nova de propósito: quem tinha o som ligado pelo padrão antigo
+      // (que trazia eco) volta a começar desligado.
+      withAudio: prefs.get("share:audio2", false),
+      fonte: null,
     };
+    // Pedida já, ainda dentro do clique: a lista de janelas exige um gesto.
+    const fontesPedido = desktop?.fontes ? desktop.fontes().catch(() => null) : null;
 
     const fundo = el("div.share", { role: "dialog", "aria-modal": "true", "aria-labelledby": "shareTitulo" });
     const card = el("div.share__card");
@@ -86,8 +101,12 @@ export function escolherCompartilhamento({ podeAudio = true } = {}) {
       el("div.share__head", {}, [
         el("span.share__icone", {}, [icon("screen-share", { size: "lg" })]),
         el("div", {}, [
-          el("h2.share__titulo", { id: "shareTitulo", text: "Compartilhar sua tela" }),
-          el("p.share__sub", { text: "Escolha o que mostrar e como. Nada é gravado nem sai daqui." }),
+          el("h2.share__titulo", { id: "shareTitulo", text: trocando ? "Trocar o que você está mostrando" : "Compartilhar sua tela" }),
+          el("p.share__sub", {
+            text: trocando
+              ? "A transmissão continua: quem está assistindo passa a ver a nova escolha, sem cair."
+              : "Escolha o que mostrar e como. Nada é gravado nem sai daqui.",
+          }),
         ]),
       ]),
     );
@@ -95,7 +114,12 @@ export function escolherCompartilhamento({ podeAudio = true } = {}) {
     /* -- o que mostrar -- */
     const grade = el("div.share__grade", { role: "radiogroup", "aria-label": "O que mostrar" });
     const cartoes = new Map();
-    for (const s of SUPERFICIES) {
+    const somBloco = { node: null, mostrar: () => {} };
+    const confirmarRef = { node: null };
+    if (fontesPedido) {
+      card.append(montarListaDesktop({ fontesPedido, escolha, somBloco, confirmarRef }));
+    }
+    for (const s of fontesPedido ? [] : SUPERFICIES) {
       const b = el("button.share__opcao", {
         type: "button",
         role: "radio",
@@ -113,7 +137,7 @@ export function escolherCompartilhamento({ podeAudio = true } = {}) {
       cartoes.set(s.id, b);
       grade.append(b);
     }
-    card.append(grade);
+    if (!fontesPedido) card.append(grade);
 
     /* -- prioridade da imagem -- */
     const linhaModo = el("div.share__linha", { role: "radiogroup", "aria-label": "Prioridade da imagem" });
@@ -151,6 +175,9 @@ export function escolherCompartilhamento({ podeAudio = true } = {}) {
 
     /* -- som -- */
     if (podeAudio) {
+      const somDesc = desktop
+        ? "Leva o som de tudo o que toca no computador. Use fones: sem eles, as vozes da chamada voltam para os outros como eco."
+        : "Para vídeo e música. No Chrome, marque também “Compartilhar áudio” na janela seguinte. Use fones para não gerar eco.";
       const toggle = el("button.share__switch", {
         type: "button",
         role: "switch",
@@ -161,29 +188,41 @@ export function escolherCompartilhamento({ podeAudio = true } = {}) {
           e.currentTarget.setAttribute("aria-checked", String(escolha.withAudio));
         },
       });
-      card.append(
-        el("div.share__som", {}, [
-          el("span.share__opcaoIcone", {}, [icon("volume-2", { size: "sm" })]),
-          el("div.share__texto", {}, [
-            el("div.share__nome", { text: "Compartilhar o som" }),
-            el("div.share__desc", {
-              text: "Para vídeo e música. No Chrome ainda é preciso marcar a caixinha na janela seguinte.",
-            }),
-          ]),
-          toggle,
+      somBloco.node = el("div.share__som", {}, [
+        el("span.share__opcaoIcone", {}, [icon("volume-2", { size: "sm" })]),
+        el("div.share__texto", {}, [
+          el("div.share__nome", { text: desktop ? "Compartilhar o som do computador" : "Compartilhar o som" }),
+          el("div.share__desc", { text: somDesc }),
         ]),
+        toggle,
+      ]);
+      // No app de mesa o som do sistema só existe no Windows: a lista diz.
+      if (desktop) somBloco.node.hidden = true;
+      somBloco.mostrar = (sim) => {
+        somBloco.node.hidden = !sim;
+        if (!sim) {
+          escolha.withAudio = false;
+          toggle.setAttribute("aria-checked", "false");
+        }
+      };
+      card.append(somBloco.node);
+    }
+
+    if (!fontesPedido) {
+      card.append(
+        el("p.share__aviso", {
+          text: "A seguir o navegador vai mostrar a lista de telas e janelas — esse passo é dele e não pode ser pulado. Ele já abre na aba que você escolheu aqui.",
+        }),
       );
     }
 
-    card.append(
-      el("p.share__aviso", {
-        text: "A seguir o navegador vai mostrar a lista de telas e janelas — esse passo é dele e não pode ser pulado. Ele já abre na aba que você escolheu aqui.",
-      }),
-    );
-
     const cancelar = el("button.btn.btn--ghost", { type: "button", text: "Cancelar" });
     const confirmar = el("button.btn.btn--primary.btn--lg", { type: "button" });
-    confirmar.append(icon("screen-share", { size: "sm" }), el("span", { text: "Escolher o que mostrar" }));
+    confirmar.append(
+      icon(trocando ? "refresh-cw" : "screen-share", { size: "sm" }),
+      el("span", { text: trocando ? "Trocar agora" : fontesPedido ? "Compartilhar" : "Escolher o que mostrar" }),
+    );
+    confirmarRef.node = confirmar;
 
     card.append(el("div.share__acoes", {}, [cancelar, confirmar]));
     fundo.append(card);
@@ -212,10 +251,11 @@ export function escolherCompartilhamento({ podeAudio = true } = {}) {
     });
 
     confirmar.addEventListener("click", () => {
+      if (confirmar.disabled) return;
       prefs.set("share:surface", escolha.surface);
       prefs.set("screen:quality", escolha.quality);
       prefs.set("share:mode", escolha.mode);
-      prefs.set("share:audio", escolha.withAudio);
+      prefs.set("share:audio2", escolha.withAudio);
       /*
        * Fecha ANTES de resolver. A captura precisa ser pedida ainda dentro do
        * clique — o navegador exige "ativação transitória" e recusa o pedido se
@@ -227,4 +267,123 @@ export function escolherCompartilhamento({ podeAudio = true } = {}) {
 
     requestAnimationFrame(() => confirmar.focus());
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Aplicativo de mesa: a lista real de telas e janelas
+ * ------------------------------------------------------------------ */
+
+/**
+ * Monta a lista de fontes do app de mesa. Ela chega de forma assíncrona (o
+ * sistema precisa tirar as miniaturas), então o bloco nasce com um aviso de
+ * "carregando" e se preenche sozinho.
+ */
+function montarListaDesktop({ fontesPedido, escolha, somBloco, confirmarRef }) {
+  const bloco = el("div.share__fontes");
+  const abas = el("div.share__linha", { role: "tablist", "aria-label": "Tipo" });
+  const grade = el("div.share__fontesGrade", { role: "radiogroup", "aria-label": "O que compartilhar" });
+  const estado = el("p.share__carregando", { text: "Procurando telas e janelas…" });
+  bloco.append(abas, estado, grade);
+
+  let tipo = prefs.get("share:tipo", "window");
+  let lista = [];
+
+  const marcar = () => {
+    for (const n of grade.children) n.setAttribute("aria-checked", String(n.dataset.id === escolha.fonte));
+    if (confirmarRef.node) confirmarRef.node.disabled = !escolha.fonte && !escolha.portal;
+  };
+
+  const desenhar = () => {
+    grade.replaceChildren();
+    for (const b of abas.children) b.setAttribute("aria-checked", String(b.dataset.tipo === tipo));
+    const visiveis = lista.filter((f) => f.tipo === tipo);
+    estado.hidden = visiveis.length > 0;
+    if (!visiveis.length) estado.textContent = tipo === "window" ? "Nenhuma janela aberta para compartilhar." : "Nenhuma tela encontrada.";
+    for (const f of visiveis) {
+      const b = el("button.share__fonte", {
+        type: "button",
+        role: "radio",
+        "aria-label": f.nome,
+        title: f.nome,
+        dataset: { id: f.id },
+        onClick: () => {
+          escolha.fonte = f.id;
+          escolha.surface = f.tipo === "screen" ? "monitor" : "window";
+          marcar();
+        },
+        onDblclick: () => {
+          escolha.fonte = f.id;
+          marcar();
+          confirmarRef.node?.click();
+        },
+      });
+      const miniatura = f.miniatura
+        ? el("img.share__fonteImg", { src: f.miniatura, alt: "", draggable: false })
+        : el("span.share__fonteImg.share__fonteImg--vazia", {}, [icon(f.tipo === "screen" ? "monitor" : "layout-grid", { size: "lg" })]);
+      const rotulo = el("span.share__fonteNome", {}, [
+        f.icone ? el("img.share__fonteIcone", { src: f.icone, alt: "", width: 16, height: 16 }) : null,
+        el("span.truncate", { text: f.nome }),
+      ].filter(Boolean));
+      b.append(miniatura, rotulo);
+      grade.append(b);
+    }
+    // A escolha anterior some se a janela foi fechada; cai na primeira da aba.
+    if (!visiveis.some((f) => f.id === escolha.fonte)) {
+      escolha.fonte = visiveis[0]?.id || null;
+      if (visiveis[0]) escolha.surface = visiveis[0].tipo === "screen" ? "monitor" : "window";
+    }
+    marcar();
+  };
+
+  for (const [id, rotulo, nomeIcone] of [
+    ["window", "Janelas", "layout-grid"],
+    ["screen", "Telas inteiras", "monitor"],
+  ]) {
+    abas.append(
+      el(
+        "button.share__pilula",
+        {
+          type: "button",
+          role: "tab",
+          dataset: { tipo: id },
+          "aria-checked": String(id === tipo),
+          onClick: () => {
+            tipo = id;
+            prefs.set("share:tipo", id);
+            desenhar();
+          },
+        },
+        [icon(nomeIcone, { size: "sm" }), el("span", { text: rotulo })],
+      ),
+    );
+  }
+
+  queueMicrotask(() => {
+    if (confirmarRef.node) confirmarRef.node.disabled = true;
+  });
+
+  fontesPedido.then((r) => {
+    if (!r) {
+      // Sem lista (erro no sistema): segue o caminho antigo, a tela principal.
+      abas.hidden = true;
+      estado.textContent = "Não consegui listar as janelas. A tela principal será compartilhada.";
+      escolha.portal = true;
+      marcar();
+      return;
+    }
+    somBloco.mostrar?.(!!r.audio);
+    if (r.portal) {
+      // Wayland: o portal do sistema mostra a lista logo depois deste passo.
+      abas.hidden = true;
+      estado.textContent = "O sistema vai abrir a janela dele para você escolher a tela ou o aplicativo.";
+      escolha.portal = true;
+      marcar();
+      return;
+    }
+    lista = r.fontes || [];
+    if (!lista.some((f) => f.tipo === tipo)) tipo = lista[0]?.tipo || "screen";
+    desenhar();
+  });
+
+  return bloco;
 }

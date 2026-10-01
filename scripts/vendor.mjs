@@ -7,6 +7,8 @@
  *   public/vendor/icons.svg    — sprite SVG com o subconjunto de ícones do Lucide (ISC)
  *   public/vendor/icons.json   — manifesto (id -> viewBox) para checagem em build
  *   public/vendor/avatars.js   — bundle ESM do DiceBear (MIT) com os estilos escolhidos
+ *   public/vendor/vosk.js      — reconhecimento de fala offline (vosk-browser, Apache-2.0),
+ *                                usado pelas legendas no aplicativo de mesa
  *
  * Nenhum ícone é desenhado à mão neste projeto: todos vêm de bibliotecas abertas.
  * Rode com:  npm run vendor
@@ -27,6 +29,13 @@ const outDir = path.join(root, "public", "vendor");
 
 /** Nome do arquivo no lucide-static -> id usado no app. */
 const ICONS = [
+  // Moderação e anexos (3.1)
+  "user-x",
+  "user-check",
+  "captions",
+  "search",
+  "lock-open",
+  "paperclip",
   "mic",
   "picture-in-picture-2",
   "headphones",
@@ -250,10 +259,143 @@ async function buildAvatars() {
   await import("node:fs").then((fs) => fs.promises.unlink(entry));
 }
 
+/**
+ * Reconhecimento de fala offline (vosk-browser, Apache-2.0). Só é carregado
+ * quando a legenda é ligada no app de mesa, onde o reconhecimento do Chrome
+ * não existe.
+ *
+ * O pacote traz um worker embutido (base64) que usa `new Function` para
+ * montar funções internas — técnica antiga do Emscripten (embind), que a
+ * nossa CSP bloqueia, e com razão: liberar 'unsafe-eval' valeria para o app
+ * inteiro. Em vez disso, as três funções que geram código são trocadas aqui
+ * pelas versões com closures que o próprio Emscripten adotou depois
+ * (DYNAMIC_EXECUTION=0). O resultado é conferido: se sobrar geração de código,
+ * o script falha em vez de publicar algo que a CSP vai derrubar.
+ */
+const VOSK_PATCHES = [
+  {
+    nome: "createNamedFunction",
+    de: /function createNamedFunction\(name,body\)\{name=makeLegalFunctionName\(name\);return new Function\([\s\S]*?\)\(body\)\}/,
+    para:
+      'function createNamedFunction(name,body){name=makeLegalFunctionName(name);return {[name]:function(){return body.apply(this,arguments)}}[name]}',
+  },
+  {
+    nome: "craftInvokerFunction",
+    de: /function craftInvokerFunction\(humanName,argTypes,classType,cppInvokerFunc,cppTargetFunc\)\{[\s\S]*?var invokerFunction=new_\(Function,args1\)\.apply\(null,args2\);return invokerFunction\}/,
+    para: `function craftInvokerFunction(humanName,argTypes,classType,cppInvokerFunc,cppTargetFunc){var argCount=argTypes.length;if(argCount<2){throwBindingError("argTypes array size mismatch! Must at least get return value and 'this' types!")}var isClassMethodFunc=argTypes[1]!==null&&classType!==null;var needsDestructorStack=false;for(var i=1;i<argTypes.length;++i){if(argTypes[i]!==null&&argTypes[i].destructorFunction===undefined){needsDestructorStack=true;break}}var returns=argTypes[0].name!=="void";var expected=argCount-2;return createNamedFunction(humanName,function(){if(arguments.length!==expected){throwBindingError("function "+humanName+" called with "+arguments.length+" arguments, expected "+expected+" args!")}var destructors=needsDestructorStack?[]:null;var thisWired;var wired=new Array(expected);var callArgs=[cppTargetFunc];if(isClassMethodFunc){thisWired=argTypes[1].toWireType(destructors,this);callArgs.push(thisWired)}for(var i=0;i<expected;++i){wired[i]=argTypes[i+2].toWireType(destructors,arguments[i]);callArgs.push(wired[i])}var rv=cppInvokerFunc.apply(null,callArgs);if(needsDestructorStack){runDestructors(destructors)}else{for(var j=isClassMethodFunc?1:2;j<argTypes.length;++j){var param=j===1?thisWired:wired[j-2];if(argTypes[j].destructorFunction!==null){argTypes[j].destructorFunction(param)}}}if(returns){return argTypes[0].fromWireType(rv)}})}`,
+  },
+  {
+    nome: "__emval_get_method_caller",
+    de: /var functionName=makeLegalFunctionName\("methodCaller_"\+signatureName\);[\s\S]*?var invokerFunction=new_\(Function,params\)\.apply\(null,args\);/,
+    para:
+      'var invokerFunction=function(handle,name,destructors,args){var offset=0;var argv=new Array(argCount-1);for(var i=0;i<argCount-1;++i){argv[i]=types[1+i].readValueFromPointer(args+offset);offset+=types[i+1]["argPackAdvance"]}var rv=handle[name].apply(handle,argv);for(var k=0;k<argCount-1;++k){if(types[k+1]["deleteObject"]){types[k+1].deleteObject(argv[k])}}if(!retType.isVoid){return retType.toWireType(destructors,rv)}};',
+  },
+];
+
+export function patchVoskWorker(codigo) {
+  let out = codigo;
+  for (const p of VOSK_PATCHES) {
+    if (!p.de.test(out)) throw new Error(`vosk: trecho ${p.nome} não encontrado — a versão do vosk-browser mudou`);
+    out = out.replace(p.de, () => p.para);
+  }
+  if (/new Function|new_\(Function|\beval\(/.test(out)) throw new Error("vosk: ainda há geração de código no worker");
+  return out;
+}
+
+async function copyVosk() {
+  const src = path.join(root, "node_modules", "vosk-browser", "dist", "vosk.js");
+  if (!existsSync(src)) {
+    console.warn("  ! vosk-browser não instalado (npm install --include=dev); mantendo o vosk.js atual");
+    return;
+  }
+  const bundle = await readFile(src, "utf8");
+  const m = bundle.match(/createBase64WorkerFactory\('([A-Za-z0-9+/=]+)'/);
+  if (!m) throw new Error("vosk: worker embutido não encontrado");
+  const worker = Buffer.from(m[1], "base64").toString("latin1");
+  const corrigido = patchVoskWorker(worker);
+  const final = bundle.replace(m[1], Buffer.from(corrigido, "latin1").toString("base64"));
+  await writeFile(path.join(outDir, "vosk.js"), final);
+  console.log(`  ✓ vosk.js (${(final.length / 1024 / 1024).toFixed(1)} MB, worker sem eval)`);
+}
+
+/**
+ * Legendas no app de mesa com Whisper (transformers.js + ONNX Runtime, ambos
+ * Apache-2.0/MIT). Tudo servido pelo próprio app: a CSP não deixa buscar
+ * script de CDN, e o reconhecimento tem que funcionar sem depender de
+ * terceiros além do download único do modelo.
+ *
+ *   public/vendor/whisper/transformers.js     — só o necessário para o Whisper
+ *   public/vendor/whisper/ort-wasm-*.{mjs,wasm} — o motor (WebAssembly/WebGPU)
+ */
+async function buildWhisper() {
+  const pasta = path.join(outDir, "whisper");
+  const ort = path.join(root, "node_modules", "onnxruntime-web", "dist");
+  if (!existsSync(path.join(root, "node_modules", "@huggingface", "transformers")) || !existsSync(ort)) {
+    console.warn("  ! @huggingface/transformers não instalado (npm install --include=dev); legendas do app ficam no Vosk");
+    return;
+  }
+  await mkdir(pasta, { recursive: true });
+  const entrada = path.join(root, "scripts", ".whisper-entry.mjs");
+  await writeFile(
+    entrada,
+    'export { env, Tensor, WhisperTokenizer, AutoFeatureExtractor, WhisperForConditionalGeneration } from "@huggingface/transformers";\n' +
+      // O mesmo ONNX Runtime que o Whisper usa roda o detector de voz.
+      'export { InferenceSession, Tensor as OrtTensor } from "onnxruntime-web/webgpu";\n',
+  );
+  const result = await esbuild.build({
+    entryPoints: [entrada],
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    minify: true,
+    target: ["es2022"],
+    outfile: path.join(pasta, "transformers.js"),
+    banner: { js: "/* transformers.js (Apache-2.0) + onnxruntime-web (MIT) — bundle gerado por scripts/vendor.mjs */" },
+    logLevel: "error",
+  });
+  await import("node:fs").then((fs) => fs.promises.unlink(entrada));
+  if (result.errors.length) throw new Error("falha no bundle do Whisper");
+  let total = 0;
+  for (const nome of ["ort-wasm-simd-threaded.asyncify.mjs", "ort-wasm-simd-threaded.asyncify.wasm"]) {
+    const dados = await readFile(path.join(ort, nome));
+    total += dados.length;
+    await writeFile(path.join(pasta, nome), dados);
+  }
+  // Detector de voz Silero v5 (MIT, 2 MB): decide quando alguém começa e
+  // para de falar muito melhor que o volume — teclado e ventilador não contam.
+  const silero = path.join(root, "node_modules", "@ricky0123", "vad-web", "dist", "silero_vad_v5.onnx");
+  if (!existsSync(silero)) throw new Error("silero_vad_v5.onnx não encontrado (npm install --include=dev)");
+  const vad = await readFile(silero);
+  total += vad.length;
+  await writeFile(path.join(pasta, "silero_vad_v5.onnx"), vad);
+  const { size } = await import("node:fs").then((fs) => fs.promises.stat(path.join(pasta, "transformers.js")));
+  console.log(`  ✓ whisper/ (transformers.js ${(size / 1024).toFixed(0)} kB + motor ${(total / 1024 / 1024).toFixed(1)} MB)`);
+}
+
+/**
+ * Supressão de ruído por IA (RNNoise, BSD; build do Jitsi, Apache-2.0). A
+ * versão "sync" traz o WebAssembly embutido e abre sem rede nem `await` —
+ * é o que um AudioWorklet precisa. Sem eval: passa pela CSP.
+ */
+async function copyRnnoise() {
+  const src = path.join(root, "node_modules", "@jitsi", "rnnoise-wasm", "dist", "rnnoise-sync.js");
+  if (!existsSync(src)) {
+    console.warn("  ! @jitsi/rnnoise-wasm não instalado; mantendo o rnnoise-sync.js atual");
+    return;
+  }
+  const codigo = await readFile(src, "utf8");
+  if (/new Function|\beval\(/.test(codigo)) throw new Error("rnnoise: geração de código não passa pela CSP");
+  await writeFile(path.join(outDir, "rnnoise-sync.js"), codigo);
+  console.log(`  ✓ rnnoise-sync.js (${(codigo.length / 1024 / 1024).toFixed(1)} MB)`);
+}
+
 /* ------------------------------------------------------------------ */
 
 await mkdir(outDir, { recursive: true });
 console.log("Vendorizando dependências de UI...");
 await buildSprite();
 await buildAvatars();
+await copyVosk();
+await buildWhisper();
+await copyRnnoise();
 console.log("Pronto.");

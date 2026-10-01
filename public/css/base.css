@@ -10,6 +10,8 @@
 }
 
 html {
+  /* Caixas de seleção, rádios e controles deslizantes na cor da marca, não no azul do navegador. */
+  accent-color: var(--brand-pink);
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }

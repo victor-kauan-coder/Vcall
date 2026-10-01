@@ -17,8 +17,10 @@
  * preferências por ORIGEM, e a origem inclui a porta: com porta sorteada a
  * cada abertura, a pessoa perderia tudo toda vez que abrisse o app.
  */
-import { app, BrowserWindow, Menu, dialog, desktopCapturer, ipcMain, nativeTheme, screen, session, shell } from "electron";
+import { app, BrowserWindow, Menu, dialog, desktopCapturer, globalShortcut, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
 import { randomBytes } from "node:crypto";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,7 +29,10 @@ import { attachSignaling } from "../src/signaling.js";
 import { RoomRegistry } from "../src/rooms.js";
 import { hostControl } from "./guard.js";
 import { Tunnel } from "./tunnel.js";
-import { ESQUEMA, destinoDoLink, linkDosArgumentos } from "./protocol.js";
+import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
+import { descreverFontes, montarResposta, sessaoWayland } from "./captura.js";
+import { executavelParaRegistrar, precisaSemSandbox } from "./linux.js";
+import { descartarWhisper, ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, prepararWhisper, responderModelo, WHISPER, WHISPER_PADRAO } from "./fala.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ICON = path.join(__dirname, "..", "public", "assets", "icon-512.png");
@@ -55,7 +60,42 @@ app.commandLine.appendSwitch("disable-renderer-backgrounding");
 app.commandLine.appendSwitch("disable-background-timer-throttling");
 if (process.platform === "linux") {
   // Compartilhar tela no Wayland passa pelo portal do sistema (PipeWire).
+  // Sem este recurso o Chromium tenta capturar pelo X11, que no Wayland só
+  // enxerga janelas XWayland — e a pessoa vê uma tela preta ou nada.
   app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
+  // AppImage em distro que restringe user namespaces (Ubuntu 24.04+, kernels
+  // endurecidos): sem isto o app nem abre. Ver desktop/linux.js.
+  if (precisaSemSandbox()) app.commandLine.appendSwitch("no-sandbox");
+}
+
+/*
+ * Esquema interno de onde a página busca o modelo de reconhecimento de fala
+ * (desktop/fala.js). Precisa ser registrado antes de o app ficar pronto, e
+ * com `supportFetchAPI` para o worker do Vosk conseguir baixá-lo.
+ */
+protocol.registerSchemesAsPrivileged([
+  { scheme: ESQUEMA_FALA, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+]);
+
+/* ==================================================================== *
+ * Registro de ocorrências
+ * ==================================================================== */
+
+/*
+ * Quando a janela cai (processo de renderização encerrado pelo sistema, falta
+ * de memória, driver de vídeo), a pessoa só vê que "caiu da chamada". Este
+ * arquivo guarda o motivo real, para diagnosticar sem adivinhação:
+ *   Windows: %APPDATA%\Vcall\logs\vcall.log
+ *   Linux:   ~/.config/Vcall/logs/vcall.log
+ */
+function registrar(evento, dados = {}) {
+  try {
+    const pasta = app.getPath("logs");
+    mkdirSync(pasta, { recursive: true });
+    appendFileSync(path.join(pasta, "vcall.log"), `${JSON.stringify({ t: new Date().toISOString(), evento, ...dados })}\n`);
+  } catch {
+    /* sem disco para log não é motivo para derrubar nada */
+  }
 }
 
 /* ==================================================================== *
@@ -101,7 +141,9 @@ async function subirServidor() {
   });
 
   const server = createHttpServer({ registry, control });
-  attachSignaling(server, { registry });
+  // O link público do app é o cloudflared nesta mesma máquina: o endereço
+  // real de cada convidado vem no CF-Connecting-IP.
+  attachSignaling(server, { registry, trustCloudflare: true });
 
   for (const p of PORTAS) {
     const obtida = await escutar(server, p);
@@ -214,6 +256,33 @@ function criarJanela() {
 
   win.on("closed", () => {
     win = null;
+    fecharSobreposicao();
+    globalShortcut.unregisterAll();
+  });
+
+  /*
+   * A janela caiu (o processo de renderização morreu). Antes a pessoa ficava
+   * com uma tela branca e "caía da chamada" sem saber por quê. Agora o motivo
+   * vai para o log e a janela volta sozinha para a mesma sala — a sala está
+   * no endereço (#id), então basta recarregar.
+   */
+  let quedas = 0;
+  win.webContents.on("render-process-gone", (_e, detalhes) => {
+    registrar("janela-caiu", { motivo: detalhes.reason, codigo: detalhes.exitCode });
+    if (detalhes.reason === "clean-exit" || !win) return;
+    quedas += 1;
+    if (quedas > 3) {
+      dialog.showErrorBox(
+        "O Vcall parou de responder",
+        `A janela caiu várias vezes seguidas (${detalhes.reason}). O registro está em ${path.join(app.getPath("logs"), "vcall.log")}.`,
+      );
+      return;
+    }
+    setTimeout(() => win?.webContents.reload(), 400);
+  });
+  win.webContents.on("did-finish-load", () => {
+    // Uma carga completa depois de um tempo estável zera a contagem.
+    setTimeout(() => (quedas = 0), 60_000);
   });
 
   const alvo = pendente;
@@ -262,6 +331,115 @@ ipcMain.handle("vcall:mini", (_e, ligar) => {
   return true;
 });
 
+/* ==================================================================== *
+ * Modo jogo: sobreposição + atalhos globais
+ * ==================================================================== */
+
+/*
+ * Como o overlay do Discord: uma janelinha transparente, sempre por cima de
+ * tudo (inclusive do jogo em modo janela/sem bordas), que não rouba o foco e
+ * deixa os cliques passarem. Mostra quem está na chamada apagadinho e acende
+ * quem está falando. Ela só desenha: o estado vem da janela da chamada.
+ *
+ * Os atalhos globais funcionam com o jogo em foco — o que um atalho de
+ * página nunca faria. Só existem enquanto o modo jogo está ligado, para não
+ * roubar Ctrl+Shift+M/O de outros programas o tempo todo.
+ */
+let sobreposicao = null;
+let cantoSobreposicao = "tl";
+const ATALHO_MIC = "CommandOrControl+Shift+M";
+const ATALHO_SOBREPOSICAO = "CommandOrControl+Shift+O";
+
+function posicaoSobreposicao(canto, w, h) {
+  const { workArea: a } = screen.getPrimaryDisplay();
+  const m = 16;
+  const x = canto.endsWith("r") ? a.x + a.width - w - m : a.x + m;
+  const y = canto.startsWith("b") ? a.y + a.height - h - m : a.y + m;
+  return { x, y };
+}
+
+function abrirSobreposicao(canto = cantoSobreposicao) {
+  cantoSobreposicao = canto;
+  const w = 260;
+  const h = 460;
+  if (sobreposicao && !sobreposicao.isDestroyed()) {
+    sobreposicao.setBounds({ ...posicaoSobreposicao(canto, w, h), width: w, height: h });
+    sobreposicao.webContents.send("vcall:canto", canto);
+    return;
+  }
+  sobreposicao = new BrowserWindow({
+    width: w,
+    height: h,
+    ...posicaoSobreposicao(canto, w, h),
+    transparent: true,
+    backgroundColor: "#00000000",
+    frame: false,
+    resizable: false,
+    movable: false,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    title: "Vcall — sobreposição",
+    webPreferences: {
+      preload: path.join(__dirname, "preload-sobreposicao.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+      backgroundThrottling: false,
+    },
+  });
+  sobreposicao.setAlwaysOnTop(true, "screen-saver");
+  sobreposicao.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  sobreposicao.setIgnoreMouseEvents(true);
+  sobreposicao.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  sobreposicao.webContents.on("will-navigate", (e) => e.preventDefault());
+  sobreposicao.once("ready-to-show", () => {
+    sobreposicao?.showInactive();
+    sobreposicao?.webContents.send("vcall:canto", canto);
+  });
+  sobreposicao.on("closed", () => (sobreposicao = null));
+  sobreposicao.loadURL(`${baseUrl}/sobreposicao.html`);
+}
+
+function fecharSobreposicao() {
+  if (sobreposicao && !sobreposicao.isDestroyed()) sobreposicao.close();
+  sobreposicao = null;
+}
+
+function ligarAtalhosGlobais(ligar) {
+  globalShortcut.unregister(ATALHO_MIC);
+  globalShortcut.unregister(ATALHO_SOBREPOSICAO);
+  if (!ligar) return { mic: false, sobreposicao: false };
+  const mic = globalShortcut.register(ATALHO_MIC, () => win?.webContents.send("vcall:atalho", "mic"));
+  const sob = globalShortcut.register(ATALHO_SOBREPOSICAO, () => {
+    if (sobreposicao && !sobreposicao.isDestroyed()) {
+      if (sobreposicao.isVisible()) sobreposicao.hide();
+      else sobreposicao.showInactive();
+    } else {
+      abrirSobreposicao();
+    }
+  });
+  return { mic, sobreposicao: sob };
+}
+
+ipcMain.handle("vcall:modo-jogo", (e, pedido) => {
+  if (!win || e.sender !== win.webContents) return null;
+  const ligar = !!pedido?.ligar;
+  const canto = ["tl", "tr", "bl", "br"].includes(pedido?.canto) ? pedido.canto : "tl";
+  if (ligar) abrirSobreposicao(canto);
+  else fecharSobreposicao();
+  return ligarAtalhosGlobais(ligar);
+});
+
+// Estado da chamada para a sobreposição desenhar. Só a janela da chamada
+// fala por este canal, e só a sobreposição recebe.
+ipcMain.on("vcall:sobreposicao-estado", (e, estado) => {
+  if (!win || e.sender !== win.webContents) return;
+  if (sobreposicao && !sobreposicao.isDestroyed()) sobreposicao.webContents.send("vcall:estado", estado);
+});
+
 ipcMain.handle("vcall:info", () => ({
   version: app.getVersion(),
   platform: process.platform,
@@ -289,7 +467,21 @@ function semCache() {
   });
   ses.webRequest.onHeadersReceived(filtro, ({ responseHeaders }, cb) => {
     for (const k of Object.keys(responseHeaders)) if (k.toLowerCase() === "cache-control") delete responseHeaders[k];
-    cb({ responseHeaders: { ...responseHeaders, "Cache-Control": ["no-store"] } });
+    cb({
+      responseHeaders: {
+        ...responseHeaders,
+        "Cache-Control": ["no-store"],
+        /*
+         * Isolamento de origem: libera o SharedArrayBuffer, e com ele o
+         * Whisper (legendas) usa vários núcleos em vez de um — a legenda sai
+         * em uma fração do tempo. `credentialless` em vez de `require-corp`:
+         * nada de fora é carregado com credenciais, e nada do que já funciona
+         * deixa de carregar por falta de um cabeçalho CORP.
+         */
+        "Cross-Origin-Opener-Policy": ["same-origin"],
+        "Cross-Origin-Embedder-Policy": ["credentialless"],
+      },
+    });
   });
   // O que ficou guardado por versões anteriores também sai.
   return ses.clearCache().catch(() => {});
@@ -307,17 +499,149 @@ function permissoes() {
   ses.setPermissionCheckHandler((_c, permissao, origem) => liberadas.has(permissao) && origemPermitida(origem));
 
   /*
-   * Compartilhar tela: o seletor nativo do sistema quando existe (Windows 11
-   * e portal do Wayland); senão, a tela principal. O áudio do sistema vai
-   * junto no Windows ("loopback") — é o som do vídeo que a pessoa mostra.
+   * Compartilhar tela.
+   *
+   * O que estava errado antes, e o que cada linha daqui resolve:
+   *
+   * 1. SÓ A TELA INTEIRA. O handler pegava sempre a primeira tela e ignorava
+   *    o que a pessoa queria mostrar. (`useSystemPicker` só existe no macOS 15;
+   *    no Windows e no Linux ele é ignorado em silêncio.) Agora a página
+   *    mostra um seletor próprio, com miniaturas de telas E janelas
+   *    (`vcall:fontes`), e avisa aqui qual foi a escolha (`vcall:escolher`).
+   *
+   * 2. LINUX SEM COMPARTILHAR. A resposta levava `audio: undefined`, e o
+   *    Electron recusa a chave presente com valor vazio ("audio must be a
+   *    WebFrameMain, loopback or loopbackWithMute"). O erro caía no catch, que
+   *    chamava o callback de novo ("called more than once") — e a captura
+   *    ficava pendurada para sempre. Agora a chave só existe quando tem valor,
+   *    e o callback é chamado uma única vez, aconteça o que acontecer.
+   *
+   * 3. SOM NAS TRANSMISSÕES. O "loopback" do Windows captura TODO o som do
+   *    computador, inclusive as vozes da própria chamada — quem estava do
+   *    outro lado ouvia a si mesmo de volta. O som agora é opcional,
+   *    desligado por padrão, e só vai quando a pessoa pede.
    */
+  // Só a nossa página e as salas abertas por convite falam com estes canais.
+  const doApp = (e) => origemPermitida(e.senderFrame?.url || "");
+
+  ipcMain.handle("vcall:fontes", async (e) => {
+    if (!doApp(e)) throw new Error("origem não autorizada");
+    if (sessaoWayland()) return { portal: true, audio: false, fontes: [] };
+    const fontes = await desktopCapturer.getSources({
+      types: ["screen", "window"],
+      thumbnailSize: { width: 320, height: 200 },
+      fetchWindowIcons: true,
+    });
+    return {
+      portal: false,
+      audio: process.platform === "win32",
+      fontes: descreverFontes(fontes, { propria: win?.getMediaSourceId?.() }),
+    };
+  });
+
+  /*
+   * Legendas no app: o modelo de reconhecimento de fala (desktop/fala.js).
+   * Baixado uma vez por idioma, com progresso, e entregue à página pelo
+   * esquema vcall-fala:// — só arquivos desta pasta, só com nome válido.
+   */
+  const pastaFala = path.join(app.getPath("userData"), "fala");
+  ses.protocol.handle(ESQUEMA_FALA, (req) => responderModelo(pastaFala, req.url));
+  const preparando = new Map();
+  ipcMain.handle("vcall:fala-preparar", async (e, lang) => {
+    if (!doApp(e)) throw new Error("origem não autorizada");
+    const idioma = MODELOS[lang] ? lang : "pt-BR";
+    if (!preparando.has(idioma)) {
+      const tarefa = prepararModelo({
+        pasta: pastaFala,
+        lang: idioma,
+        baixar: (url) => net.fetch(url),
+        progresso: (p) => {
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send("vcall:fala-progresso", { lang: idioma, p });
+        },
+      })
+        .then(() => ({ url: `${ESQUEMA_FALA}://modelo/${idioma}.tar.gz`, lang: idioma }))
+        .catch((err) => {
+          registrar("modelo-fala-falhou", { lang: idioma, erro: String(err?.message || err) });
+          throw err;
+        })
+        .finally(() => preparando.delete(idioma));
+      preparando.set(idioma, tarefa);
+    }
+    return preparando.get(idioma);
+  });
+
+  /*
+   * Whisper: o reconhecedor bom. Um download por tamanho de modelo, com
+   * progresso; depois, só leitura do disco pelo esquema interno.
+   */
+  const preparandoWhisper = new Map();
+  ipcMain.handle("vcall:whisper-preparar", async (e, nivel) => {
+    if (!doApp(e)) throw new Error("origem não autorizada");
+    const n = WHISPER[nivel] ? nivel : WHISPER_PADRAO;
+    if (!preparandoWhisper.has(n)) {
+      const tarefa = prepararWhisper({
+        pasta: pastaFala,
+        nivel: n,
+        baixar: (url) => net.fetch(url),
+        progresso: (p) => {
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send("vcall:fala-progresso", { whisper: n, p });
+        },
+      })
+        .then((r) => ({ base: `${ESQUEMA_FALA}://modelo/whisper/`, modelo: r.repo, nivel: n, curto: r.curto, dtype: r.dtype, folgaS: r.folgaS }))
+        .catch((err) => {
+          registrar("whisper-falhou", { nivel: n, erro: String(err?.message || err) });
+          throw err;
+        })
+        .finally(() => preparandoWhisper.delete(n));
+      preparandoWhisper.set(n, tarefa);
+    }
+    return preparandoWhisper.get(n);
+  });
+  ipcMain.handle("vcall:whisper-descartar", async (e, nivel) => {
+    if (!doApp(e)) return false;
+    await descartarWhisper(pastaFala, WHISPER[nivel] ? nivel : WHISPER_PADRAO).catch(() => {});
+    return true;
+  });
+
+  ipcMain.handle("vcall:fala-descartar", async (e, lang) => {
+    if (!doApp(e)) return false;
+    await unlink(path.join(pastaFala, nomeDoModelo(lang))).catch(() => {});
+    return true;
+  });
+
+  let escolha = null;
+  ipcMain.handle("vcall:escolher", (e, pedido) => {
+    if (!doApp(e)) return false;
+    escolha = pedido?.id ? { id: String(pedido.id), audio: !!pedido.audio, ate: Date.now() + 20_000 } : null;
+    return true;
+  });
+
   ses.setDisplayMediaRequestHandler(
-    async (_req, callback) => {
+    async (pedido, callback) => {
+      let respondido = false;
+      const responder = (resposta) => {
+        if (respondido) return;
+        respondido = true;
+        try {
+          callback(resposta);
+        } catch (err) {
+          registrar("captura-recusada", { erro: String(err?.message || err) });
+        }
+      };
+
+      const atual = escolha && escolha.ate > Date.now() ? escolha : null;
+      escolha = null;
       try {
-        const [tela] = await desktopCapturer.getSources({ types: ["screen"] });
-        callback(tela ? { video: tela, audio: process.platform === "win32" ? "loopback" : undefined } : {});
-      } catch {
-        callback({});
+        // No Wayland a própria chamada abre o portal do sistema, que devolve
+        // só o que a pessoa escolheu lá.
+        const fontes = await desktopCapturer.getSources({
+          types: atual?.id?.startsWith("window:") || sessaoWayland() ? ["screen", "window"] : ["screen"],
+          thumbnailSize: { width: 0, height: 0 },
+        });
+        responder(montarResposta({ fontes, escolha: atual, pedido, plataforma: process.platform }));
+      } catch (err) {
+        registrar("captura-falhou", { erro: String(err?.message || err) });
+        responder({});
       }
     },
     { useSystemPicker: true },
@@ -346,6 +670,17 @@ if (!app.requestSingleInstanceLock()) {
     } else {
       app.setAsDefaultProtocolClient(ESQUEMA);
     }
+    // Linux sem pacote instalado (AppImage, .tar.gz): o .desktop do usuário
+    // é o que faz o link vcall:// dos convites abrir este app.
+    const exeLinux = app.isPackaged ? executavelParaRegistrar() : null;
+    if (exeLinux) {
+      registrarEsquema(exeLinux, { icone: await readFile(ICON).catch(() => null) }).then((ok) =>
+        registrar("esquema-linux", { ok, exe: exeLinux }),
+      );
+    }
+    if (process.platform === "linux" && app.commandLine.hasSwitch("no-sandbox")) {
+      registrar("sem-sandbox", { motivo: "AppImage sem user namespaces" });
+    }
 
     try {
       baseUrl = await subirServidor();
@@ -365,5 +700,6 @@ if (!app.requestSingleInstanceLock()) {
 
   // O túnel é a parte exposta à internet: cai junto com o app, sempre.
   app.on("before-quit", () => tunnel?.stop());
+  app.on("will-quit", () => globalShortcut.unregisterAll());
   process.on("exit", () => tunnel?.stop());
 }

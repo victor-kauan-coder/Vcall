@@ -6,6 +6,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { prefs, env } from "../lib/util.js";
+import { processarVoz, VOZ_PADRAO } from "./voz.js";
 
 const AUDIO_CONSTRAINTS = {
   echoCancellation: true,
@@ -36,6 +37,10 @@ export class LocalMedia extends Emitter {
 
   /** Processamento de áudio ligado/desligado (supressão de ruído etc.). */
   processing = prefs.get("audio:processing", true);
+  /** Processador de voz: supressão de ruído por IA e sensibilidade de entrada. */
+  voz = { ...VOZ_PADRAO, ...prefs.get("audio:voz", {}) };
+  /** O processador da trilha de microfone atual (null = trilha bruta). */
+  #proc = null;
 
   constructor() {
     super();
@@ -64,7 +69,7 @@ export class LocalMedia extends Emitter {
     if (audio) {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: this.#audioConstraints() });
-        this.#swap("mic", s.getAudioTracks()[0] || null);
+        await this.#usarMic(s.getAudioTracks()[0] || null);
         result.audio = true;
       } catch (err) {
         result.errors.push({ kind: "audio", err });
@@ -156,9 +161,7 @@ export class LocalMedia extends Emitter {
       const wasEnabled = this.micTrack.enabled;
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: this.#audioConstraints() });
-        const t = s.getAudioTracks()[0] || null;
-        if (t) t.enabled = wasEnabled;
-        this.#swap("mic", t);
+        await this.#usarMic(s.getAudioTracks()[0] || null, wasEnabled);
         return true;
       } catch (err) {
         this.emit("error", { kind: "audio", err });
@@ -186,23 +189,87 @@ export class LocalMedia extends Emitter {
   async setProcessing(on) {
     this.processing = on;
     prefs.set("audio:processing", on);
-    if (!this.micTrack) return on;
-    try {
-      await this.micTrack.applyConstraints(this.#audioConstraints());
-    } catch {
-      // Alguns navegadores só aplicam isso na abertura: reabre a trilha.
-      const wasEnabled = this.micTrack.enabled;
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: this.#audioConstraints() });
-        const t = s.getAudioTracks()[0] || null;
-        if (t) t.enabled = wasEnabled;
-        this.#swap("mic", t);
-      } catch {
-        /* mantém a trilha atual */
-      }
-    }
+    await this.#reaplicarMic();
     this.emit("change", this.snapshot());
     return on;
+  }
+
+  /**
+   * Supressão de ruído por IA e sensibilidade de entrada ("auto", "off" ou um
+   * limiar em dB). Ajustes finos vão direto ao processador, sem cortar o som;
+   * ligar ou desligar o processador inteiro reabre o microfone.
+   */
+  async setVoz(opcoes) {
+    const antes = this.voz;
+    this.voz = { ...this.voz, ...opcoes };
+    prefs.set("audio:voz", this.voz);
+    if (!this.micTrack) return this.voz;
+    const precisa = this.voz.ruido || this.voz.limiar !== "off";
+    if (this.#proc && precisa) {
+      this.#proc.definir({ ruido: this.voz.ruido, limiar: this.voz.limiar });
+      if (antes.ruido !== this.voz.ruido) await this.#reaplicarMic({ reabrir: false });
+    } else if (!!this.#proc !== precisa) {
+      await this.#reaplicarMic({ reabrir: true });
+    }
+    return this.voz;
+  }
+
+  /** Reaplica as restrições do microfone; reabre se o navegador não aceitar. */
+  async #reaplicarMic({ reabrir = false } = {}) {
+    if (!this.micTrack) return;
+    const bruta = this.#proc?.bruta || this.micTrack;
+    if (!reabrir) {
+      try {
+        await bruta.applyConstraints(this.#audioConstraints());
+        return;
+      } catch {
+        /* alguns navegadores só aplicam na abertura */
+      }
+    }
+    const wasEnabled = this.micTrack.enabled;
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: this.#audioConstraints() });
+      await this.#usarMic(s.getAudioTracks()[0] || null, wasEnabled);
+    } catch {
+      /* mantém a trilha atual */
+    }
+  }
+
+  /**
+   * Coloca uma trilha de microfone recém-aberta em uso, passando-a pelo
+   * processador de voz quando ele está ligado.
+   */
+  async #usarMic(bruta, enabled = true) {
+    if (!bruta) {
+      this.#swap("mic", null);
+      return;
+    }
+    let final = bruta;
+    let proc = null;
+    if (this.voz.ruido || this.voz.limiar !== "off") {
+      proc = await processarVoz(bruta, this.voz);
+      if (proc) {
+        final = proc.track;
+        proc.bruta = bruta;
+        proc.aoNivel((n) => this.emit("voz-nivel", n));
+        // Microfone desconectado: a trilha processada não "acaba" sozinha.
+        bruta.addEventListener(
+          "ended",
+          () => {
+            if (this.micTrack !== final) return;
+            this.#swap("mic", null);
+          },
+          { once: true },
+        );
+      }
+    }
+    final.enabled = enabled;
+    this.#swap("mic", final, proc);
+  }
+
+  /** O processador de voz está ativo na trilha atual? */
+  get vozAtiva() {
+    return !!this.#proc;
   }
 
   snapshot() {
@@ -222,9 +289,12 @@ export class LocalMedia extends Emitter {
   /* ---------------------------------------------------------------- */
 
   #audioConstraints() {
-    const base = this.processing
+    let base = this.processing
       ? AUDIO_CONSTRAINTS
       : { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+    // Com a supressão por IA ligada, a do navegador sai: as duas juntas
+    // "comem" o começo e o fim das palavras.
+    if (this.processing && this.voz.ruido) base = { ...base, noiseSuppression: false };
     const id = this.selected.audioinput;
     return id ? { ...base, deviceId: { ideal: id } } : base;
   }
@@ -240,12 +310,17 @@ export class LocalMedia extends Emitter {
     return env.isTouch ? base : (delete base.facingMode, base);
   }
 
-  #swap(which, track) {
+  #swap(which, track, proc = null) {
     const key = which === "mic" ? "micTrack" : "camTrack";
     const old = this[key];
     if (old) {
       old.stop();
       this.stream.removeTrack(old);
+    }
+    if (which === "mic") {
+      // O processador anterior (contexto de áudio e trilha bruta) sai junto.
+      if (this.#proc && this.#proc !== proc) this.#proc.parar();
+      this.#proc = proc;
     }
     this[key] = track;
     if (track) {

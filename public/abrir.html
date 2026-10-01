@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Entrar na chamada · Vcall</title>
+    <meta name="description" content="Você foi convidado para uma chamada no Vcall." />
+    <!-- Prévia do link no WhatsApp, Telegram e afins. -->
+    <meta property="og:title" content="Entrar na chamada · Vcall" />
+    <meta property="og:description" content="Você foi convidado para uma chamada de vídeo criptografada ponta a ponta." />
+    <meta property="og:image" content="/assets/icon-512.png" />
+    <meta name="theme-color" content="#0b0722" />
+    <link rel="icon" href="/assets/favicon-64.png" />
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <style>
+      body {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: var(--sp-4);
+        background:
+          radial-gradient(circle at 20% 10%, var(--accent-soft), transparent 45%),
+          radial-gradient(circle at 85% 90%, var(--accent-2-soft), transparent 45%),
+          var(--bg);
+      }
+      .abrir {
+        width: min(440px, 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--sp-4);
+        padding: var(--sp-8) var(--sp-6);
+        text-align: center;
+        border-radius: var(--radius-xl);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+      }
+      .abrir__logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+      }
+      .abrir__titulo {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: var(--text-xl);
+        letter-spacing: -0.01em;
+      }
+      .abrir__texto {
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+      .abrir__acoes {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-2);
+      }
+      .abrir__acoes .btn {
+        width: 100%;
+        justify-content: center;
+        text-decoration: none;
+      }
+      .abrir__rodape {
+        font-size: var(--text-2xs);
+        color: var(--text-muted);
+      }
+      .abrir__rodape a {
+        color: inherit;
+      }
+      .abrir__spinner {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 3px solid var(--accent-soft);
+        border-top-color: var(--accent);
+        animation: gira 0.9s linear infinite;
+      }
+      .abrir__spinner[hidden] {
+        display: none;
+      }
+      @keyframes gira {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .abrir__spinner {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="abrir" aria-live="polite">
+      <img class="abrir__logo" src="/assets/logo-mark.png" alt="Vcall" width="72" height="72" />
+      <h1 class="abrir__titulo" id="titulo">Entrar na chamada</h1>
+      <p class="abrir__texto" id="texto">Você foi convidado para uma chamada no Vcall.</p>
+      <div class="abrir__spinner" id="spinner" hidden></div>
+      <div class="abrir__acoes">
+        <a class="btn btn--primary btn--lg" id="abrirApp" href="#">Abrir no aplicativo Vcall</a>
+        <a class="btn btn--lg" id="noNavegador" href="/">Entrar pelo navegador</a>
+      </div>
+      <p class="abrir__rodape">
+        Ainda não tem o aplicativo?
+        <a id="baixar" href="https://github.com/victor-kauan-coder/Vcall/releases/latest" rel="noopener noreferrer">Baixar o Vcall</a>
+      </p>
+    </main>
+    <noscript>
+      <p style="text-align: center">Para entrar, ative o JavaScript ou abra o link no navegador.</p>
+    </noscript>
+    <script type="module" src="/js/abrir.js"></script>
+  </body>
+</html>

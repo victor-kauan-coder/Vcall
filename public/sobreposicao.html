@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vcall — sobreposição</title>
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <style>
+      /* Fundo transparente: a janela fica por cima do jogo e só as pílulas
+         aparecem. Nada aqui recebe clique (a janela ignora o mouse). */
+      html,
+      body {
+        margin: 0;
+        background: transparent !important;
+        overflow: hidden;
+        font-family: var(--font-sans);
+        user-select: none;
+      }
+      .lista {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 6px;
+      }
+      [data-canto^="b"] .lista {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        flex-direction: column-reverse;
+      }
+      [data-canto$="r"] .lista {
+        align-items: flex-end;
+      }
+      [data-canto$="l"] .lista {
+        align-items: flex-start;
+      }
+      .p {
+        --lv: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 240px;
+        padding: 3px 12px 3px 3px;
+        border-radius: 999px;
+        background: rgba(11, 7, 34, 0.62);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        /* Calado: apagadinho, sem cor. Falando: aceso. */
+        opacity: 0.4;
+        filter: saturate(0.2);
+        transition:
+          opacity 180ms ease-out,
+          filter 180ms ease-out,
+          transform 180ms ease-out,
+          background 180ms ease-out;
+      }
+      .p.fala {
+        opacity: 1;
+        filter: none;
+        transform: translateX(var(--empurra, 4px)) scale(1.04);
+        background: rgba(11, 7, 34, 0.86);
+      }
+      [data-canto$="r"] .p.fala {
+        --empurra: -4px;
+      }
+      .av {
+        position: relative;
+        width: 30px;
+        height: 30px;
+        flex: none;
+        border-radius: 50%;
+      }
+      .av .avatar,
+      .av svg,
+      .av img {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: block;
+      }
+      /* O anel da marca em volta de quem fala. */
+      .p.fala .av::after {
+        content: "";
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        padding: 2px;
+        background: conic-gradient(#fd4d87, #fe9c5f, #fd4d87);
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+      }
+      .nome {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      }
+      .mudo {
+        width: 14px;
+        height: 14px;
+        flex: none;
+        color: #ff5470;
+      }
+      .eu .nome::after {
+        content: " (você)";
+        font-weight: 400;
+        opacity: 0.7;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .p {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lista" id="lista" aria-live="off"></div>
+    <script type="module" src="/js/sobreposicao.js"></script>
+  </body>
+</html>

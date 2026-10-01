@@ -75,15 +75,48 @@ mac:
     NSCameraUsageDescription: O Vcall precisa da câmera para o seu vídeo na chamada.
     NSMicrophoneUsageDescription: O Vcall precisa do microfone para a sua voz na chamada.
 
+# Linux: um formato para cada família de distribuição, mais o AppImage, que
+# roda em qualquer uma sem instalar nada.
+#   AppImage  qualquer distro (Fedora, Arch, Ubuntu, openSUSE, Mint…)
+#   deb       Debian, Ubuntu, Mint, Pop!_OS, elementary
+#   rpm       Fedora, openSUSE, RHEL, Rocky, Alma
+#   pacman    Arch, Manjaro, EndeavourOS, CachyOS
+#   tar.gz    qualquer distro, descompactar e rodar
+# Os pacotes instalam o .desktop (link vcall://) e ajustam o chrome-sandbox;
+# o AppImage cuida disso sozinho na primeira execução (desktop/linux.js).
 linux:
   target:
     - target: AppImage
       arch: [x64]
     - target: deb
       arch: [x64]
+    - target: rpm
+      arch: [x64]
+    - target: pacman
+      arch: [x64]
+    - target: tar.gz
+      arch: [x64]
   category: Network
+  executableName: vcall
   maintainer: Victor Kauan <victor.kufpi@gmail.com>
+  vendor: Vcall
+  synopsis: Chamadas de vídeo P2P criptografadas, com canvas colaborativo
+  description: >-
+    Salas de vídeo ponto a ponto criptografadas fim a fim, com compartilhamento
+    de tela e de janelas, canvas colaborativo, legendas offline e moderação.
   artifactName: Vcall-${version}-${arch}.${ext}
   icon: public/assets/icon-512.png
   desktop:
     MimeType: x-scheme-handler/vcall
+    StartupWMClass: Vcall
+    Keywords: video;call;chamada;reuniao;webrtc;
+
+# Dependências de sistema que os pacotes pedem ao gerenciador. O compartilhar
+# tela no Wayland usa o portal (xdg-desktop-portal) com PipeWire.
+deb:
+  depends: [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0]
+  recommends: [xdg-desktop-portal, pipewire]
+rpm:
+  depends: [gtk3, libnotify, nss, libXScrnSaver, libXtst, xdg-utils, at-spi2-core, libuuid]
+pacman:
+  depends: [gtk3, libnotify, nss, libxss, libxtst, xdg-utils, at-spi2-core, util-linux-libs]

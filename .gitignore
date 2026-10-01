@@ -21,3 +21,8 @@ node_modules/
 
 # Skill de terceiros clonada para inspecao, nao faz parte do projeto.
 .claude/skills/
+
+# Gerado por npm run vendor (grande demais para o git)
+public/vendor/whisper/
+scripts/.whisper-entry.mjs
+bench-fala.json

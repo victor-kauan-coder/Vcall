@@ -212,9 +212,24 @@ export class Peer extends Emitter {
     ]);
   }
 
+  /** O outro lado não está vendo (janela escondida): a câmera não é enviada. */
+  #camPausada = false;
+
+  async pausarCamera(pausar) {
+    if (this.#camPausada === !!pausar) return;
+    this.#camPausada = !!pausar;
+    await applyProfile(this.tx.cam?.sender, PROFILES.camera, { active: !this.#camPausada });
+    this.emit("cam-pausada", this.#camPausada);
+  }
+
+  get camPausada() {
+    return this.#camPausada;
+  }
+
   async #setTrack(role, track, profile) {
     const sender = this.tx[role]?.sender;
     if (!sender) return;
+    if (role === "cam" && this.#camPausada) profile = { ...profile, active: false };
     if (sender.track === (track || null)) {
       // Mesma trilha: ainda assim reaplica o perfil, porque contentHint e
       // parâmetros podem ter sido zerados por uma renegociação.
@@ -234,7 +249,7 @@ export class Peer extends Emitter {
   async retune(local = {}) {
     await Promise.all([
       applyProfile(this.tx.mic?.sender, PROFILES.mic),
-      applyProfile(this.tx.cam?.sender, PROFILES.camera),
+      applyProfile(this.tx.cam?.sender, PROFILES.camera, { active: !this.#camPausada }),
       applyProfile(this.tx.screen?.sender, local.screenProfile || PROFILES.screenText),
       applyProfile(this.tx.screenAudio?.sender, PROFILES.screenAudio),
     ]);
@@ -250,7 +265,7 @@ export class Peer extends Emitter {
   }
 
   async setCameraBudget({ maxBitrate, maxFramerate }) {
-    return applyProfile(this.tx.cam?.sender, PROFILES.camera, { maxBitrate, maxFramerate });
+    return applyProfile(this.tx.cam?.sender, PROFILES.camera, { maxBitrate, maxFramerate, active: !this.#camPausada });
   }
 
   /* ---------------------------------------------------------------- *
@@ -446,19 +461,39 @@ export class Peer extends Emitter {
 
     const publish = () => this.emit("media", { role, stream, track, live: !track.muted });
 
-    // `unmute` é o sinal de que quadros começaram a chegar de verdade. Ligar o
-    // <video> antes disso é o que produz aquele retângulo preto que nunca sai.
-    if (track.muted) track.addEventListener("unmute", publish, { once: true });
-    else publish();
+    if (transceiver) this.#midRole.set(String(transceiver.mid), role);
 
+    // A mesma trilha pode ser adotada de novo (mapa de papéis tardio,
+    // renegociação). Os ouvintes são ligados uma vez só por trilha.
+    if (this.#wired.has(track)) {
+      publish();
+      return;
+    }
+    this.#wired.add(track);
+
+    /*
+     * `unmute` é o sinal de que quadros começaram a chegar de verdade. Ligar o
+     * <video> antes disso é o que produz aquele retângulo preto que nunca sai.
+     *
+     * O ouvinte é PERMANENTE. A linha de tela é fixa (não se renegocia), então
+     * a mesma trilha recebida silencia quando a pessoa para de compartilhar e
+     * volta a ter quadros quando ela compartilha de novo. Com `{ once: true }`
+     * o segundo compartilhamento da chamada nunca aparecia do outro lado: o
+     * estado dizia "compartilhando", o vídeo chegava, e o ladrilho não nascia.
+     */
+    track.addEventListener("unmute", publish);
     track.addEventListener("mute", () => this.emit("media", { role, stream, track, live: false }));
     track.addEventListener("ended", () => {
       stream.removeTrack(track);
       this.emit("media", { role, stream: null, track: null, live: false });
     });
-
-    if (transceiver) this.#midRole.set(String(transceiver.mid), role);
+    // Publica já, mesmo muda: quem decide se o ladrilho aparece é o estado
+    // anunciado pela pessoa, e o ladrilho mostra "carregando" até o 1º quadro.
+    publish();
   }
+
+  /** Trilhas recebidas que já têm ouvintes ligados. */
+  #wired = new WeakSet();
 
   /* ---------------------------------------------------------------- *
    * Resiliência

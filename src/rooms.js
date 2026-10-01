@@ -35,17 +35,24 @@ function sameHash(a, b) {
 }
 
 export class Participant {
-  constructor(socket, { room, profile, state }) {
+  constructor(socket, { room, profile, state, session = "", device = "" }) {
     this.id = randomUUID().slice(0, 12);
     this.socket = socket;
     this.room = room;
     this.profile = profile;
     this.state = state;
     this.joinedAt = Date.now();
+    /** Segredos da aba e do aparelho. Nunca saem do servidor. */
+    this.session = session;
+    this.device = device;
     /**
      * O primeiro a entrar na sala é o anfitrião. Se ele sair, o papel passa
-     * para quem está há mais tempo. Isso é uma convenção de UI (quem pode
-     * limpar o quadro, por exemplo), não um controle de segurança.
+     * para quem está há mais tempo. Quem criou a sala e guardou a chave de
+     * anfitrião recupera o papel ao voltar (Room.claimHost).
+     *
+     * AGORA É CONTROLE DE SEGURANÇA: silenciar, remover e trancar só são
+     * aceitos de quem tem esta marca, e a conferência é feita aqui no
+     * servidor — um cliente modificado não consegue se promover.
      */
     this.host = false;
   }
@@ -82,6 +89,76 @@ export class Room {
     this.visibility = meta?.visibility === "public" ? "public" : "private";
     this.passHash = meta?.pass ? hashPass(id, meta.pass) : null;
     this.code = newCode();
+    /** Hash da chave de anfitrião de quem criou a sala. */
+    this.hostKeyHash = null;
+    /** Trancada pelo anfitrião: ninguém novo entra. */
+    this.closed = false;
+    /**
+     * Aparelhos removidos pelo anfitrião: aparelho -> { id, name, avatar, at }.
+     * O `id` é um apelido aleatório — o anfitrião nunca vê o identificador do
+     * aparelho, só o bastante para dizer "deixar voltar". Some junto com a sala.
+     */
+    this.banned = new Map();
+    /** Sala de espera: id -> { socket, msg, ctx, name, avatar, at }. */
+    this.waiting = new Map();
+  }
+
+  /** Grava a chave de quem cria a sala. Só o primeiro define. */
+  setHostKey(key) {
+    if (this.hostKeyHash || !key) return;
+    this.hostKeyHash = hashPass(this.id, `host:${key}`);
+  }
+
+  isHostKey(key) {
+    if (!this.hostKeyHash || !key) return false;
+    return sameHash(this.hostKeyHash, hashPass(this.id, `host:${key}`));
+  }
+
+  /** Passa o papel de anfitrião para `participant` (e tira de quem tinha). */
+  claimHost(participant) {
+    for (const p of this.members.values()) p.host = p === participant;
+  }
+
+  /** O participante desta mesma aba numa conexão anterior, se ainda estiver aqui. */
+  bySession(session) {
+    if (!session) return null;
+    for (const p of this.members.values()) if (p.session === session) return p;
+    return null;
+  }
+
+  /** Manda para todos os anfitriões presentes (normalmente um só). */
+  toHosts(payload) {
+    for (const p of this.members.values()) if (p.host) p.send(payload);
+  }
+
+  isBanned(device) {
+    return !!device && this.banned.has(device);
+  }
+
+  /** Remove o aparelho de `p` desta sala. */
+  ban(p) {
+    if (!p?.device) return null;
+    const entry = { id: randomUUID(), name: p.profile?.name || "", avatar: p.profile?.avatar || null, at: Date.now() };
+    this.banned.set(p.device, entry);
+    // Uma sala não precisa lembrar de centenas de removidos.
+    while (this.banned.size > 100) this.banned.delete(this.banned.keys().next().value);
+    return entry;
+  }
+
+  /** Deixa voltar quem foi removido. Devolve a entrada, ou null. */
+  unban(id) {
+    for (const [device, e] of this.banned) {
+      if (e.id === id) {
+        this.banned.delete(device);
+        return e;
+      }
+    }
+    return null;
+  }
+
+  /** O que o anfitrião vê: sem o identificador do aparelho. */
+  bannedList() {
+    return [...this.banned.values()].map((e) => ({ id: e.id, name: e.name, avatar: e.avatar, at: e.at }));
   }
 
   get locked() {
@@ -141,6 +218,7 @@ export class Room {
 
   remove(id) {
     const gone = this.members.get(id);
+    if (!gone) return null;
     this.members.delete(id);
     // Sucessão do anfitrião: o participante mais antigo assume.
     if (gone?.host && this.members.size) {
@@ -164,6 +242,10 @@ export class Room {
   }
 
   /** Envia para todos menos `exceptId`. Serializa uma vez só. */
+  has(id) {
+    return this.members.has(id);
+  }
+
   broadcast(payload, exceptId) {
     const data = JSON.stringify(payload);
     for (const p of this.members.values()) {
@@ -219,6 +301,16 @@ export class RoomRegistry {
   dropIfEmpty(id) {
     const r = this.rooms.get(id);
     if (r && !r.size) {
+      // Quem esperava na porta de uma sala que acabou é dispensado.
+      for (const w of r.waiting.values()) {
+        try {
+          w.socket.send(JSON.stringify({ t: "error", error: "room-locked" }));
+          w.socket.close(1008, "room-locked");
+        } catch {
+          /* já fechado */
+        }
+      }
+      r.waiting.clear();
       this.rooms.delete(id);
       this.codes.delete(r.code);
       return true;

@@ -13,7 +13,7 @@ import { clamp } from "../lib/util.js";
 const BACKOFF = [500, 1000, 2000, 4000, 8000, 15000];
 
 /** Recusas em que insistir não leva a lugar nenhum. */
-const FATAL = new Set(["room-full", "bad-room", "bad-password", "already-joined"]);
+const FATAL = new Set(["room-full", "bad-room", "bad-password", "already-joined", "kicked", "room-locked"]);
 
 /**
  * Sem pong nesse tempo, a conexão é considerada morta.
@@ -83,8 +83,8 @@ export class Signaling extends Emitter {
    * Entra na sala. Guarda o payload para reenviar automaticamente em cada
    * reconexão — do ponto de vista do chamador, `join` é feito uma vez só.
    */
-  join({ room, profile, state, meta = null, pass = "" }) {
-    this.#joinPayload = { t: "join", room, profile, state, meta, pass };
+  join({ room, profile, state, meta = null, pass = "", hostKey = "", session = "", device = "" }) {
+    this.#joinPayload = { t: "join", room, profile, state, meta, pass, hostKey, session, device };
     this.#closedByUs = false;
     this.#connect();
   }

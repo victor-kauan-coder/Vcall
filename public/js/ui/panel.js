@@ -16,6 +16,7 @@ import { abrirVisualizador, podeVisualizar } from "./lightbox.js";
 const TABS = [
   { id: "chat", icon: "message-square", label: "Conversa" },
   { id: "people", icon: "users", label: "Pessoas" },
+  { id: "transcript", icon: "captions", label: "Transcrição" },
   { id: "stats", icon: "activity", label: "Qualidade" },
 ];
 
@@ -24,8 +25,9 @@ export class Panel {
   tab = "chat";
   unread = 0;
 
-  constructor({ onSend, onClose, onChange, onFiles }) {
+  constructor({ onSend, onClose, onChange, onFiles, onPerson }) {
     this.onSend = onSend;
+    this.onPerson = onPerson || null;
     this.onClose = onClose || (() => {});
     this.onChange = onChange || (() => {});
     this.onFiles = onFiles || null;
@@ -42,6 +44,7 @@ export class Panel {
         type: "button",
         role: "tab",
         "aria-selected": String(this.tab === t.id),
+        dataset: { tip: t.label, "tip-placement": "bottom" },
         onClick: () => this.show(t.id),
       });
       b.append(icon(t.icon, { size: "sm" }), el("span", { text: t.label }));
@@ -151,16 +154,114 @@ export class Panel {
 
     this.chatFoot = el("div.panel__foot", {}, [composer]);
 
+    /* -- transcrição: o que foi dito, ao vivo, com busca -- */
+    this.transcriptItems = [];
+    this.transcriptList = el("div.panel__scroll.transcricao", { role: "log", "aria-live": "off" });
+    this.transcriptSearch = el("input.input.transcricao__busca", {
+      type: "search",
+      placeholder: "Buscar no que foi dito…",
+      "aria-label": "Buscar na transcrição",
+    });
+    this.transcriptSearch.addEventListener("input", () => this.#drawTranscript());
+    this.transcriptActions = el("div.transcricao__acoes");
+    this.transcriptHead = el("div.transcricao__topo", {}, [
+      el("div.transcricao__campo", {}, [icon("search", { size: "sm" }), this.transcriptSearch]),
+      this.transcriptActions,
+    ]);
+
     this.bodies = {
       chat: el("div.panel__body", {}, [this.chatList, this.chatFoot]),
       people: el("div.panel__body", {}, [this.peopleList]),
+      transcript: el("div.panel__body", {}, [this.transcriptHead, this.transcriptList]),
       stats: el("div.panel__body", {}, [this.statsList]),
     };
 
-    node.append(tabs, this.bodies.chat, this.bodies.people, this.bodies.stats);
+    node.append(tabs, this.bodies.chat, this.bodies.people, this.bodies.transcript, this.bodies.stats);
+    this.#drawTranscript();
     this.#emptyChat();
     this.show("chat", { silent: true });
     return node;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Transcrição
+   * ---------------------------------------------------------------- */
+
+  /** Botões do topo (copiar, baixar): quem sabe o que fazer é o app. */
+  setTranscriptActions(acoes) {
+    this.transcriptActions.replaceChildren(
+      ...acoes.map(({ iconName, label, onClick }) =>
+        el(
+          "button.btn.btn--icon.btn--ghost",
+          { type: "button", "aria-label": label, dataset: { tip: label, "tip-placement": "bottom" }, onClick },
+          [icon(iconName, { size: "sm" })],
+        ),
+      ),
+    );
+  }
+
+  addTranscript(item) {
+    this.transcriptItems.push(item);
+    if (this.transcriptItems.length > 5000) this.transcriptItems.splice(0, this.transcriptItems.length - 5000);
+    const busca = this.transcriptSearch.value.trim();
+    if (this.transcriptItems.length === 1 || busca) {
+      this.#drawTranscript();
+      return;
+    }
+    const perto = this.transcriptList.scrollHeight - this.transcriptList.scrollTop - this.transcriptList.clientHeight < 80;
+    this.#appendTranscript(item);
+    if (perto) this.transcriptList.scrollTop = this.transcriptList.scrollHeight;
+  }
+
+  #drawTranscript() {
+    const busca = this.transcriptSearch.value.trim().toLocaleLowerCase("pt-BR");
+    const itens = busca
+      ? this.transcriptItems.filter((t) => `${t.name} ${t.text}`.toLocaleLowerCase("pt-BR").includes(busca))
+      : this.transcriptItems;
+    this.transcriptList.replaceChildren();
+    if (!itens.length) {
+      this.transcriptList.append(
+        el("div.transcricao__vazio", {}, [
+          icon("captions", { size: "lg" }),
+          el("p", {
+            text: busca
+              ? "Nada encontrado com esse termo."
+              : "Quando alguém ligar a legenda (tecla T), o que for dito aparece aqui, com nome e horário.",
+          }),
+        ]),
+      );
+      return;
+    }
+    for (const t of itens) this.#appendTranscript(t, busca);
+    this.transcriptList.scrollTop = this.transcriptList.scrollHeight;
+  }
+
+  #appendTranscript(t, busca = "") {
+    this.transcriptList.querySelector(".transcricao__vazio")?.remove();
+    const texto = el("p.transcricao__texto");
+    if (busca) {
+      // Destaca o termo buscado sem montar HTML com o texto de ninguém.
+      const baixo = t.text.toLocaleLowerCase("pt-BR");
+      let i = 0;
+      for (;;) {
+        const j = baixo.indexOf(busca, i);
+        if (j === -1) break;
+        texto.append(document.createTextNode(t.text.slice(i, j)), el("mark", { text: t.text.slice(j, j + busca.length) }));
+        i = j + busca.length;
+      }
+      texto.append(document.createTextNode(t.text.slice(i)));
+    } else {
+      texto.textContent = t.text;
+    }
+    this.transcriptList.append(
+      el("div.transcricao__linha", {}, [
+        el("div.transcricao__quem", {}, [
+          el("strong", { text: t.name, style: t.color ? { color: t.color } : {} }),
+          el("time", { text: formatClock(t.at), dateTime: new Date(t.at).toISOString() }),
+        ]),
+        texto,
+      ]),
+    );
   }
 
   #send() {
@@ -186,7 +287,13 @@ export class Panel {
     return tab;
   }
 
+  /** Quem anima a mudança de tamanho do palco (ui/stage.js). */
+  animate = (fn) => fn();
+
   setOpen(open, tab = null) {
+    // Abrir ou fechar o painel muda a largura do palco: os ladrilhos
+    // deslizam para o lugar novo em vez de pular.
+    if (open !== this.open) this.animate(() => (this.node.hidden = !open));
     this.open = open;
     this.node.hidden = !open;
     if (open && tab) this.show(tab);
@@ -360,7 +467,7 @@ export class Panel {
    * miniatura. Mostrar o cartão desde o começo é o que dá a sensação de que
    * algo está acontecendo durante uma transferência longa.
    */
-  completeFile(id, url) {
+  completeFile(id, url, blob = null) {
     const alvo = $(`[data-file="${CSS.escape(String(id))}"]`, this.chatList);
     if (!alvo) return false;
     if (alvo.tagName === "A") alvo.href = url;
@@ -368,7 +475,10 @@ export class Panel {
     if (img) img.src = url;
     // O clique guarda o objeto do arquivo por closure; atualizar o endereço
     // dele aqui é o que faz o visualizador abrir a versão já completa.
-    if (alvo.__arquivo) alvo.__arquivo.url = url;
+    if (alvo.__arquivo) {
+      alvo.__arquivo.url = url;
+      if (blob) alvo.__arquivo.blob = blob;
+    }
     this.setFileProgress(id, 1);
     return true;
   }
@@ -394,9 +504,57 @@ export class Panel {
    * Pessoas
    * ---------------------------------------------------------------- */
 
-  renderPeople(roster) {
+  /**
+   * Lista de pessoas. Com `mod` (só para o anfitrião) cada pessoa ganha os
+   * botões de silenciar, desligar câmera e remover, e o topo ganha "silenciar
+   * todos" e "trancar a sala". A conferência de verdade é no servidor: estes
+   * botões são só o caminho até ela.
+   *
+   * @param {Array} roster
+   * @param {null|{closed:boolean, onMute:Function, onCamOff:Function, onKick:Function, onMuteAll:Function, onLock:Function}} mod
+   */
+  renderPeople(roster, mod = this.mod) {
+    this.mod = mod;
     clear(this.peopleList);
-    for (const p of roster) {
+
+    if (mod) {
+      const outros = roster.filter((p) => !p.self);
+      const trancar = el(
+        "button.btn.btn--ghost.people__acao",
+        {
+          type: "button",
+          "aria-pressed": String(!!mod.closed),
+          onClick: () => mod.onLock(!mod.closed),
+        },
+        [icon(mod.closed ? "lock" : "lock-open", { size: "sm" }), el("span", { text: mod.closed ? "Sala trancada" : "Trancar sala" })],
+      );
+      trancar.dataset.tip = mod.closed ? "Ninguém novo entra. Clique para destrancar." : "Impede que mais alguém entre";
+      const todos = el(
+        "button.btn.btn--ghost.people__acao",
+        { type: "button", disabled: !outros.some((p) => p.state?.mic), onClick: () => mod.onMuteAll() },
+        [icon("mic-off", { size: "sm" }), el("span", { text: "Silenciar todos" })],
+      );
+      this.peopleList.append(
+        el("div.people__host", {}, [
+          el("div.people__hostTitulo", {}, [icon("crown", { size: "sm" }), el("span", { text: "Você é o anfitrião" })]),
+          el("div.people__hostAcoes", {}, [todos, trancar]),
+        ]),
+      );
+    }
+
+    // Mãos levantadas primeiro, na ordem em que subiram (a fila da reunião).
+    const fila = roster
+      .filter((p) => p.state?.hand)
+      .sort((a, b) => (a.handAt || 0) - (b.handAt || 0))
+      .map((p) => p.id);
+    const ordenado = [...roster].sort((a, b) => {
+      const ia = fila.indexOf(a.id);
+      const ib = fila.indexOf(b.id);
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 1e9 : ia) - (ib === -1 ? 1e9 : ib);
+      return 0;
+    });
+
+    for (const p of ordenado) {
       const icons = el("div.person__icons");
       icons.append(
         icon(p.state?.mic ? "mic" : "mic-off", {
@@ -411,24 +569,102 @@ export class Panel {
         }),
       );
       if (p.state?.screen) icons.append(icon("screen-share", { size: "sm", label: "Compartilhando a tela" }));
-      if (p.state?.hand) icons.append(icon("hand", { size: "sm", label: "Mão levantada" }));
+      if (p.state?.hand) {
+        const pos = fila.indexOf(p.id) + 1;
+        icons.append(
+          el("span.person__mao", { title: `Mão levantada — ${pos}º da fila` }, [
+            icon("hand", { size: "sm", label: "Mão levantada" }),
+            el("b", { text: `${pos}º` }),
+          ]),
+        );
+      }
 
       const sub = [];
       if (p.self) sub.push("Você");
       if (p.host) sub.push("Anfitrião");
       if (!p.self && p.connection !== "connected") sub.push("conectando…");
       else if (!p.self) sub.push(QUALITY_LABEL[p.quality] || "");
+      // Tempo de fala: quem já falou quanto (só a partir de meio minuto).
+      if (p.falaMs >= 30_000) sub.push(`falou ${formatarFala(p.falaMs)}`);
 
-      this.peopleList.append(
-        el("div.person", {}, [
-          avatarEl(p.avatar, { title: p.name }),
-          el("div", {}, [
-            el("div.person__name", { text: p.name || "Convidado" }),
-            el("div.person__sub", { text: sub.filter(Boolean).join(" · ") }),
-          ]),
-          icons,
+      const nome = p.name || "Convidado";
+      const conteudo = [
+        avatarEl(p.avatar, { title: nome }),
+        el("div.person__texto", {}, [
+          el("div.person__name", {}, [
+            el("span.truncate", { text: nome }),
+            p.host ? icon("crown", { size: "sm", label: "Anfitrião", className: "person__coroa" }) : null,
+          ].filter(Boolean)),
+          el("div.person__sub", { text: sub.filter(Boolean).join(" · ") }),
         ]),
-      );
+      ];
+
+      const principal = this.onPerson
+        ? el(
+            "button.person__main",
+            {
+              type: "button",
+              "aria-label": p.self ? "Editar o seu perfil" : `Destacar ${nome}`,
+              dataset: { tip: p.self ? "Editar perfil" : "Ver em destaque", "tip-placement": "left" },
+              onClick: () => this.onPerson(p),
+            },
+            conteudo,
+          )
+        : el("div.person__main", {}, conteudo);
+
+      const linha = el("div.person", { dataset: { id: p.id } }, [principal, icons]);
+
+      if (mod && !p.self) {
+        const acao = (nomeIcone, rotulo, fn, { perigo = false, desligado = false } = {}) =>
+          el(
+            `button.person__acao${perigo ? ".person__acao--perigo" : ""}`,
+            {
+              type: "button",
+              disabled: desligado,
+              "aria-label": `${rotulo}: ${nome}`,
+              dataset: { tip: rotulo, "tip-placement": "top" },
+              onClick: () => fn(p),
+            },
+            [icon(nomeIcone, { size: "sm" })],
+          );
+        linha.append(
+          el("div.person__acoes", {}, [
+            p.state?.hand ? acao("hand", "Baixar a mão", mod.onLowerHand) : null,
+            acao("mic-off", "Silenciar", mod.onMute, { desligado: !p.state?.mic }),
+            acao("video-off", "Desligar câmera", mod.onCamOff, { desligado: !p.state?.cam }),
+            acao("user-x", "Remover da sala", mod.onKick, { perigo: true }),
+          ].filter(Boolean)),
+        );
+      }
+      this.peopleList.append(linha);
+    }
+
+    // Quem o anfitrião removeu: dá para deixar voltar (engano, ou a pessoa
+    // pediu desculpas). Ela entra de novo pelo mesmo link.
+    if (mod?.banned?.length) {
+      const bloco = el("div.people__removidos", {}, [
+        el("div.people__secao", { text: `Removidos da sala · ${mod.banned.length}` }),
+      ]);
+      for (const b of mod.banned) {
+        const nome = b.name || "Convidado";
+        bloco.append(
+          el("div.person.person--removido", { dataset: { banned: b.id } }, [
+            el("div.person__main", {}, [
+              avatarEl(b.avatar, { title: nome }),
+              el("div.person__texto", {}, [
+                el("div.person__name", {}, [el("span.truncate", { text: nome })]),
+                el("div.person__sub", { text: "não consegue entrar enquanto estiver removido" }),
+              ]),
+            ]),
+            el(
+              "button.btn.btn--ghost.people__readmitir",
+              { type: "button", "aria-label": `Deixar ${nome} voltar`, onClick: () => mod.onUnban(b) },
+              [icon("user-check", { size: "sm" }), el("span", { text: "Deixar voltar" })],
+            ),
+          ]),
+        );
+      }
+      this.peopleList.append(bloco);
     }
   }
 
@@ -565,4 +801,12 @@ function sparkline(values) {
 
   svg.append(area, line);
   return svg;
+}
+
+/** "2 min", "1 h 05 min" — o suficiente para comparar quem falou mais. */
+export function formatarFala(ms) {
+  const min = Math.round(ms / 60_000);
+  if (min < 1) return "menos de 1 min";
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
 }

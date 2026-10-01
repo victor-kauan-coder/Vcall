@@ -310,6 +310,9 @@ a {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
+  /* Um selo é um rótulo: "Compartilhando tela" em duas linhas vira um
+     borrão e deixa os cartões vizinhos com alturas diferentes. */
+  white-space: nowrap;
   padding: 2px var(--sp-2);
   border-radius: var(--radius-full);
   font-size: var(--text-2xs);

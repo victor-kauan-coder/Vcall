@@ -92,10 +92,25 @@
 .dash__hero {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  /*
+   * A LINHA PRECISA PODER ENCOLHER.
+   *
+   * `max-height: 100%` limitava a grade, mas não a linha dentro dela: uma
+   * linha automática é dimensionada pelo conteúdo e não cede. Com três salas
+   * na lista a coluna da esquerda pedia 829 px dentro de uma grade de 764, e
+   * o excedente saía por baixo — onde `.dash` corta. `minmax(0, 1fr)` é o
+   * que autoriza a linha a ficar menor que o conteúdo, e é daí que a lista
+   * ganha um fim onde rolar.
+   */
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
   gap: clamp(var(--sp-8), 5vw, var(--sp-16));
   width: 100%;
   max-height: 100%;
+  min-height: 0;
+}
+.dash__hero > * {
+  min-height: 0;
 }
 
 .dash__intro {
@@ -104,6 +119,7 @@
   align-items: flex-start;
   gap: clamp(var(--sp-3), 2.4vh, var(--sp-5));
   min-width: 0;
+  min-height: 0;
 }
 
 
@@ -253,6 +269,8 @@
   flex-direction: column;
   gap: var(--sp-2);
   width: min(100%, 560px);
+  /* Sem isto o bloco cresce com a lista e empurra o conteúdo para fora. */
+  min-height: 0;
   margin-top: clamp(var(--sp-2), 2vh, var(--sp-4));
   padding-top: clamp(var(--sp-3), 2vh, var(--sp-4));
   border-top: 1px solid var(--border-subtle);
@@ -286,10 +304,37 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * A LISTA ROLA; A TELA NÃO.
+ *
+ * A recepção é uma tela só, sem rolagem — é a intenção do desenho e ela
+ * continua valendo. Mas `.dash` corta o que passa da janela, e com três
+ * salas públicas o terceiro cartão era desenhado em 929 px numa tela de 900:
+ * existia no documento, aparecia pela metade e não dava para alcançar nem
+ * rolando. Uma sala pública que ninguém consegue entrar.
+ *
+ * A rolagem fica aqui, no único bloco que cresce com o conteúdo, e a tela
+ * continua inteira. `min-height: 0` é o que permite a um filho de flex
+ * encolher abaixo do próprio conteúdo — sem ele o `overflow` não vale nada.
+ */
 .dash__list {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Espaço para a sombra do cartão não ser cortada pela borda da rolagem. */
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.dash__list::-webkit-scrollbar {
+  width: 6px;
+}
+.dash__list::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
 }
 
 .dash__list:empty {
@@ -328,14 +373,29 @@
   min-width: 0;
 }
 
+/*
+ * O nome da sala com reticências.
+ *
+ * As três propriedades já estavam aqui, mas num contêiner flex elas não
+ * alcançam o filho: quem precisa encolher e cortar é o <span> de dentro.
+ * "Revisão de arquitetura do serviço de pagamentos" sumia no meio da
+ * palavra, sem sinal de que havia mais texto.
+ */
 .dashRoom__name {
   display: flex;
   align-items: center;
   gap: var(--sp-1);
+  min-width: 0;
   font-weight: 600;
-  white-space: nowrap;
+}
+.dashRoom__name > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashRoom__name > .icon {
+  flex: none;
 }
 
 .dashRoom__meta {
@@ -426,12 +486,33 @@
 }
 
 /* Janela estreita ou baixa demais para caber: aí sim a recepção rola. */
-@media (max-width: 960px), (max-height: 600px) {
+/*
+ * A saída de emergência da tela única.
+ *
+ * A recepção cabe numa janela só — é a intenção do desenho, e ela vale
+ * enquanto houver altura. O limite estava em 600 px, baixo demais: um
+ * notebook de 1366x768 entrega cerca de 680 px de janela, ficava de fora
+ * desta regra e aí `overflow: hidden` comia as duas pontas — o título
+ * cortado em cima, a terceira sala cortada embaixo, e nenhuma das duas
+ * alcançável porque não havia rolagem.
+ *
+ * 860 px é a altura que o conteúdo pede com a lista cheia (o bloco da
+ * esquerda mede cerca de 830, mais a faixa de cima e o respiro). Abaixo
+ * disso a página rola, que é o comportamento que o próprio comentário de
+ * `.dash` sempre prometeu.
+ */
+@media (max-width: 960px), (max-height: 860px) {
   .dash {
     overflow-y: auto;
   }
   .dash__main {
     align-items: flex-start;
+  }
+  /* Rolando, a linha volta a ser do tamanho do conteúdo: encolher aqui
+     esconderia justamente o que a rolagem existe para alcançar. */
+  .dash__hero {
+    grid-template-rows: auto;
+    max-height: none;
   }
 }
 

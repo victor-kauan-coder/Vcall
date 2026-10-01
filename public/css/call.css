@@ -194,6 +194,7 @@ textarea {
   display: none;
 }
 
+/* Sozinho na sala: o convite de um lado, o seu vídeo do outro. */
 .stage--alone .stage__main {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
@@ -205,6 +206,32 @@ textarea {
   align-self: center;
   aspect-ratio: 16 / 10;
   max-height: 100%;
+}
+
+/*
+ * O QUADRO DESFAZ O LAYOUT DE SALA VAZIA.
+ *
+ * A grade de duas colunas acima mede os filhos pelo conteúdo, e o quadro
+ * branco mora dentro do destaque posicionado em absoluto — sem altura para
+ * medir. O destaque colapsava para zero, o canvas nascia com 2 px e o quadro
+ * não funcionava para quem abrisse antes de alguém entrar.
+ *
+ * Esta regra tem a MESMA especificidade da de cima e vem depois, de
+ * propósito: a primeira tentativa foi um `:not(.stage--board)` lá em cima,
+ * que subiu a especificidade e passou a vencer a regra de celular — o palco
+ * ficou em duas colunas num telefone de 375 px e os botões de convite saíram
+ * pela borda. Ganhar por ordem, e não por peso, deixa as duas convivendo.
+ */
+.stage--board .stage__main {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  align-items: stretch;
+  padding-inline: var(--sp-3);
+}
+/* Com o quadro aberto, o convite sai da frente: ele volta ao fechar. */
+.stage--board .waiting {
+  display: none;
 }
 
 .waiting__signal {
@@ -302,19 +329,27 @@ textarea {
   max-height: 70vh;
   padding: 14%;
   border-radius: 32px;
+  /*
+   * O cartão seguia dois roxos cravados (#1c1455 e #110c3a) da identidade
+   * antiga: ficava um retângulo arroxeado no meio de uma tela de tinta fria,
+   * e não mudava com a paleta escolhida. Agora as duas manchas são os acentos
+   * da marca e a base são as superfícies do tema.
+   */
   background:
-    radial-gradient(55% 55% at 8% 4%, rgba(253, 77, 135, 0.55), transparent 70%),
-    radial-gradient(55% 55% at 96% 100%, rgba(254, 156, 95, 0.5), transparent 70%),
-    radial-gradient(rgba(255, 255, 255, 0.09) 1.2px, transparent 1.6px) 0 0 / 18px 18px,
-    linear-gradient(160deg, #1c1455 0%, #110c3a 100%);
-  box-shadow: 0 40px 80px -40px rgba(17, 12, 58, 0.6);
+    radial-gradient(55% 55% at 8% 4%, color-mix(in srgb, var(--accent) 48%, transparent), transparent 70%),
+    radial-gradient(55% 55% at 96% 100%, color-mix(in srgb, var(--accent-2) 42%, transparent), transparent 70%),
+    radial-gradient(rgba(255, 255, 255, 0.07) 1.2px, transparent 1.6px) 0 0 / 18px 18px,
+    linear-gradient(160deg, var(--surface-2) 0%, var(--bg-elevated) 100%);
+  box-shadow: var(--shadow-lg);
 }
-.leave__art img {
+/*
+ * `img` não alcança mais nada: a ilustração agora é um <svg> embutido dentro
+ * de `.ilu`, para acompanhar o tema. O fundo claro sai junto — quem define o
+ * painel do desenho são os tokens --ilu-*.
+ */
+.leave__art .ilu {
   width: 100%;
-  height: auto;
-  padding: 10% 8%;
-  border-radius: 24px;
-  background: #fdf5f9;
+  padding: 8% 6%;
 }
 .leave__body {
   display: flex;

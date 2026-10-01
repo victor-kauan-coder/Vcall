@@ -29,6 +29,7 @@ import { attachSignaling } from "../src/signaling.js";
 import { RoomRegistry } from "../src/rooms.js";
 import { hostControl } from "./guard.js";
 import { Tunnel } from "./tunnel.js";
+import { conferir } from "./atualizacao.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
 import { descreverFontes, montarResposta, sessaoWayland } from "./captura.js";
 import { executavelParaRegistrar, precisaSemSandbox } from "./linux.js";
@@ -128,6 +129,14 @@ async function subirServidor() {
     },
     acoes: {
       status: async () => ({ estado: tunnel?.state || "parado", url: tunnel?.url || null, porta }),
+
+      /*
+       * Verificação de versão. Estava só no caminho antigo (SEA), então no
+       * aplicativo de verdade a rota devolvia 404 e o bloco "Atualizações"
+       * das configurações nunca respondia.
+       */
+      atualizacao: async (url) => conferir({ forcar: url.searchParams.get("forcar") === "1" }),
+
       "tunnel/abrir": async () => {
         if (tunnel?.url) return { estado: "pronto", url: tunnel.url };
         tunnel = tunnel || new Tunnel(porta);

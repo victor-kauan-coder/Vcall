@@ -31,7 +31,10 @@
   .dock [data-id="screen"],
   .dock [data-id="board"],
   .dock [data-id="captions"],
-  .dock [data-id="record"] {
+  .dock [data-id="record"],
+  /* `mini` (janela flutuante) nasceu depois desta lista e voltou a apertar a
+     barra para seis botões. Janela flutuante não existe em celular. */
+  .dock [data-id="mini"] {
     display: none;
   }
 
@@ -570,5 +573,44 @@
   }
   .tile:active {
     transform: none;
+  }
+}
+
+
+/* ================================================================== *
+ * Convite de sala vazia
+ *
+ * "Copiar link da sala" e "Mais formas de convidar" lado a lado pedem mais
+ * de 375 px e escapavam pela direita — o segundo ficava cortado na borda,
+ * que é justamente o botão de quem não sabe o que fazer em seguida.
+ * ================================================================== */
+
+@media (max-width: 820px) {
+  /*
+   * Sozinho na sala, o palco vira duas colunas — convite de um lado, seu
+   * vídeo do outro. Em 375 px isso dá uma coluna de 170 px, e os dois botões
+   * de convite saíam pela direita, cortados justamente para quem ainda não
+   * sabe o que fazer. No celular as duas partes ficam uma sobre a outra.
+   */
+  .stage--alone .stage__main {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--sp-5);
+    padding-inline: var(--sp-4);
+  }
+  .stage--alone .grid {
+    aspect-ratio: 16 / 10;
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .waiting__actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .waiting__actions > .btn {
+    flex: 1 1 100%;
+    justify-content: center;
   }
 }

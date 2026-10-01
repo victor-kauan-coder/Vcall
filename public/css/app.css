@@ -3107,6 +3107,12 @@ body.is-recording .topbar::after {
   font-size: 0.82rem;
   pointer-events: none;
   z-index: 1;
+  /* Num ladrilho estreito — o balão do modo a dois tem 180 px — o texto
+     escapava para fora e aparecia cortado ao lado do vídeo. */
+  padding-inline: var(--sp-3);
+  text-align: center;
+  text-wrap: balance;
+  overflow: hidden;
 }
 .tile.is-waiting .tile__espera {
   display: flex;

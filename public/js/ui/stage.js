@@ -174,15 +174,35 @@ class Tile {
       // mostrar um retângulo preto que parece defeito.
       if (this.video.readyState < 2) {
         this.node.classList.add("is-waiting");
-        const pronto = () => this.node.classList.remove("is-waiting");
-        this.video.addEventListener("loadeddata", pronto, { once: true });
-        this.video.addEventListener("resize", pronto, { once: true });
+        this.#esperarPrimeiroQuadro();
       }
     }
     this.video.hidden = false;
     this.avatarBox.hidden = true;
     // Autoplay pode ser recusado; o catch evita uma promessa rejeitada solta.
     this.video.play?.().catch(() => {});
+  }
+
+  /**
+   * Tira o "Carregando o vídeo…" quando o vídeo realmente começa.
+   *
+   * Antes isso dependia de `loadeddata` e `resize` com `{ once: true }`. Dois
+   * jeitos de o aviso ficar presto por cima de um vídeo que já está tocando:
+   * o palco REMONTA o ladrilho no DOM a cada reorganização (grade, destaque,
+   * balão), e mover um <video> pode engolir o evento que já estava a caminho;
+   * e `once` queima o ouvinte na primeira vez, mesmo que o quadro não tenha
+   * vindo. Aqui a condição é verificada, não o evento: vale `readyState` ou
+   * `videoWidth`, e só então os ouvintes saem.
+   */
+  #esperarPrimeiroQuadro() {
+    const eventos = ["loadeddata", "loadedmetadata", "canplay", "playing", "resize", "timeupdate"];
+    const conferir = () => {
+      if (this.video.readyState < 2 && !this.video.videoWidth) return;
+      this.node.classList.remove("is-waiting");
+      for (const ev of eventos) this.video.removeEventListener(ev, conferir);
+    };
+    for (const ev of eventos) this.video.addEventListener(ev, conferir);
+    conferir();
   }
 
   setCamera(stream) {
@@ -640,6 +660,16 @@ export class Stage {
 
     this.root.classList.toggle("stage--spotlight", isSpotlight);
     this.root.classList.toggle("stage--duo", !!duo);
+    /*
+     * O quadro precisa ser anunciado no palco, não só guardado aqui.
+     *
+     * Sozinho na sala, `.stage--alone` vira o palco numa grade de duas
+     * colunas com `align-items: center`. O quadro mora dentro do destaque e é
+     * posicionado em absoluto — ou seja, não tem altura própria para a grade
+     * medir. O destaque colapsava para zero e o canvas nascia com 2 px de
+     * altura: a barra de ferramentas aparecia e não dava para desenhar nada.
+     */
+    this.root.classList.toggle("stage--board", !!this.boardActive);
     this.spotlight.hidden = !isSpotlight;
     this.floater.hidden = !duo;
     if (duo && duo.eu.node.parentElement !== this.floater) this.floater.append(duo.eu.node);

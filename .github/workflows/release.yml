@@ -37,6 +37,11 @@ jobs:
       - run: npm ci --include=dev
       - name: Motor das legendas (Whisper) para dentro do app
         run: npm run vendor
+      - name: cloudflared (vai junto do executável para o link público)
+        run: |
+          mkdir -p .cache-cloudflared
+          curl -fsSL -o .cache-cloudflared/linux-cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x .cache-cloudflared/linux-cloudflared
       - name: AppImage, .deb, .rpm, pacman e .tar.gz
         run: npx electron-builder --config electron-builder.yml --linux --publish never
       - uses: actions/upload-artifact@v4

@@ -195,10 +195,22 @@ const origemPermitida = (url) => {
 };
 
 /** Cores da barra de título seguindo o tema da página. */
+/*
+ * Os botões de janela sobre a página.
+ *
+ * `titleBarStyle: "hidden"` tira a barra de título inteira e deixa só os três
+ * botões flutuando no canto — é o que o modo `--app=` do Chromium não
+ * consegue fazer, e o motivo de o executável ter migrado para cá.
+ *
+ * Fundo transparente de propósito: quem pinta aquela faixa é a própria
+ * página, então ela acompanha o tema e a paleta sem o Electron saber de nada.
+ * Só o símbolo (o traço do minimizar, o X) precisa de cor, e ela segue os
+ * neutros de texto da paleta Tinta.
+ */
 function coresDaBarra(escuro) {
   return escuro
-    ? { color: "#00000000", symbolColor: "#c4bce9", height: 40 }
-    : { color: "#00000000", symbolColor: "#453c72", height: 40 };
+    ? { color: "#00000000", symbolColor: "#a8b1c2", height: 40 }
+    : { color: "#00000000", symbolColor: "#3c4654", height: 40 };
 }
 
 function criarJanela() {

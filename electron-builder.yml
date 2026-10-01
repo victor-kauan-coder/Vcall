@@ -98,6 +98,12 @@ linux:
       arch: [x64]
   category: Network
   executableName: vcall
+  # Mesma promessa do Windows: o cloudflared viaja junto, e o link público
+  # funciona sem baixar nada na hora. desktop/tunnel.js procura ao lado do
+  # executável antes de pensar em rede.
+  extraFiles:
+    - from: .cache-cloudflared/linux-cloudflared
+      to: cloudflared
   maintainer: Victor Kauan <victor.kufpi@gmail.com>
   vendor: Vcall
   synopsis: Chamadas de vídeo P2P criptografadas, com canvas colaborativo

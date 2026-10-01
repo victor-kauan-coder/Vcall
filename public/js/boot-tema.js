@@ -20,3 +20,33 @@ try {
 } catch {
   document.documentElement.setAttribute("data-paleta", "tinta");
 }
+
+/*
+ * A janela sem barra de título.
+ *
+ * Dois ambientes ligam a sobreposição de controles por caminhos diferentes, e
+ * só um deles anuncia o `display-mode`:
+ *
+ *   - PWA instalado: `(display-mode: window-controls-overlay)` casa.
+ *   - Electron (`titleBarStyle: "hidden"`): a API liga e `env(titlebar-area-*)`
+ *     funciona, mas o display-mode continua sendo outro. Medido, não suposto.
+ *
+ * Então quem decide é o JavaScript, e o CSS pende de um atributo só. Sem isto
+ * as regras da faixa arrastável nunca valeriam no aplicativo de mesa — que é
+ * justamente onde a barra de título precisava sumir.
+ */
+try {
+  const raiz = document.documentElement;
+  const marcar = () => {
+    const ligada =
+      Boolean(navigator.windowControlsOverlay?.visible) ||
+      matchMedia("(display-mode: window-controls-overlay)").matches;
+    raiz.toggleAttribute("data-sem-barra", ligada);
+  };
+  marcar();
+  // A sobreposição some ao entrar em tela cheia e volta ao sair.
+  navigator.windowControlsOverlay?.addEventListener?.("geometrychange", marcar);
+  matchMedia("(display-mode: window-controls-overlay)").addEventListener?.("change", marcar);
+} catch {
+  /* navegador comum: a barra do navegador fica, que é o esperado */
+}

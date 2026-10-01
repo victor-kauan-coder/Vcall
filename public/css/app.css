@@ -3280,58 +3280,55 @@ body.is-recording .topbar::after {
  * botão de convidar move a janela em vez de abrir o diálogo.
  * ==================================================================== */
 
-@media (display-mode: window-controls-overlay) {
-  .topbar {
-    padding-top: max(var(--sp-2), env(titlebar-area-height, 0px));
-    -webkit-app-region: drag;
-    app-region: drag;
-  }
-  .topbar button,
-  .topbar a,
-  .topbar input {
-    -webkit-app-region: no-drag;
-    app-region: no-drag;
-  }
+:root[data-sem-barra] .topbar {
+  padding-top: max(var(--sp-2), env(titlebar-area-height, 0px));
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+:root[data-sem-barra] .topbar button,
+:root[data-sem-barra] .topbar a,
+:root[data-sem-barra] .topbar input {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
 
-  /*
-   * A antessala não tem faixa própria: ganha uma tira invisível do tamanho
-   * que o navegador reservou, só para haver onde pegar a janela.
-   */
-  .lobby {
-    padding-top: env(titlebar-area-height, 0px);
-  }
-  .lobby::after {
-    content: "";
-    position: fixed;
-    top: env(titlebar-area-y, 0);
-    left: env(titlebar-area-x, 0);
-    width: env(titlebar-area-width, 100%);
-    height: env(titlebar-area-height, 0);
-    z-index: 9;
-    -webkit-app-region: drag;
-    app-region: drag;
-  }
+/*
+ * A antessala não tem faixa própria: ganha uma tira invisível do tamanho que
+ * o sistema reservou, só para haver onde pegar a janela.
+ */
+:root[data-sem-barra] .lobby {
+  padding-top: env(titlebar-area-height, 0px);
+}
+:root[data-sem-barra] .lobby::after {
+  content: "";
+  position: fixed;
+  top: env(titlebar-area-y, 0);
+  left: env(titlebar-area-x, 0);
+  width: env(titlebar-area-width, 100%);
+  height: env(titlebar-area-height, 0);
+  z-index: 9;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
 
-  /* A faixa da recepção também vira barra de título. */
-  .dash__head {
-    position: fixed;
-    top: env(titlebar-area-y, 0);
-    left: env(titlebar-area-x, 0);
-    width: env(titlebar-area-width, 100%);
-    height: env(titlebar-area-height, auto);
-    z-index: 10;
-    -webkit-app-region: drag;
-    app-region: drag;
-    background: var(--bg);
-  }
-  .dash__head button,
-  .dash__head a {
-    -webkit-app-region: no-drag;
-    app-region: no-drag;
-  }
-  .dash {
-    padding-top: env(titlebar-area-height, 0);
-  }
+/*
+ * A faixa da recepção VIRA a barra de título.
+ *
+ * Ela já fica no topo e já tem a altura certa; não precisa ser arrancada do
+ * fluxo. Só ganha o respiro que os botões de janela pedem e passa a ser
+ * arrastável — e os botões dela ficam de fora do arrasto, senão clicar em
+ * "Configurações" moveria a janela em vez de abrir o diálogo.
+ */
+:root[data-sem-barra] .dash__head {
+  padding-top: max(var(--sp-3), env(titlebar-area-y, 0px));
+  min-height: env(titlebar-area-height, auto);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+:root[data-sem-barra] .dash__head button,
+:root[data-sem-barra] .dash__head a {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 

@@ -17,18 +17,36 @@ só para Windows e Linux.
 
 Duas formas de rodar, e a diferença explica metade do código:
 
-| | Servidor web | Executável |
+| | Servidor web | Aplicativo |
 |---|---|---|
-| Entrada | `server.js` | `desktop/launcher.js` |
-| Quem abre a janela | o usuário, no navegador dele | o programa, num Chromium com perfil próprio |
+| Entrada | `server.js` | `desktop/main.js` (Electron) |
+| Quem abre a janela | o usuário, no navegador dele | o próprio app, janela sem barra de título |
 | Link público | você configura | túnel Cloudflare sob demanda |
-| Permissões de câmera | o navegador pergunta | já liberadas no perfil, antes de abrir |
+| Permissões de câmera | o navegador pergunta | concedidas pelo processo principal |
 
-`desktop/main.js` é uma **terceira** variante, em Electron, que **não é a que
-se distribui**. Ela existe e funciona, mas o `build:exe` não a usa. Se você
-mexer em comportamento de janela, confira se mexeu no arquivo certo —
-já aconteceu de uma correção ir só para o Electron e o executável continuar
-quebrado (foi o caso da opção de PipeWire no Linux).
+**O aplicativo é Electron.** Até a 3.5.1 ele era um Node SEA que abria o
+Chromium do sistema em modo `--app=`. Duas coisas mataram esse caminho:
+
+1. **A barra de título não saía.** Em `--app=` a janela roda como
+   `standalone` e a sobreposição de controles (`window-controls-overlay`)
+   nunca liga — medido com o CDP, não suposto: `{"visivel": false, "modo":
+   false, "standalone": true}`. Forçar com `--enable-features` não muda.
+   No Electron, `titleBarStyle: "hidden"` resolve numa linha.
+2. **Dependia de o usuário ter Chromium.** Era metade da dor no Linux.
+
+O que sobrou do caminho antigo: `scripts/build-exe.mjs`,
+`scripts/build-installer.mjs`, `desktop/launcher.js`, `desktop/navegador.js`,
+`desktop/perfil.js`, `desktop/setup.js`. **Não são mais distribuídos.**
+Mantidos por enquanto porque `navegador.js` e `perfil.js` guardam o que foi
+aprendido sobre Snap e Wayland; apague quando tiver certeza de que não volta.
+
+### A sobreposição de controles tem DOIS gatilhos
+
+O Electron liga a API (`navigator.windowControlsOverlay.visible === true` e
+`env(titlebar-area-*)` funcionam) mas **não** reporta
+`display-mode: window-controls-overlay`. Um PWA instalado faz o contrário.
+Por isso quem decide é `public/js/boot-tema.js`, que põe `data-sem-barra` no
+`<html>`, e o CSS pende desse atributo — nunca de uma media query sozinha.
 
 ---
 
@@ -145,19 +163,26 @@ feita.
 ## 6. Build
 
 ```bash
-npm run check          # os três testes + verificação de sintaxe
-npm run build:exe      # dist-exe/Vcall.exe
-npm run build:setup    # dist-setup/VcallSetup.exe (instalador, nada baixado de fora)
+npm run check                  # os testes + verificação estática
+npx electron-builder --win     # dist/VcallSetup-<versão>.exe
+npx electron-builder --linux   # AppImage, deb, rpm, pacman, tar.gz
 ```
 
-**Armadilha:** `build:setup` empacota o `dist-exe/Vcall.exe` que estiver lá.
-Esquecer de rodar `build:exe` antes gera um instalador com o executável velho
-dentro. Já aconteceu.
+**Mas o caminho normal é a tag.** `.github/workflows/release.yml` constrói
+Windows e Linux em runners de verdade e publica a Release:
 
-**Armadilha 2:** o executável instalado não se atualiza sozinho ao você
-recompilar. Feche o `Vcall.exe`, rode o instalador, reabra.
+```bash
+git tag v3.6.0 && git push origin v3.6.0
+```
 
----
+**Armadilha:** no Windows o AppImage falha com "A required privilege is not
+held by the client" — ele precisa de link simbólico, e o Windows só permite
+com modo desenvolvedor. Localmente dá para gerar `tar.gz`; o resto sai no CI.
+
+**Armadilha 2:** `extraFiles` do electron-builder aponta para
+`.cache-cloudflared/`, que é ignorado pelo git. O workflow baixa o binário
+antes de empacotar, um passo por sistema. Se adicionar uma plataforma, some
+o passo de download junto — senão o build quebra só lá.
 
 ## 7. Testes
 

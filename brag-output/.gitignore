@@ -15,3 +15,4 @@ composition/assets/music/*.mp3
 # Capturas intermediárias: as que o vídeo usa estão em composition/assets/shots/.
 work/shots/
 work/crops/
+work/escuro/

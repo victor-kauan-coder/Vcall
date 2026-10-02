@@ -8,7 +8,7 @@ telas do produto e deixando claro que usar é fácil.
 - Diretório da composição: `brag-output/composition/`
 - Vídeo: `brag-output/brag.mp4`
 - Formato: landscape — 1920×1080, 30 fps
-- Duração: 24,0 s
+- Duração: 52,8 s (16 cenas)
 
 ## Source Material
 - Raiz do projeto: `/home/user/Vcall`
@@ -30,11 +30,20 @@ telas do produto e deixando claro que usar é fácil.
   - "Enviar pelo WhatsApp" (captura)
 
 ## Creative Direction
-- Preset: `chaotic`
-- Direção: anúncio brasileiro rápido e colorido, sem perder o capricho da marca
-- Interpretação: do preset fica o ritmo (9 cenas, cortes de 0,55–3,3 s,
-  entradas no beat); da marca fica a elegância — nada de CAIXA ALTA gritada nem
-  de estroboscopia. Energia por movimento e corte, não por barulho.
+- Preset: `chaotic` só nas entradas; a direção é **anúncio brasileiro colorido
+  que respira**
+- Interpretação: 16 cenas em 52,8 s, nenhuma abaixo de 3,1 s, nenhum corte
+  interno abaixo de 1,2 s. A primeira versão tinha 24 s e cortes de 0,55 s —
+  informação demais ao mesmo tempo. Energia vem do movimento e da música, não
+  da velocidade do corte.
+- **Tema escuro em tudo**, como o produto roda; as capturas foram refeitas com
+  `vcall:theme = "dark"`.
+- **Para que serve, mostrado e não afirmado**: as salas existem com os nomes
+  `Reunião de equipe · Q3`, `Grupo de estudos · Cálculo II` e
+  `Aula de violão · iniciantes`, são públicas, e a tela inicial as lista em
+  "Ao vivo agora". O quadro branco acontece dentro do grupo de estudos.
+- **O seletor de cor é uma cena**: as cinco paletas do produto no painel de
+  ajustes, e a mesma chamada trocando de cor de verdade.
 - Ângulo: o Vcall vende o mecanismo. A chamada vai direto de uma máquina para a
   outra, e é por isso que não existe conta, mensalidade nem gravação na nuvem.
   O vídeo mostra isso acontecendo: três cliques até a sala no ar, o código de
@@ -59,17 +68,7 @@ telas do produto e deixando claro que usar é fácil.
   o diálogo de compartilhar tela
 
 ## Storyboard
-O contrato criativo é o storyboard de `brag-plan.md`. Resumo:
-
-1. Abertura, a marca se monta — 2,6 s — logo em SVG, "Vcall", a assinatura
-2. A promessa — 2,6 s — a manchete real do site, abrindo do detalhe à tela toda
-3. Três passos — 2,7 s — criar, nome, no ar; cursor e clique de verdade
-4. Manda o link — 2,5 s — o código P2P e o botão do WhatsApp
-5. A sala enche — 2,7 s — 2 → 4 → 6 pessoas, "Até 16 pessoas"
-6. Mosaico — 3,3 s — chat, pessoas, rede, reações, legendas, gravação
-7. O quadro é de todo mundo — 2,8 s — o desenho, e o mesmo desenho do outro lado
-8. Tela e celular — 2,2 s — "Nitidez ou fluidez", depois o celular
-9. Fecho — 2,6 s — logo, "Abra o navegador e chame."
+O contrato criativo é a tabela de 16 cenas em `brag-plan.md`.
 
 ## Audio
 - Papel: cama rítmica densa, alegre, que puxa o corte
@@ -79,22 +78,18 @@ O contrato criativo é o storyboard de `brag-plan.md`. Resumo:
   saída; SFX por baixo da música, nunca por cima
 - Cues: preset de
   `<skill-dir>/assets/music/cues/happy-beats-business-moves-vol-12-*.music-cues.md`
-  - **beat-locked** (3): 8,74 s o código salta · 17,47 s o quadro abre em dois
-    lados · 22,37 s a chamada final
-  - **beat-grid**: o mosaico em 13,11 · 13,64 · 14,20 · 14,73 · 15,29 · 15,84;
-    a sala enchendo em 11,46 e 12,55
+  - **beat-locked**: 17,47 (o código salta) · 24,56 (a pílula do chat pulsa) ·
+    32,74 (o quadro abre em dois lados) · 50,20 e 50,74 (o fecho)
+  - **beat-grid**: o giro das paletas em 45,84 · 46,93 · 47,75 · 48,55
 - Reatividade: **sutil**. O halo da abertura e o brilho do fecho respiram com o
   grave (escala 0,94–1,10); o "Vcall" do fecho ganha um brilho leve no agudo.
   Amostragem quadro a quadro via `tl.call`, com dados pré-extraídos por
   `hyperframes-creative/scripts/extract-audio-data.py` em `assets/audio-data.js`.
   Sem barra de equalizador, sem onda, sem partícula.
-- SFX escolhidos (todos de baixo/médio risco de agudo, pelo `sfx-analysis.md`):
-  - `impact/impactSoft_medium_001.ogg` — cortes duros (0,12 · 2,60 · 10,40 ·
-    13,10 · 17,47)
-  - `interface/click_003.ogg` — o clique em "Criar e entrar" (6,02)
-  - `interface/click_002.ogg` — o código saltando (8,74)
-  - `interface/switch_007.ogg` — quadro e compartilhar tela (16,40 · 19,20)
-  - `impact/impactBell_heavy_000.ogg` — o logotipo do fecho (21,46)
+- SFX (todos de baixo/médio risco de agudo, pelo `sfx-analysis.md`): um por
+  virada de cena, 15 no total — `impactSoft_medium_001` nos cortes de assunto,
+  `click_002`/`click_003` nos gestos de interface, `switch_007` no quadro e na
+  tela, e `impactBell_heavy_000` no logotipo do fecho (49,56).
 - Arquivos em `composition/assets/music/` e `composition/assets/sfx/`
 
 ## Leitura e verdade
@@ -106,6 +101,12 @@ O contrato criativo é o storyboard de `brag-plan.md`. Resumo:
   e no botão do WhatsApp; o `localhost:3977` das capturas ficou de fora.
 
 ## Gate
-`npx hyperframes check` — 0 erros, 0 avisos de contraste (10/10 passam em AA),
-0 achados de runtime e movimento. Restam avisos de ergonomia do Studio
-(`nested_structure_needs_subcomposition`), que não afetam o render.
+`npx hyperframes check` — 0 erros, 11/11 textos passam em AA, 0 achados de
+runtime e movimento. Restam avisos de ergonomia do Studio
+(`nested_structure_needs_subcomposition`, arquivo longo), que não afetam o
+render.
+
+Correções que o gate pegou nesta versão: os três véus de passagem nasciam
+visíveis (`gsap_fullscreen_overlay_starts_visible`) e cobririam todo quadro
+anterior ao primeiro tween — resolvido com `opacity: 0` em linha; e as palavras
+apagadas da cena 12 estavam a 2,58:1 — subiram para 52% de branco.

@@ -8,10 +8,11 @@
     <script src="assets/audio-data.js"></script>
     <style>
       /* ================================================================ *
-       * Vcall — vídeo de lançamento
+       * Vcall — vídeo de lançamento (52,8 s)
        *
-       * Cores e tipografia vêm de public/css/tokens.css do próprio Vcall.
-       * As telas são capturas do produto rodando de verdade.
+       * Tudo em tema escuro, como o produto roda. Cores e tipografia saem de
+       * public/css/tokens.css; as telas são capturas do Vcall rodando.
+       * Uma ideia por cena, e cada linha fica parada tempo de ler.
        * ================================================================ */
       @font-face {
         font-family: "Bricolage Grotesque";
@@ -22,11 +23,9 @@
 
       :root {
         --pink: #fd4d87;
-        --pink-deep: #e0356e;
         --orange: #fe9c5f;
-        --orange-deep: #e07b32;
         --ink: #110c3a;
-        --paper: #f4f6fb;
+        --night: #0c0e13;
         --grad: linear-gradient(135deg, #fd4d87 0%, #fe9c5f 100%);
         /* Pílulas levam texto branco: os tons profundos da marca, os mesmos
            dos botões primários do app, são os que passam em contraste. */
@@ -45,7 +44,7 @@
         width: 1920px;
         height: 1080px;
         overflow: hidden;
-        background: var(--ink);
+        background: var(--night);
       }
       #root {
         position: relative;
@@ -53,7 +52,7 @@
         height: 100%;
         overflow: hidden;
         font-family: var(--sans);
-        background: var(--ink);
+        background: var(--night);
       }
       .clip {
         position: absolute;
@@ -71,40 +70,46 @@
         height: 1080px;
         display: block;
       }
-
-      /* ---- tipografia comum ---- */
-      .kicker {
-        font-family: var(--sans);
-        font-size: 26px;
-        font-weight: 700;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
+      .step {
+        position: absolute;
+        inset: 0;
       }
+      /* fundo escuro de palco, para as cenas com cartão */
+      .stage-bg {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(58% 54% at 28% 18%, rgba(253, 77, 135, 0.16) 0%, transparent 68%),
+          radial-gradient(56% 54% at 78% 84%, rgba(254, 156, 95, 0.15) 0%, transparent 68%),
+          var(--ink);
+      }
+
+      /* ---- tipografia ---- */
       .headline {
         font-family: var(--display);
         font-weight: 800;
         letter-spacing: -0.035em;
-        line-height: 1.04;
+        line-height: 1.06;
+        color: #fff;
       }
       .pill {
         display: inline-flex;
         align-items: center;
         gap: 16px;
-        padding: 18px 34px;
+        padding: 18px 36px;
         border-radius: 999px;
         font-family: var(--display);
         font-weight: 700;
-        font-size: 40px;
+        font-size: 42px;
         letter-spacing: -0.02em;
         color: #fff;
         background: var(--grad-strong);
-        box-shadow: 0 18px 46px rgba(224, 53, 110, 0.38);
+        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
         white-space: nowrap;
       }
       .pill--dark {
-        color: #fff;
-        background: rgba(17, 12, 58, 0.92);
-        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.36);
+        background: rgba(10, 8, 26, 0.9);
+        border: 2px solid rgba(255, 255, 255, 0.14);
       }
       .num {
         display: inline-flex;
@@ -116,21 +121,53 @@
         background: rgba(255, 255, 255, 0.26);
         font-size: 30px;
       }
+      .toprow {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 68px;
+        display: flex;
+        justify-content: center;
+      }
+      .botrow {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 76px;
+        display: flex;
+        justify-content: center;
+      }
+      /* um véu embaixo, para a pílula nunca brigar com a interface */
+      .scrim-bottom {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 250px;
+        background: linear-gradient(to top, rgba(8, 6, 20, 0.92) 30%, transparent 100%);
+      }
+      .scrim-top {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 230px;
+        background: linear-gradient(to bottom, rgba(8, 6, 20, 0.92) 30%, transparent 100%);
+      }
 
-      /* ================= 1. abertura ================= */
+      /* moldura de tela, para os recortes e cartões */
+      .screen {
+        border-radius: 20px;
+        overflow: hidden;
+        border: 2px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 34px 80px rgba(0, 0, 0, 0.6);
+      }
+
+      /* ================= 1 · abertura ================= */
       #s1 .fill {
         background:
           radial-gradient(60% 50% at 50% 42%, #1b2230 0%, transparent 70%),
-          #0c0e13;
-      }
-      #s1-stack {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 34px;
+          var(--night);
       }
       #s1-halo-wrap {
         position: absolute;
@@ -151,6 +188,15 @@
           transparent 68%
         );
         filter: blur(18px);
+      }
+      #s1-stack {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 34px;
       }
       #s1-mark {
         overflow: visible;
@@ -186,178 +232,96 @@
         color: #8b97ac;
       }
 
-      /* ================= 3. três passos ================= */
-      .step {
+      /* ================= 3 · os usos ================= */
+      #s3-wrap {
         position: absolute;
         inset: 0;
-      }
-      .chiprow {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 92px;
         display: flex;
+        flex-direction: column;
+        align-items: center;
         justify-content: center;
+        gap: 52px;
       }
-      #s3-cursor {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 34px;
-        height: 34px;
-        margin: -17px 0 0 -17px;
-        border-radius: 50%;
-        background: var(--grad);
-        box-shadow: 0 10px 26px rgba(224, 53, 110, 0.6);
+      #s3-head {
+        font-size: 76px;
+        text-align: center;
       }
-      #s3-ripple {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 150px;
-        height: 150px;
-        margin: -75px 0 0 -75px;
-        border-radius: 50%;
-        border: 5px solid var(--pink);
+      #s3-card {
+        width: 930px;
+        height: 645px;
+      }
+      #s3-card img {
+        width: 930px;
+        height: 645px;
+        display: block;
       }
 
-      /* ================= 4. convite ================= */
-      #s4 .fill {
-        background:
-          radial-gradient(48% 46% at 22% 14%, rgba(253, 77, 135, 0.2) 0%, transparent 70%),
-          radial-gradient(52% 50% at 84% 86%, rgba(254, 156, 95, 0.22) 0%, transparent 70%),
-          var(--paper);
-      }
-      #s4-wrap {
+      /* ================= 6 · convite ================= */
+      #s6-wrap {
         position: absolute;
         inset: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 54px;
+        gap: 48px;
       }
-      #s4-head {
-        font-size: 82px;
-        color: var(--ink);
+      #s6-head {
+        font-size: 80px;
         text-align: center;
-        max-width: 1500px;
       }
-      #s4-card {
-        width: 1180px;
-        padding: 56px 60px 52px;
-        border-radius: 34px;
-        background: #fff;
-        box-shadow: 0 40px 90px rgba(17, 12, 58, 0.16);
+      #s6-card {
+        width: 1160px;
+        padding: 50px 56px;
+        border-radius: 30px;
+        background: rgba(16, 12, 38, 0.86);
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55);
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 34px;
+        gap: 30px;
       }
-      #s4-code {
+      #s6-code {
         position: relative;
         width: 1020px;
         height: 240px;
       }
-      #s4-code img {
+      #s6-code img {
         width: 1020px;
         height: 240px;
         display: block;
       }
-      #s4-ring {
+      #s6-ring {
         position: absolute;
         inset: -14px;
         border-radius: 22px;
         border: 5px solid var(--pink);
       }
-      #s4-wa img {
+      #s6-wa img {
         width: 750px;
         height: 78px;
         display: block;
       }
 
-      /* ================= 5. a sala enche ================= */
-      #s5-count {
+      /* ================= 7 · a sala enche ================= */
+      #s7-count {
         position: absolute;
-        top: 74px;
-        right: 74px;
-      }
-      #s5-line {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 86px;
-        display: flex;
-        justify-content: center;
+        top: 68px;
+        right: 72px;
       }
 
-      /* ================= 6. mosaico ================= */
-      #s6-bar {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 150px;
-        background: linear-gradient(to top, rgba(12, 14, 19, 0.94) 44%, transparent 100%);
-      }
-      #s6-words {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 46px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 30px;
-        font-family: var(--display);
-        font-size: 40px;
-        font-weight: 700;
-        letter-spacing: -0.01em;
-      }
-      #s6-words b {
-        color: rgba(255, 255, 255, 0.34);
-        font-weight: 700;
-      }
-      #s6-words i {
-        color: rgba(255, 255, 255, 0.2);
-        font-style: normal;
-        font-size: 30px;
-      }
-      #s6-prog {
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        height: 7px;
-        width: 1920px;
-        transform-origin: left center;
-        background: var(--grad);
-      }
-
-      /* ================= 7. quadro ================= */
-      #s7 .fill {
-        background:
-          radial-gradient(60% 60% at 50% 20%, #1d1552 0%, transparent 72%),
-          var(--ink);
-      }
-      #s7-head {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 74px;
-        display: flex;
-        justify-content: center;
-      }
-      #s7-pair {
+      /* ================= 11 · quadro dos dois lados ================= */
+      #s11-pair {
         position: absolute;
         inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 56px;
-        padding-top: 70px;
+        padding-top: 80px;
       }
       .panel {
-        width: 850px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -366,10 +330,6 @@
       .panel .screen {
         width: 850px;
         height: 478px;
-        border-radius: 22px;
-        overflow: hidden;
-        box-shadow: 0 34px 80px rgba(0, 0, 0, 0.5);
-        border: 2px solid rgba(255, 255, 255, 0.14);
       }
       .panel .screen img {
         width: 850px;
@@ -377,62 +337,92 @@
         display: block;
       }
       .panel .who {
-        font-family: var(--sans);
         font-size: 28px;
         font-weight: 700;
         letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.72);
+        color: rgba(255, 255, 255, 0.74);
       }
 
-      /* ================= 8. tela e celular ================= */
-      #s8 .fill {
-        background:
-          radial-gradient(56% 56% at 78% 40%, #241764 0%, transparent 72%),
-          var(--ink);
-      }
-      #s8-chip {
+      /* ================= 12 · mais do que vídeo ================= */
+      #s12-words {
         position: absolute;
         left: 0;
         right: 0;
-        bottom: 88px;
-        display: flex;
-        justify-content: center;
-      }
-      #s8-mobile {
-        position: absolute;
-        inset: 0;
+        bottom: 104px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 110px;
+        gap: 28px;
+        font-family: var(--display);
+        font-size: 42px;
+        font-weight: 700;
       }
-      #s8-text {
-        width: 640px;
-        font-size: 90px;
-        color: #fff;
+      #s12-words b {
+        /* 0,30 reprovava em AA sobre o véu; 0,52 passa e o destaque branco
+           continua se distinguindo. */
+        color: rgba(255, 255, 255, 0.52);
+        font-weight: 700;
       }
-      #s8-phone {
-        width: 332px;
-        height: 720px;
-        border-radius: 46px;
+      #s12-words i {
+        color: rgba(255, 255, 255, 0.18);
+        font-style: normal;
+        font-size: 30px;
+      }
+
+      /* ================= 14 · picture-in-picture ================= */
+      #s14-pip {
+        position: absolute;
+        right: 160px;
+        bottom: 170px;
+        width: 620px;
+        height: 445px;
+        border-radius: 22px;
         overflow: hidden;
-        border: 9px solid #22194f;
-        box-shadow: 0 46px 110px rgba(0, 0, 0, 0.62);
+        border: 3px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 50px 110px rgba(0, 0, 0, 0.75);
       }
-      #s8-phone img {
-        width: 314px;
-        height: 702px;
+      #s14-pip img {
+        width: 620px;
+        height: 445px;
         display: block;
       }
 
-      /* ================= 9. fecho ================= */
-      #s9 .fill {
+      /* ================= 15 · as cores ================= */
+      #s15-head {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 74px;
+        display: flex;
+        justify-content: center;
+      }
+      #s15-grid {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 96px;
+        display: flex;
+        justify-content: center;
+      }
+      #s15-grid .screen {
+        width: 1120px;
+        height: 300px;
+        background: rgba(12, 10, 28, 0.9);
+      }
+      #s15-grid img {
+        width: 1120px;
+        height: 300px;
+        display: block;
+      }
+
+      /* ================= 16 · fecho ================= */
+      #s16 .fill {
         background:
           radial-gradient(62% 58% at 50% 44%, #241764 0%, transparent 72%),
           var(--ink);
       }
-      #s9-glow-wrap {
+      #s16-glow-wrap {
         position: absolute;
         top: 50%;
         left: 50%;
@@ -440,7 +430,7 @@
         height: 1000px;
         margin: -560px 0 0 -500px;
       }
-      #s9-glow {
+      #s16-glow {
         position: absolute;
         inset: 0;
         border-radius: 50%;
@@ -452,7 +442,7 @@
         );
         filter: blur(22px);
       }
-      #s9-stack {
+      #s16-stack {
         position: absolute;
         inset: 0;
         display: flex;
@@ -461,7 +451,7 @@
         justify-content: center;
         gap: 26px;
       }
-      #s9-word {
+      #s16-word {
         font-family: var(--display);
         font-size: 128px;
         font-weight: 800;
@@ -469,7 +459,7 @@
         color: #fff;
         line-height: 1;
       }
-      #s9-cta {
+      #s16-cta {
         font-family: var(--display);
         font-size: 56px;
         font-weight: 600;
@@ -479,17 +469,19 @@
         background-clip: text;
         color: transparent;
       }
-      #s9-foot {
+      #s16-foot {
         font-size: 26px;
         letter-spacing: 0.1em;
-        color: rgba(255, 255, 255, 0.56);
+        color: rgba(255, 255, 255, 0.58);
       }
 
-      /* ---- véu de passagem ---- */
       .dip {
         position: absolute;
         inset: 0;
-        background: #0c0e13;
+        background: var(--night);
+        /* Nasce invisível: sem isto, o véu cobre todo quadro anterior ao
+           primeiro tween de opacidade. */
+        opacity: 0;
       }
     </style>
   </head>
@@ -499,13 +491,13 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="24"
+      data-duration="52.8"
       data-width="1920"
       data-height="1080"
       data-fps="30"
     >
-      <!-- ============ 1 · abertura: a marca se monta (0,00–2,60) ============ -->
-      <section id="s1" class="clip" data-start="0" data-duration="2.6" data-track-index="0">
+      <!-- ============ 1 · a marca se monta (0,00–3,50) ============ -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.5" data-track-index="0">
         <div class="fill"></div>
         <div id="s1-halo-wrap" data-layout-allow-overflow="true"><div id="s1-halo"></div></div>
         <div id="s1-stack">
@@ -521,487 +513,385 @@
               </linearGradient>
             </defs>
             <rect id="s1-bg" class="mark-bg" width="512" height="512" rx="112" fill="#110c3a" />
-            <path
-              id="s1-bodyO"
-              class="mark-body"
-              d="M350 246 L262 350"
-              stroke="url(#gOrange)"
-              pathLength="1"
-            />
-            <path
-              id="s1-bodyP"
-              class="mark-body"
-              d="M162 246 L250 350"
-              stroke="url(#gPink)"
-              pathLength="1"
-            />
+            <path id="s1-bodyO" class="mark-body" d="M350 246 L262 350" stroke="url(#gOrange)" pathLength="1" />
+            <path id="s1-bodyP" class="mark-body" d="M162 246 L250 350" stroke="url(#gPink)" pathLength="1" />
             <circle id="s1-headP" class="mark-head" cx="148" cy="157" r="41" fill="url(#gPink)" />
             <circle id="s1-headO" class="mark-head" cx="364" cy="156" r="41" fill="url(#gOrange)" />
           </svg>
-          <div id="s1-word">
-            <span>V</span><span>c</span><span>a</span><span>l</span><span>l</span>
-          </div>
+          <div id="s1-word"><span>V</span><span>c</span><span>a</span><span>l</span><span>l</span></div>
           <div id="s1-tag">conversas que chegam direto</div>
         </div>
       </section>
 
-      <!-- ============ 2 · a promessa (2,60–5,20) ============ -->
-      <section id="s2" class="clip" data-start="2.6" data-duration="2.6" data-track-index="0">
-        <div id="s2-shot">
-          <img class="shot" src="assets/shots/01-tela-inicial.png" alt="" />
+      <!-- ============ 2 · a promessa (3,50–6,70) ============ -->
+      <section id="s2" class="clip" data-start="3.5" data-duration="3.2" data-track-index="0">
+        <div id="s2-shot"><img class="shot" src="assets/shots/01-tela-inicial.png" alt="" /></div>
+      </section>
+
+      <!-- ============ 3 · para o quê (6,70–9,80) ============ -->
+      <section id="s3" class="clip" data-start="6.7" data-duration="3.1" data-track-index="0">
+        <div class="stage-bg"></div>
+        <div id="s3-wrap">
+          <h2 id="s3-head" class="headline">Reunião, aula, grupo de estudos.</h2>
+          <div id="s3-card" class="screen"><img src="assets/shots/usos.png" alt="Salas públicas no ar" /></div>
         </div>
       </section>
 
-      <!-- ============ 3 · três passos (5,20–7,90) ============ -->
-      <section id="s3" class="clip" data-start="5.2" data-duration="2.7" data-track-index="0">
-        <div class="step" id="s3a">
-          <img class="shot" src="assets/shots/03-criar-nova-call.png" alt="" />
-        </div>
-        <div class="step" id="s3b">
-          <img class="shot" src="assets/shots/05-antessala.png" alt="" />
-        </div>
-        <div class="step" id="s3c">
-          <img class="shot" src="assets/shots/06-aguardando.png" alt="" />
-        </div>
-        <div id="s3-ripple"></div>
-        <div id="s3-cursor"></div>
-        <div class="chiprow">
-          <div id="s3-chip1" class="pill"><span class="num">1</span>Criar nova call</div>
-        </div>
-        <div class="chiprow">
-          <div id="s3-chip2" class="pill"><span class="num">2</span>Seu nome</div>
-        </div>
-        <div class="chiprow">
-          <div id="s3-chip3" class="pill"><span class="num">3</span>No ar</div>
-        </div>
+      <!-- ============ 4 · criar a sala (9,80–13,00) ============ -->
+      <section id="s4" class="clip" data-start="9.8" data-duration="3.2" data-track-index="0">
+        <div id="s4-shot"><img class="shot" src="assets/shots/02-criar-nova-call.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div class="botrow"><div id="s4-pill" class="pill"><span class="num">1</span>Dá um nome e cria</div></div>
       </section>
 
-      <!-- ============ 4 · manda o link (7,90–10,40) ============ -->
-      <section id="s4" class="clip" data-start="7.9" data-duration="2.5" data-track-index="0">
-        <div class="fill"></div>
-        <div id="s4-wrap">
-          <h2 id="s4-head" class="headline">Manda o link. Ou dita seis letras.</h2>
-          <div id="s4-card">
-            <div id="s4-code">
+      <!-- ============ 5 · antessala (13,00–16,10) ============ -->
+      <section id="s5" class="clip" data-start="13" data-duration="3.1" data-track-index="0">
+        <div id="s5-shot"><img class="shot" src="assets/shots/03-antessala.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div class="botrow"><div id="s5-pill" class="pill"><span class="num">2</span>Se arrume antes de entrar</div></div>
+      </section>
+
+      <!-- ============ 6 · manda o link (16,10–19,50) ============ -->
+      <section id="s6" class="clip" data-start="16.1" data-duration="3.4" data-track-index="0">
+        <div class="stage-bg"></div>
+        <div id="s6-wrap">
+          <h2 id="s6-head" class="headline">Manda o link. Ou dita seis letras.</h2>
+          <div id="s6-card">
+            <div id="s6-code">
               <img src="assets/shots/codigo.png" alt="Código P2P da sala" />
-              <div id="s4-ring"></div>
+              <div id="s6-ring"></div>
             </div>
-            <div id="s4-wa"><img src="assets/shots/whatsapp.png" alt="Enviar pelo WhatsApp" /></div>
+            <div id="s6-wa"><img src="assets/shots/whatsapp.png" alt="Enviar pelo WhatsApp" /></div>
           </div>
         </div>
       </section>
 
-      <!-- ============ 5 · a sala enche (10,40–13,10) ============ -->
-      <section id="s5" class="clip" data-start="10.4" data-duration="2.7" data-track-index="0">
-        <div class="step" id="s5a">
-          <img class="shot" src="assets/shots/09-chamada-2.png" alt="" />
-        </div>
-        <div class="step" id="s5b">
-          <img class="shot" src="assets/shots/10-chamada-4.png" alt="" />
-        </div>
-        <div class="step" id="s5c">
-          <img class="shot" src="assets/shots/11-chamada-6.png" alt="" />
-        </div>
-        <div id="s5-count">
-          <div id="s5-count-inner" class="pill">
-            <span id="s5-n">2</span>
-            <span>pessoas</span>
-          </div>
-        </div>
-        <div id="s5-line">
-          <div id="s5-line-inner" class="pill pill--dark">
-            Até 16 pessoas. Sem conta. Sem instalar.
-          </div>
-        </div>
+      <!-- ============ 7 · a sala enche (19,50–22,90) ============ -->
+      <section id="s7" class="clip" data-start="19.5" data-duration="3.4" data-track-index="0">
+        <div class="step" id="s7a"><img class="shot" src="assets/shots/07-chamada-2.png" alt="" /></div>
+        <div class="step" id="s7b"><img class="shot" src="assets/shots/08-chamada-4.png" alt="" /></div>
+        <div class="step" id="s7c"><img class="shot" src="assets/shots/09-chamada-6.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div id="s7-count"><div id="s7-count-inner" class="pill"><span id="s7-n">2</span><span>pessoas</span></div></div>
+        <div class="botrow"><div id="s7-pill" class="pill pill--dark">Até 16 pessoas. Sem conta. Sem instalar.</div></div>
       </section>
 
-      <!-- ============ 6 · mosaico de recursos (13,10–16,40) ============ -->
-      <section id="s6" class="clip" data-start="13.1" data-duration="3.3" data-track-index="0">
-        <div class="step" id="s6a">
-          <img class="shot" src="assets/shots/13-chat-enviado.png" alt="" />
-        </div>
-        <div class="step" id="s6b">
-          <img class="shot" src="assets/shots/14-pessoas.png" alt="" />
-        </div>
-        <div class="step" id="s6c">
-          <img class="shot" src="assets/shots/15-estatisticas.png" alt="" />
-        </div>
-        <div class="step" id="s6d">
-          <img class="shot" src="assets/shots/17-reacoes.png" alt="" />
-        </div>
-        <div class="step" id="s6e">
-          <img class="shot" src="assets/shots/22-legendas.png" alt="" />
-        </div>
-        <div class="step" id="s6f">
-          <img class="shot" src="assets/shots/26-gravando.png" alt="" />
-        </div>
-        <div id="s6-bar"></div>
-        <div id="s6-words">
-          <b id="w1">chat</b><i>·</i><b id="w2">pessoas</b><i>·</i><b id="w3">rede</b><i>·</i
-          ><b id="w4">reações</b><i>·</i><b id="w5">legendas</b><i>·</i><b id="w6">gravação</b>
-        </div>
-        <div id="s6-prog"></div>
+      <!-- ============ 8 · conversa e arquivos (22,90–26,00) ============ -->
+      <section id="s8" class="clip" data-start="22.9" data-duration="3.1" data-track-index="0">
+        <div id="s8-shot"><img class="shot" src="assets/shots/10-chat-arquivo.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div class="botrow"><div id="s8-pill" class="pill">Conversa, imagens e arquivos</div></div>
       </section>
 
-      <!-- ============ 7 · o quadro é de todo mundo (16,40–19,20) ============ -->
-      <section id="s7" class="clip" data-start="16.4" data-duration="2.8" data-track-index="0">
-        <div class="fill"></div>
-        <div class="step" id="s7-full">
-          <img class="shot" src="assets/shots/20-quadro-desenhado.png" alt="" />
-        </div>
-        <div id="s7-pair">
-          <div class="panel" id="s7-left">
-            <div class="screen"><img src="assets/shots/20-quadro-desenhado.png" alt="" /></div>
+      <!-- ============ 9 · legendas ao vivo (26,00–29,20) ============ -->
+      <section id="s9" class="clip" data-start="26" data-duration="3.2" data-track-index="0">
+        <div id="s9-shot"><img class="shot" src="assets/shots/13-legendas.png" alt="" /></div>
+        <div class="scrim-top"></div>
+        <div class="toprow"><div id="s9-pill" class="pill">Legenda a sua fala, no seu computador</div></div>
+      </section>
+
+      <!-- ============ 10 · o quadro (29,20–32,50) ============ -->
+      <section id="s10" class="clip" data-start="29.2" data-duration="3.3" data-track-index="0">
+        <div id="s10-shot"><img class="shot" src="assets/shots/29-quadro-desenhado.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div class="botrow"><div id="s10-pill" class="pill">Um quadro infinito para explicar junto</div></div>
+      </section>
+
+      <!-- ============ 11 · o mesmo quadro do outro lado (32,50–35,70) ============ -->
+      <section id="s11" class="clip" data-start="32.5" data-duration="3.2" data-track-index="0">
+        <div class="stage-bg"></div>
+        <div id="s11-pair">
+          <div class="panel" id="s11-left">
+            <div class="screen"><img src="assets/shots/29-quadro-desenhado.png" alt="" /></div>
             <div class="who">você</div>
           </div>
-          <div class="panel" id="s7-right">
-            <div class="screen">
-              <img src="assets/shots/21-quadro-no-outro-lado.png" alt="" />
-            </div>
+          <div class="panel" id="s11-right">
+            <div class="screen"><img src="assets/shots/30-quadro-no-outro-lado.png" alt="" /></div>
             <div class="who">do outro lado</div>
           </div>
         </div>
-        <div id="s7-head">
-          <div id="s7-head-inner" class="pill">O que você desenha aparece lá na hora.</div>
+        <div class="toprow"><div id="s11-pill" class="pill">O que você desenha aparece lá. Na hora.</div></div>
+      </section>
+
+      <!-- ============ 12 · mais do que vídeo (35,70–39,30) ============ -->
+      <section id="s12" class="clip" data-start="35.7" data-duration="3.6" data-track-index="0">
+        <div class="step" id="s12a"><img class="shot" src="assets/shots/14-mao-levantada.png" alt="" /></div>
+        <div class="step" id="s12b"><img class="shot" src="assets/shots/16-reacao-voando.png" alt="" /></div>
+        <div class="step" id="s12c"><img class="shot" src="assets/shots/12-estatisticas.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div id="s12-words">
+          <b id="w1">levantar a mão</b><i>·</i><b id="w2">reagir</b><i>·</i><b id="w3">ver a rede</b>
         </div>
       </section>
 
-      <!-- ============ 8 · tela e celular (19,20–21,40) ============ -->
-      <section id="s8" class="clip" data-start="19.2" data-duration="2.2" data-track-index="0">
-        <div class="fill"></div>
-        <div class="step" id="s8-share">
-          <img class="shot" src="assets/shots/23-compartilhar-escolha.png" alt="" />
-        </div>
-        <div id="s8-chip">
-          <div id="s8-chip-inner" class="pill">Nitidez ou fluidez</div>
-        </div>
-        <div id="s8-mobile">
-          <h2 id="s8-text" class="headline">No celular também.</h2>
-          <div id="s8-phone"><img src="assets/shots/28-celular-chamada.png" alt="" /></div>
+      <!-- ============ 13 · tela e gravação (39,30–42,60) ============ -->
+      <section id="s13" class="clip" data-start="39.3" data-duration="3.3" data-track-index="0">
+        <div class="step" id="s13a"><img class="shot" src="assets/shots/17-compartilhar-escolha.png" alt="" /></div>
+        <div class="step" id="s13b"><img class="shot" src="assets/shots/22-gravando.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div class="botrow"><div id="s13-pill1" class="pill">Tela: nitidez ou fluidez</div></div>
+        <div class="botrow"><div id="s13-pill2" class="pill">E grava, no seu computador</div></div>
+      </section>
+
+      <!-- ============ 14 · picture-in-picture (42,60–46,00) ============ -->
+      <section id="s14" class="clip" data-start="42.6" data-duration="3.4" data-track-index="0">
+        <div id="s14-shot"><img class="shot" src="assets/shots/27-chamada-tinta.png" alt="" /></div>
+        <div class="scrim-bottom"></div>
+        <div id="s14-pip"><img src="assets/shots/21-pip-janela.png" alt="A mini-janela da chamada" /></div>
+        <div class="botrow"><div id="s14-pill" class="pill">Vira uma janelinha e sai da frente</div></div>
+      </section>
+
+      <!-- ============ 15 · as cores (46,00–49,50) ============ -->
+      <section id="s15" class="clip" data-start="46" data-duration="3.5" data-track-index="0">
+        <div class="step" id="s15a"><img class="shot" src="assets/shots/27-chamada-tinta.png" alt="" /></div>
+        <div class="step" id="s15b"><img class="shot" src="assets/shots/24-paleta-oceano.png" alt="" /></div>
+        <div class="step" id="s15c"><img class="shot" src="assets/shots/25-paleta-brasa.png" alt="" /></div>
+        <div class="step" id="s15d"><img class="shot" src="assets/shots/26-paleta-ametista.png" alt="" /></div>
+        <div class="scrim-top"></div>
+        <div class="scrim-bottom"></div>
+        <div id="s15-head"><div id="s15-pill" class="pill">Cinco paletas. Escolhe a sua.</div></div>
+        <div id="s15-grid">
+          <div id="s15-grid-inner" class="screen"><img src="assets/shots/paletas.png" alt="As paletas de cor" /></div>
         </div>
       </section>
 
-      <!-- ============ 9 · fecho (21,40–24,00) ============ -->
-      <section id="s9" class="clip" data-start="21.4" data-duration="2.6" data-track-index="0">
+      <!-- ============ 16 · fecho (49,50–52,80) ============ -->
+      <section id="s16" class="clip" data-start="49.5" data-duration="3.3" data-track-index="0">
         <div class="fill"></div>
-        <div id="s9-glow-wrap" data-layout-allow-overflow="true"><div id="s9-glow"></div></div>
-        <div id="s9-stack">
-          <svg id="s9-mark" viewBox="0 0 512 512" width="190" height="190">
-            <rect id="s9-bg" class="mark-bg" width="512" height="512" rx="112" fill="#110c3a" />
-            <path
-              id="s9-bodyO"
-              class="mark-body"
-              d="M350 246 L262 350"
-              stroke="url(#gOrange)"
-              pathLength="1"
-            />
-            <path
-              id="s9-bodyP"
-              class="mark-body"
-              d="M162 246 L250 350"
-              stroke="url(#gPink)"
-              pathLength="1"
-            />
-            <circle id="s9-headP" class="mark-head" cx="148" cy="157" r="41" fill="url(#gPink)" />
-            <circle id="s9-headO" class="mark-head" cx="364" cy="156" r="41" fill="url(#gOrange)" />
+        <div id="s16-glow-wrap" data-layout-allow-overflow="true"><div id="s16-glow"></div></div>
+        <div id="s16-stack">
+          <svg id="s16-mark" viewBox="0 0 512 512" width="190" height="190">
+            <rect id="s16-bg" class="mark-bg" width="512" height="512" rx="112" fill="#110c3a" />
+            <path id="s16-bodyO" class="mark-body" d="M350 246 L262 350" stroke="url(#gOrange)" pathLength="1" />
+            <path id="s16-bodyP" class="mark-body" d="M162 246 L250 350" stroke="url(#gPink)" pathLength="1" />
+            <circle id="s16-headP" class="mark-head" cx="148" cy="157" r="41" fill="url(#gPink)" />
+            <circle id="s16-headO" class="mark-head" cx="364" cy="156" r="41" fill="url(#gOrange)" />
           </svg>
-          <div id="s9-word">Vcall</div>
-          <div id="s9-cta">Abra o navegador e chame.</div>
-          <div id="s9-foot">criptografada ponta a ponta · sem conta · sem instalar</div>
+          <div id="s16-word">Vcall</div>
+          <div id="s16-cta">Abra o navegador e chame.</div>
+          <div id="s16-foot">criptografada ponta a ponta · sem conta · sem instalar</div>
         </div>
       </section>
 
       <!-- ============ véus de passagem ============ -->
-      <section id="dip1" class="clip" data-start="2.42" data-duration="0.36" data-track-index="1">
-        <div class="dip" id="dip1-inner"></div>
+      <section id="dip1" class="clip" data-start="3.32" data-duration="0.36" data-track-index="1">
+        <div class="dip" id="dip1-inner" style="opacity: 0"></div>
       </section>
-      <section id="dip2" class="clip" data-start="21.22" data-duration="0.36" data-track-index="1">
-        <div class="dip" id="dip2-inner"></div>
+      <section id="dip2" class="clip" data-start="32.32" data-duration="0.36" data-track-index="1">
+        <div class="dip" id="dip2-inner" style="opacity: 0"></div>
+      </section>
+      <section id="dip3" class="clip" data-start="49.32" data-duration="0.36" data-track-index="1">
+        <div class="dip" id="dip3-inner" style="opacity: 0"></div>
       </section>
 
       <!-- ============ áudio ============ -->
       <audio
         id="bgm"
         data-start="0"
-        data-duration="24"
+        data-duration="52.8"
         data-track-index="8"
         src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3"
-        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.18},{"t":0.9,"v":0.78},{"t":22.5,"v":0.78},{"t":24,"v":0}]}]}'
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.16},{"t":1.1,"v":0.76},{"t":50.4,"v":0.76},{"t":52.8,"v":0}]}]}'
       ></audio>
 
-      <audio
-        id="sfx-open"
-        data-start="0.12"
-        data-track-index="10"
-        data-volume="0.5"
-        src="assets/sfx/impact/impactSoft_medium_001.ogg"
-      ></audio>
-      <audio
-        id="sfx-cut2"
-        data-start="2.6"
-        data-track-index="11"
-        data-volume="0.42"
-        src="assets/sfx/impact/impactSoft_medium_001.ogg"
-      ></audio>
-      <audio
-        id="sfx-click"
-        data-start="6.02"
-        data-track-index="12"
-        data-volume="0.55"
-        src="assets/sfx/interface/click_003.ogg"
-      ></audio>
-      <audio
-        id="sfx-code"
-        data-start="8.74"
-        data-track-index="13"
-        data-volume="0.5"
-        src="assets/sfx/interface/click_002.ogg"
-      ></audio>
-      <audio
-        id="sfx-fill"
-        data-start="10.4"
-        data-track-index="14"
-        data-volume="0.4"
-        src="assets/sfx/impact/impactSoft_medium_001.ogg"
-      ></audio>
-      <audio
-        id="sfx-mosaic"
-        data-start="13.1"
-        data-track-index="15"
-        data-volume="0.38"
-        src="assets/sfx/impact/impactSoft_medium_001.ogg"
-      ></audio>
-      <audio
-        id="sfx-board"
-        data-start="16.4"
-        data-track-index="16"
-        data-volume="0.42"
-        src="assets/sfx/interface/switch_007.ogg"
-      ></audio>
-      <audio
-        id="sfx-split"
-        data-start="17.47"
-        data-track-index="17"
-        data-volume="0.46"
-        src="assets/sfx/impact/impactSoft_medium_001.ogg"
-      ></audio>
-      <audio
-        id="sfx-share"
-        data-start="19.2"
-        data-track-index="18"
-        data-volume="0.4"
-        src="assets/sfx/interface/switch_007.ogg"
-      ></audio>
-      <audio
-        id="sfx-logo"
-        data-start="21.46"
-        data-track-index="19"
-        data-volume="0.5"
-        src="assets/sfx/impact/impactBell_heavy_000.ogg"
-      ></audio>
+      <audio id="sfx-open" data-start="0.14" data-track-index="10" data-volume="0.5" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio id="sfx-cut2" data-start="3.5" data-track-index="11" data-volume="0.4" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio id="sfx-usos" data-start="6.7" data-track-index="12" data-volume="0.36" src="assets/sfx/interface/click_002.ogg"></audio>
+      <audio id="sfx-criar" data-start="9.8" data-track-index="13" data-volume="0.46" src="assets/sfx/interface/click_003.ogg"></audio>
+      <audio id="sfx-ante" data-start="13" data-track-index="14" data-volume="0.36" src="assets/sfx/interface/click_002.ogg"></audio>
+      <audio id="sfx-code" data-start="17.47" data-track-index="15" data-volume="0.5" src="assets/sfx/interface/click_002.ogg"></audio>
+      <audio id="sfx-fill" data-start="19.5" data-track-index="16" data-volume="0.4" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio id="sfx-chat" data-start="24.56" data-track-index="17" data-volume="0.4" src="assets/sfx/interface/click_002.ogg"></audio>
+      <audio id="sfx-board" data-start="29.2" data-track-index="18" data-volume="0.4" src="assets/sfx/interface/switch_007.ogg"></audio>
+      <audio id="sfx-split" data-start="32.74" data-track-index="19" data-volume="0.46" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio id="sfx-mais" data-start="35.7" data-track-index="20" data-volume="0.36" src="assets/sfx/interface/switch_007.ogg"></audio>
+      <audio id="sfx-tela" data-start="39.3" data-track-index="21" data-volume="0.4" src="assets/sfx/interface/switch_007.ogg"></audio>
+      <audio id="sfx-pip" data-start="42.6" data-track-index="22" data-volume="0.42" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio id="sfx-cor" data-start="46" data-track-index="23" data-volume="0.38" src="assets/sfx/interface/click_002.ogg"></audio>
+      <audio id="sfx-logo" data-start="49.56" data-track-index="24" data-volume="0.5" src="assets/sfx/impact/impactBell_heavy_000.ogg"></audio>
     </div>
 
     <script>
       /* ================================================================ *
-       * Linha do tempo única, pausada. Tudo em segundos absolutos.
+       * Uma linha do tempo pausada. Tudo em segundos absolutos.
        *
-       * Cues da trilha (happy-beats vol-12, 109,96 BPM):
-       *   fortes  8,74 · 9,29 · 10,93 · 13,11 · 17,47 · 18,56 · 22,37
-       *   grade   13,11 13,64 14,20 14,73 15,29 15,84
+       * Ritmo: dezesseis cenas em 52,8 s — uma ideia por cena, nenhuma linha
+       * com menos de 0,3 s por palavra depois de assentar.
+       *
+       * Cues fortes da trilha (vol-12, 109,96 BPM) usados aqui:
+       *   17,47 · 24,56 · 32,74 · 39,82 · 45,84 · 50,20
        * ================================================================ */
       const tl = gsap.timeline({ paused: true });
-      const EASE = "power3.out";
+      const E = "power3.out";
 
-      /* ---------------- 1 · abertura (0,00–2,60) ---------------- */
-      tl.fromTo("#s1-halo-wrap", { opacity: 0, scale: 0.45 }, { opacity: 1, scale: 1, duration: 0.75, ease: EASE }, 0.05)
-        .fromTo("#s1-bg", { opacity: 0, scale: 0.68 }, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.7)" }, 0.12)
-        .fromTo(
-          ["#s1-headP", "#s1-headO"],
-          { opacity: 0, scale: 0 },
-          { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2.2)", stagger: 0.09 },
-          0.46,
-        )
-        .fromTo(
-          ["#s1-bodyP", "#s1-bodyO"],
-          { strokeDashoffset: 1 },
-          { strokeDashoffset: 0, duration: 0.55, ease: "power2.out", stagger: 0.07 },
-          0.68,
-        )
-        .fromTo(
-          "#s1-word span",
-          { opacity: 0, y: 46 },
-          { opacity: 1, y: 0, duration: 0.5, ease: EASE, stagger: 0.055 },
-          1.1,
-        )
-        .fromTo("#s1-tag", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 1.52)
-        .fromTo("#s1-stack", { scale: 1.07 }, { scale: 1, duration: 2.5, ease: "none" }, 0);
+      /** Entrada padrão de uma captura de tela: cresce um nada e assenta. */
+      const entra = (sel, t, dur = 0.9, de = 1.045) =>
+        tl.fromTo(sel, { scale: de }, { scale: 1, duration: dur, ease: E }, t);
+      /** Pílula que sobe por baixo. */
+      const pilulaBaixo = (sel, t, dur = 0.42) =>
+        tl.fromTo(sel, { opacity: 0, y: 44 }, { opacity: 1, y: 0, duration: dur, ease: E }, t);
+      /** Pílula que desce por cima. */
+      const pilulaCima = (sel, t, dur = 0.42) =>
+        tl.fromTo(sel, { opacity: 0, y: -44 }, { opacity: 1, y: 0, duration: dur, ease: E }, t);
 
-      /* ---------------- véu 1 (2,42–2,78) ---------------- */
-      tl.fromTo("#dip1-inner", { opacity: 0 }, { opacity: 1, duration: 0.17, ease: "power2.in" }, 2.42)
-        .to("#dip1-inner", { opacity: 0, duration: 0.17, ease: "power2.out" }, 2.6);
+      /* ---------------- 1 · a marca (0,00–3,50) ---------------- */
+      tl.fromTo("#s1-halo-wrap", { opacity: 0, scale: 0.45 }, { opacity: 1, scale: 1, duration: 0.85, ease: E }, 0.05)
+        .fromTo("#s1-bg", { opacity: 0, scale: 0.68 }, { opacity: 1, scale: 1, duration: 0.65, ease: "back.out(1.7)" }, 0.14)
+        .fromTo(["#s1-headP", "#s1-headO"], { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2.2)", stagger: 0.1 }, 0.52)
+        .fromTo(["#s1-bodyP", "#s1-bodyO"], { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.62, ease: "power2.out", stagger: 0.08 }, 0.78)
+        .fromTo("#s1-word span", { opacity: 0, y: 48 }, { opacity: 1, y: 0, duration: 0.52, ease: E, stagger: 0.06 }, 1.28)
+        .fromTo("#s1-tag", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.55, ease: E }, 1.78)
+        .fromTo("#s1-stack", { scale: 1.07 }, { scale: 1, duration: 3.4, ease: "none" }, 0);
 
-      /* ---------------- 2 · a promessa (2,60–5,20) ----------------
+      tl.fromTo("#dip1-inner", { opacity: 0 }, { opacity: 1, duration: 0.17, ease: "power2.in" }, 3.32)
+        .to("#dip1-inner", { opacity: 0, duration: 0.17, ease: "power2.out" }, 3.5);
+
+      /* ---------------- 2 · a promessa (3,50–6,70) ----------------
          Abre fechado na manchete do próprio site e abre até a tela inteira. */
-      tl.fromTo(
-        "#s2-shot",
-        { scale: 1.85, transformOrigin: "34% 36%" },
-        { scale: 1, duration: 1.75, ease: "power2.inOut" },
-        2.6,
-      ).to("#s2-shot", { scale: 1.035, duration: 0.85, ease: "none" }, 4.35);
+      tl.fromTo("#s2-shot", { scale: 1.8, transformOrigin: "32% 34%" }, { scale: 1, duration: 2.1, ease: "power2.inOut" }, 3.5)
+        .to("#s2-shot", { scale: 1.03, duration: 1.1, ease: "none" }, 5.6);
 
-      /* ---------------- 3 · três passos (5,20–7,90) ---------------- */
-      tl.set(["#s3b", "#s3c", "#s3-ripple"], { opacity: 0 }, 5.2)
-        .set(["#s3-chip2", "#s3-chip3"], { opacity: 0 }, 5.2)
-        .fromTo("#s3a", { scale: 1.05 }, { scale: 1, duration: 0.6, ease: EASE }, 5.2)
-        .fromTo("#s3-chip1", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.36, ease: EASE }, 5.3)
-        // o cursor desce até "Criar e entrar" (1128, 754) e clica
-        .fromTo(
-          "#s3-cursor",
-          { x: 1420, y: 520, opacity: 0 },
-          { opacity: 1, duration: 0.2, ease: "none" },
-          5.35,
-        )
-        .to("#s3-cursor", { x: 1128, y: 754, duration: 0.5, ease: "power2.inOut" }, 5.5)
-        .to("#s3-cursor", { scale: 0.74, duration: 0.09, ease: "power2.in" }, 6.0)
-        .to("#s3-cursor", { scale: 1, duration: 0.16, ease: "back.out(3)" }, 6.09)
-        .fromTo(
-          "#s3-ripple",
-          { x: 1128, y: 754, scale: 0.2, opacity: 0.95 },
-          { scale: 1.25, opacity: 0, duration: 0.5, ease: "power2.out" },
-          6.02,
-        )
-        // corte seco para a antessala
-        .set(["#s3a", "#s3-cursor"], { opacity: 0 }, 6.25)
-        .set("#s3b", { opacity: 1 }, 6.25)
-        .set("#s3-chip1", { opacity: 0 }, 6.25)
-        .fromTo("#s3b", { scale: 1.045 }, { scale: 1, duration: 0.55, ease: EASE }, 6.25)
-        .fromTo("#s3-chip2", { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.3, ease: EASE }, 6.27)
-        // corte seco para a sala no ar
-        .set("#s3b", { opacity: 0 }, 7.1)
-        .set("#s3c", { opacity: 1 }, 7.1)
-        .set("#s3-chip2", { opacity: 0 }, 7.1)
-        .fromTo("#s3c", { scale: 1.045 }, { scale: 1, duration: 0.55, ease: EASE }, 7.1)
-        .fromTo("#s3-chip3", { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.3, ease: EASE }, 7.12);
+      /* ---------------- 3 · para o quê (6,70–9,80) ---------------- */
+      tl.fromTo("#s3-head", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 6.78)
+        .fromTo("#s3-card", { opacity: 0, y: 64, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.65, ease: E }, 6.95)
+        .to("#s3-card", { scale: 1.02, duration: 2.1, ease: "none" }, 7.6);
 
-      /* ---------------- 4 · manda o link (7,90–10,40) ---------------- */
-      tl.fromTo("#s4-head", { opacity: 0, y: 44 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 7.95)
-        .fromTo("#s4-card", { opacity: 0, y: 70, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: EASE }, 8.1)
-        // beat-locked: 8,74s (cue forte) — o código salta
-        .fromTo("#s4-code", { scale: 0.9 }, { scale: 1.06, duration: 0.26, ease: "back.out(3)" }, 8.74)
-        .to("#s4-code", { scale: 1, duration: 0.3, ease: "power2.out" }, 9.0)
-        .fromTo("#s4-ring", { opacity: 0.95, scale: 1 }, { opacity: 0, scale: 1.1, duration: 0.55, ease: "power2.out" }, 8.74)
-        // beat-grid: 9,29s — o botão do WhatsApp
-        .fromTo("#s4-wa", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.4, ease: EASE }, 9.29);
+      /* ---------------- 4 · criar a sala (9,80–13,00) ---------------- */
+      tl.fromTo("#s4-shot", { scale: 1.55, transformOrigin: "50% 58%" }, { scale: 1.4, transformOrigin: "50% 58%", duration: 2.6, ease: "power2.out" }, 9.8);
+      pilulaBaixo("#s4-pill", 9.95);
 
-      /* ---------------- 5 · a sala enche (10,40–13,10) ----------------
-         beat-grid: 10,40 · 11,46 · 12,55 */
-      tl.set(["#s5b", "#s5c"], { opacity: 0 }, 10.4)
-        .fromTo("#s5a", { scale: 1.035 }, { scale: 1, duration: 0.6, ease: EASE }, 10.4)
-        .fromTo("#s5-line-inner", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.45, ease: EASE }, 10.5)
-        .fromTo("#s5-count-inner", { opacity: 0, y: -34 }, { opacity: 1, y: 0, duration: 0.4, ease: EASE }, 10.55)
-        .set("#s5a", { opacity: 0 }, 11.46)
-        .set("#s5b", { opacity: 1 }, 11.46)
-        .fromTo("#s5b", { scale: 1.035 }, { scale: 1, duration: 0.55, ease: EASE }, 11.46)
-        .call(() => { document.getElementById("s5-n").textContent = "4"; }, [], 11.46)
-        .fromTo("#s5-count-inner", { scale: 0.86 }, { scale: 1, duration: 0.34, ease: "back.out(3)" }, 11.46)
-        .set("#s5b", { opacity: 0 }, 12.55)
-        .set("#s5c", { opacity: 1 }, 12.55)
-        .fromTo("#s5c", { scale: 1.035 }, { scale: 1, duration: 0.55, ease: EASE }, 12.55)
-        .call(() => { document.getElementById("s5-n").textContent = "6"; }, [], 12.55)
-        .fromTo("#s5-count-inner", { scale: 0.86 }, { scale: 1, duration: 0.34, ease: "back.out(3)" }, 12.55);
+      /* ---------------- 5 · antessala (13,00–16,10) ---------------- */
+      tl.fromTo("#s5-shot", { scale: 1.3, transformOrigin: "50% 46%" }, { scale: 1.18, transformOrigin: "50% 46%", duration: 2.6, ease: "power2.out" }, 13);
+      pilulaBaixo("#s5-pill", 13.15);
 
-      /* ---------------- 6 · mosaico (13,10–16,40) ----------------
-         beat-grid: 13,11 · 13,64 · 14,20 · 14,73 · 15,29 · 15,84.
-         As seis palavras ficam na tela os 3,3 s inteiros; só o destaque anda. */
-      const seis = ["#s6a", "#s6b", "#s6c", "#s6d", "#s6e", "#s6f"];
-      const palavras = ["#w1", "#w2", "#w3", "#w4", "#w5", "#w6"];
-      const marcas = [13.1, 13.64, 14.2, 14.73, 15.29, 15.84];
+      /* ---------------- 6 · manda o link (16,10–19,50) ---------------- */
+      tl.fromTo("#s6-head", { opacity: 0, y: 42 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 16.18)
+        .fromTo("#s6-card", { opacity: 0, y: 66, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.62, ease: E }, 16.34)
+        // beat-locked: 17,47s — o código salta
+        .fromTo("#s6-code", { scale: 0.92 }, { scale: 1.05, duration: 0.26, ease: "back.out(3)" }, 17.47)
+        .to("#s6-code", { scale: 1, duration: 0.32, ease: "power2.out" }, 17.73)
+        .fromTo("#s6-ring", { opacity: 0.95, scale: 1 }, { opacity: 0, scale: 1.1, duration: 0.6, ease: "power2.out" }, 17.47)
+        .fromTo("#s6-wa", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.42, ease: E }, 18.02);
 
-      tl.set(seis.slice(1), { opacity: 0 }, 13.1)
-        .fromTo("#s6-bar", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "none" }, 13.1)
-        .fromTo("#s6-words", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.34, ease: EASE }, 13.12)
-        .fromTo("#s6-prog", { scaleX: 0 }, { scaleX: 1, duration: 3.26, ease: "none" }, 13.1);
+      /* ---------------- 7 · a sala enche (19,50–22,90) ---------------- */
+      tl.set(["#s7b", "#s7c"], { opacity: 0 }, 19.5);
+      entra("#s7a", 19.5, 0.9, 1.03);
+      pilulaBaixo("#s7-pill", 19.62);
+      pilulaCima("#s7-count-inner", 19.66);
+      tl.set("#s7a", { opacity: 0 }, 20.59)
+        .set("#s7b", { opacity: 1 }, 20.59)
+        .call(() => { document.getElementById("s7-n").textContent = "4"; }, [], 20.59)
+        .fromTo("#s7-count-inner", { scale: 0.88 }, { scale: 1, duration: 0.34, ease: "back.out(3)", immediateRender: false }, 20.59)
+        .set("#s7b", { opacity: 0 }, 21.68)
+        .set("#s7c", { opacity: 1 }, 21.68)
+        .call(() => { document.getElementById("s7-n").textContent = "6"; }, [], 21.68)
+        .fromTo("#s7-count-inner", { scale: 0.88 }, { scale: 1, duration: 0.34, ease: "back.out(3)", immediateRender: false }, 21.68);
+      entra("#s7b", 20.59, 0.8, 1.03);
+      entra("#s7c", 21.68, 0.9, 1.03);
 
+      /* ---------------- 8 · conversa e arquivos (22,90–26,00) ---------------- */
+      entra("#s8-shot", 22.9, 1.4, 1.1);
+      // beat-locked: 24,56s — a pílula entra no tempo da música
+      pilulaBaixo("#s8-pill", 23.05);
+      tl.fromTo("#s8-pill", { scale: 1 }, { scale: 1.04, duration: 0.2, ease: "power2.out", yoyo: true, repeat: 1, immediateRender: false }, 24.56);
+
+      /* ---------------- 9 · legendas (26,00–29,20) ----------------
+         A câmera desce até a faixa de legendas, no canto de baixo. */
+      tl.fromTo("#s9-shot", { scale: 1.5, transformOrigin: "26% 84%" }, { scale: 1.12, transformOrigin: "26% 84%", duration: 2.4, ease: "power2.out" }, 26);
+      pilulaCima("#s9-pill", 26.14);
+
+      /* ---------------- 10 · o quadro (29,20–32,50) ---------------- */
+      tl.fromTo("#s10-shot", { scale: 1.12, transformOrigin: "40% 46%" }, { scale: 1, duration: 2.6, ease: "power2.out" }, 29.2);
+      pilulaBaixo("#s10-pill", 29.34);
+
+      tl.fromTo("#dip2-inner", { opacity: 0 }, { opacity: 1, duration: 0.17, ease: "power2.in" }, 32.32)
+        .to("#dip2-inner", { opacity: 0, duration: 0.17, ease: "power2.out" }, 32.5);
+
+      /* ---------------- 11 · dos dois lados (32,50–35,70) ----------------
+         beat-locked: 32,74s — os dois lados entram juntos */
+      tl.fromTo("#s11-left", { x: -210, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: E }, 32.74)
+        .fromTo("#s11-right", { x: 210, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: E }, 32.8);
+      pilulaCima("#s11-pill", 32.9);
+
+      /* ---------------- 12 · mais do que vídeo (35,70–39,30) ----------------
+         Três itens de 1,2 s. As três palavras ficam na tela os 3,6 s inteiros;
+         só o destaque anda, para a leitura não correr atrás do corte. */
+      const tres = ["#s12a", "#s12b", "#s12c"];
+      const pal = ["#w1", "#w2", "#w3"];
+      const marcas = [35.7, 36.9, 38.1];
+      tl.set(tres.slice(1), { opacity: 0 }, 35.7)
+        .fromTo("#s12-words", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.36, ease: E }, 35.76);
       marcas.forEach((t, i) => {
-        if (i > 0) {
-          tl.set(seis[i - 1], { opacity: 0 }, t).set(seis[i], { opacity: 1 }, t);
-        }
-        tl.fromTo(seis[i], { scale: 1.03 }, { scale: 1, duration: 0.42, ease: EASE }, t);
-        tl.to(palavras[i], { color: "#ffffff", duration: 0.18, ease: "none" }, t);
-        if (i > 0) tl.to(palavras[i - 1], { color: "rgba(255,255,255,0.34)", duration: 0.18, ease: "none" }, t);
+        if (i > 0) tl.set(tres[i - 1], { opacity: 0 }, t).set(tres[i], { opacity: 1 }, t);
+        tl.fromTo(tres[i], { scale: 1.035 }, { scale: 1, duration: 0.6, ease: E }, t);
+        tl.to(pal[i], { color: "#ffffff", duration: 0.2, ease: "none" }, t);
+        if (i > 0) tl.to(pal[i - 1], { color: "rgba(255,255,255,0.52)", duration: 0.2, ease: "none" }, t);
       });
 
-      /* ---------------- 7 · o quadro (16,40–19,20) ----------------
-         beat-locked: 17,47s (cue forte) — abre em dois lados */
-      tl.set("#s7-pair", { opacity: 0 }, 16.4)
-        .fromTo("#s7-full", { scale: 1.08 }, { scale: 1, duration: 1.07, ease: "power2.out" }, 16.4)
-        .fromTo("#s7-head-inner", { opacity: 0, y: -36 }, { opacity: 1, y: 0, duration: 0.42, ease: EASE }, 16.45)
-        // o quadro inteiro sai ANTES de o par entrar: dois layouts cheios em
-        // fusão viram dupla exposição
-        .to("#s7-full", { opacity: 0, duration: 0.13, ease: "power2.in" }, 17.27)
-        .set("#s7-pair", { opacity: 1 }, 17.47)
-        .fromTo("#s7-left", { x: -210, opacity: 0 }, { x: 0, opacity: 1, duration: 0.52, ease: EASE }, 17.47)
-        .fromTo("#s7-right", { x: 210, opacity: 0 }, { x: 0, opacity: 1, duration: 0.52, ease: EASE }, 17.53)
-        // beat-grid: 18,56 — um respiro no par
-        .fromTo("#s7-pair", { scale: 0.985 }, { scale: 1, duration: 0.5, ease: EASE }, 18.56);
+      /* ---------------- 13 · tela e gravação (39,30–42,60) ---------------- */
+      tl.set(["#s13b", "#s13-pill2"], { opacity: 0 }, 39.3);
+      tl.fromTo("#s13a", { scale: 1.5, transformOrigin: "50% 50%" }, { scale: 1.38, transformOrigin: "50% 50%", duration: 1.8, ease: "power2.out" }, 39.3);
+      pilulaBaixo("#s13-pill1", 39.44);
+      // beat-locked: 39,82s dentro da cena; o corte para a gravação em 41,0
+      tl.set(["#s13a", "#s13-pill1"], { opacity: 0 }, 41)
+        .set("#s13b", { opacity: 1 }, 41);
+      entra("#s13b", 41, 0.9, 1.04);
+      pilulaBaixo("#s13-pill2", 41.08, 0.36);
 
-      /* ---------------- 8 · tela e celular (19,20–21,40) ---------------- */
-      tl.set("#s8-mobile", { opacity: 0 }, 19.2)
-        .fromTo("#s8-share", { scale: 1.05 }, { scale: 1, duration: 0.8, ease: EASE }, 19.2)
-        .fromTo("#s8-chip-inner", { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.34, ease: EASE }, 19.26)
-        .to(["#s8-share", "#s8-chip-inner"], { opacity: 0, duration: 0.16, ease: "power2.in" }, 20.2)
-        .set("#s8-mobile", { opacity: 1 }, 20.36)
-        .fromTo("#s8-text", { opacity: 0, x: -56 }, { opacity: 1, x: 0, duration: 0.46, ease: EASE }, 20.36)
-        .fromTo("#s8-phone", { opacity: 0, y: 150, rotation: 6 }, { opacity: 1, y: 0, rotation: 0, duration: 0.6, ease: EASE }, 20.4);
+      /* ---------------- 14 · picture-in-picture (42,60–46,00) ---------------- */
+      entra("#s14-shot", 42.6, 1.4, 1.06);
+      tl.fromTo("#s14-pip", { opacity: 0, y: 180, scale: 0.82 }, { opacity: 1, y: 0, scale: 1, duration: 0.72, ease: "back.out(1.5)" }, 42.9);
+      pilulaBaixo("#s14-pill", 43.1);
 
-      /* ---------------- véu 2 (21,22–21,58) ---------------- */
-      tl.fromTo("#dip2-inner", { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.in" }, 21.22)
-        .to("#dip2-inner", { opacity: 0, duration: 0.18, ease: "power2.out" }, 21.4);
+      /* ---------------- 15 · as cores (46,00–49,50) ----------------
+         A mesma chamada, nas paletas de verdade, uma a cada cue. */
+      const cores = ["#s15a", "#s15b", "#s15c", "#s15d"];
+      const quando = [46, 46.93, 47.75, 48.55];
+      tl.set(cores.slice(1), { opacity: 0 }, 46);
+      pilulaCima("#s15-pill", 46.1);
+      tl.fromTo("#s15-grid-inner", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 46.2);
+      quando.forEach((t, i) => {
+        if (i > 0) tl.set(cores[i - 1], { opacity: 0 }, t).set(cores[i], { opacity: 1 }, t);
+        // beat-locked: 45,84 ≈ entrada; os três giros caem na grade da música
+        tl.fromTo(cores[i], { scale: 1.025 }, { scale: 1, duration: 0.5, ease: E }, t);
+      });
 
-      /* ---------------- 9 · fecho (21,40–24,00) ---------------- */
-      tl.fromTo("#s9-glow-wrap", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.8, ease: EASE }, 21.42)
-        .fromTo("#s9-bg", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(1.8)" }, 21.46)
-        .fromTo(
-          ["#s9-headP", "#s9-headO"],
-          { opacity: 0, scale: 0 },
-          { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.2)", stagger: 0.06 },
-          21.66,
-        )
-        .fromTo(
-          ["#s9-bodyP", "#s9-bodyO"],
-          { strokeDashoffset: 1 },
-          { strokeDashoffset: 0, duration: 0.36, ease: "power2.out", stagger: 0.05 },
-          21.78,
-        )
-        .fromTo("#s9-word", { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.42, ease: EASE }, 22.04)
-        // beat-locked: 22,37s (cue forte) — a chamada final
-        .fromTo("#s9-cta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.44, ease: EASE }, 22.37)
-        .fromTo("#s9-foot", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "none" }, 22.7);
+      tl.fromTo("#dip3-inner", { opacity: 0 }, { opacity: 1, duration: 0.17, ease: "power2.in" }, 49.32)
+        .to("#dip3-inner", { opacity: 0, duration: 0.17, ease: "power2.out" }, 49.5);
+
+      /* ---------------- 16 · fecho (49,50–52,80) ---------------- */
+      tl.fromTo("#s16-glow-wrap", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.9, ease: E }, 49.52)
+        .fromTo("#s16-bg", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, 49.56)
+        .fromTo(["#s16-headP", "#s16-headO"], { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.32, ease: "back.out(2.2)", stagger: 0.07 }, 49.8)
+        .fromTo(["#s16-bodyP", "#s16-bodyO"], { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.4, ease: "power2.out", stagger: 0.06 }, 49.94)
+        .fromTo("#s16-word", { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.45, ease: E }, 50.2)
+        // beat-locked: 50,74s — a chamada final
+        .fromTo("#s16-cta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.46, ease: E }, 50.74)
+        .fromTo("#s16-foot", { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "none" }, 51.14);
 
       /* ================================================================ *
        * Reatividade ao áudio: o halo da abertura e o brilho do fecho
-       * respiram com o grave; o laço de "Vcall" ganha um brilho leve no
-       * agudo. Amostragem quadro a quadro, como manda a referência.
+       * respiram com o grave; o "Vcall" do fecho ganha um brilho leve no
+       * agudo. Amostragem quadro a quadro.
        * ================================================================ */
       (function reagirAoAudio() {
         const dados = window.AUDIO_DATA;
         if (!dados || !dados.frames || !dados.frames.length) return;
         const halo = document.getElementById("s1-halo");
-        const glow = document.getElementById("s9-glow");
-        const word = document.getElementById("s9-word");
+        const glow = document.getElementById("s16-glow");
+        const word = document.getElementById("s16-word");
         const fps = dados.fps || 30;
 
         for (let f = 0; f < dados.totalFrames; f++) {
           const q = dados.frames[f];
           tl.call(
-            ((bass, treble) => () => {
-              // 0,92–1,10 de escala: respira, não pulsa.
-              const s = 0.94 + bass * 0.16;
-              halo.style.transform = "scale(" + s.toFixed(4) + ")";
-              halo.style.opacity = (0.72 + bass * 0.28).toFixed(3);
-              glow.style.transform = "scale(" + (0.96 + bass * 0.1).toFixed(4) + ")";
-              glow.style.opacity = (0.76 + bass * 0.24).toFixed(3);
-              word.style.textShadow = "0 0 " + (12 + treble * 36).toFixed(1) + "px rgba(253,77,135," + (0.18 + treble * 0.3).toFixed(3) + ")";
+            ((grave, agudo) => () => {
+              halo.style.transform = "scale(" + (0.94 + grave * 0.16).toFixed(4) + ")";
+              halo.style.opacity = (0.72 + grave * 0.28).toFixed(3);
+              glow.style.transform = "scale(" + (0.96 + grave * 0.1).toFixed(4) + ")";
+              glow.style.opacity = (0.76 + grave * 0.24).toFixed(3);
+              word.style.textShadow =
+                "0 0 " + (12 + agudo * 36).toFixed(1) + "px rgba(253,77,135," + (0.18 + agudo * 0.3).toFixed(3) + ")";
             })(q.b, q.t),
             [],
             f / fps,

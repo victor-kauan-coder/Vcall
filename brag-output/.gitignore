@@ -1,0 +1,17 @@
+# Ferramentas da composição, não o resultado.
+composition/node_modules/
+composition/snapshots/
+
+# Dados crus da extração de áudio (3520 quadros). O que a composição usa é
+# assets/audio-data.js, com os 721 quadros do vídeo, e esse vai para o git.
+composition/audio-data.json
+
+# A trilha vem da skill /brag e tem licença própria — não é redistribuída aqui.
+# Para renderizar de novo:
+#   cp ~/.claude/skills/brag/assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3 \
+#      brag-output/composition/assets/music/
+composition/assets/music/*.mp3
+
+# Capturas intermediárias: as que o vídeo usa estão em composition/assets/shots/.
+work/shots/
+work/crops/

@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="pt-BR" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Vcall — vídeo de lançamento</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/audio-data.js"></script>
+    <style>
+      /* ================================================================ *
+       * Vcall — vídeo de lançamento
+       *
+       * Cores e tipografia vêm de public/css/tokens.css do próprio Vcall.
+       * As telas são capturas do produto rodando de verdade.
+       * ================================================================ */
+      @font-face {
+        font-family: "Bricolage Grotesque";
+        font-style: normal;
+        font-weight: 200 800;
+        src: url(assets/fonts/bricolage-latin.woff2) format("woff2");
+      }
+
+      :root {
+        --pink: #fd4d87;
+        --pink-deep: #e0356e;
+        --orange: #fe9c5f;
+        --orange-deep: #e07b32;
+        --ink: #110c3a;
+        --paper: #f4f6fb;
+        --grad: linear-gradient(135deg, #fd4d87 0%, #fe9c5f 100%);
+        /* Pílulas levam texto branco: os tons profundos da marca, os mesmos
+           dos botões primários do app, são os que passam em contraste. */
+        --grad-strong: linear-gradient(135deg, #d12c5e 0%, #c0611c 100%);
+        --display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+        --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--ink);
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: var(--sans);
+        background: var(--ink);
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+      .fill {
+        position: absolute;
+        inset: 0;
+      }
+      .shot {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        display: block;
+      }
+
+      /* ---- tipografia comum ---- */
+      .kicker {
+        font-family: var(--sans);
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .headline {
+        font-family: var(--display);
+        font-weight: 800;
+        letter-spacing: -0.035em;
+        line-height: 1.04;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 34px;
+        border-radius: 999px;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 40px;
+        letter-spacing: -0.02em;
+        color: #fff;
+        background: var(--grad-strong);
+        box-shadow: 0 18px 46px rgba(224, 53, 110, 0.38);
+        white-space: nowrap;
+      }
+      .pill--dark {
+        color: #fff;
+        background: rgba(17, 12, 58, 0.92);
+        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.36);
+      }
+      .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.26);
+        font-size: 30px;
+      }
+
+      /* ================= 1. abertura ================= */
+      #s1 .fill {
+        background:
+          radial-gradient(60% 50% at 50% 42%, #1b2230 0%, transparent 70%),
+          #0c0e13;
+      }
+      #s1-stack {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 34px;
+      }
+      #s1-halo-wrap {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 760px;
+        height: 760px;
+        margin: -500px 0 0 -380px;
+      }
+      #s1-halo {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(253, 77, 135, 0.4) 0%,
+          rgba(254, 156, 95, 0.17) 40%,
+          transparent 68%
+        );
+        filter: blur(18px);
+      }
+      #s1-mark {
+        overflow: visible;
+        filter: drop-shadow(0 24px 40px rgba(253, 77, 135, 0.35));
+      }
+      .mark-bg,
+      .mark-head {
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+      .mark-body {
+        fill: none;
+        stroke-width: 94;
+        stroke-linecap: round;
+        stroke-dasharray: 1;
+      }
+      #s1-word {
+        display: flex;
+        font-family: var(--display);
+        font-size: 120px;
+        font-weight: 800;
+        letter-spacing: -0.045em;
+        color: #f3f0ff;
+        line-height: 1;
+      }
+      #s1-word span {
+        display: inline-block;
+      }
+      #s1-tag {
+        font-size: 24px;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: #8b97ac;
+      }
+
+      /* ================= 3. três passos ================= */
+      .step {
+        position: absolute;
+        inset: 0;
+      }
+      .chiprow {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 92px;
+        display: flex;
+        justify-content: center;
+      }
+      #s3-cursor {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 34px;
+        height: 34px;
+        margin: -17px 0 0 -17px;
+        border-radius: 50%;
+        background: var(--grad);
+        box-shadow: 0 10px 26px rgba(224, 53, 110, 0.6);
+      }
+      #s3-ripple {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 150px;
+        height: 150px;
+        margin: -75px 0 0 -75px;
+        border-radius: 50%;
+        border: 5px solid var(--pink);
+      }
+
+      /* ================= 4. convite ================= */
+      #s4 .fill {
+        background:
+          radial-gradient(48% 46% at 22% 14%, rgba(253, 77, 135, 0.2) 0%, transparent 70%),
+          radial-gradient(52% 50% at 84% 86%, rgba(254, 156, 95, 0.22) 0%, transparent 70%),
+          var(--paper);
+      }
+      #s4-wrap {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 54px;
+      }
+      #s4-head {
+        font-size: 82px;
+        color: var(--ink);
+        text-align: center;
+        max-width: 1500px;
+      }
+      #s4-card {
+        width: 1180px;
+        padding: 56px 60px 52px;
+        border-radius: 34px;
+        background: #fff;
+        box-shadow: 0 40px 90px rgba(17, 12, 58, 0.16);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 34px;
+      }
+      #s4-code {
+        position: relative;
+        width: 1020px;
+        height: 240px;
+      }
+      #s4-code img {
+        width: 1020px;
+        height: 240px;
+        display: block;
+      }
+      #s4-ring {
+        position: absolute;
+        inset: -14px;
+        border-radius: 22px;
+        border: 5px solid var(--pink);
+      }
+      #s4-wa img {
+        width: 750px;
+        height: 78px;
+        display: block;
+      }
+
+      /* ================= 5. a sala enche ================= */
+      #s5-count {
+        position: absolute;
+        top: 74px;
+        right: 74px;
+      }
+      #s5-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 86px;
+        display: flex;
+        justify-content: center;
+      }
+
+      /* ================= 6. mosaico ================= */
+      #s6-bar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 150px;
+        background: linear-gradient(to top, rgba(12, 14, 19, 0.94) 44%, transparent 100%);
+      }
+      #s6-words {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        font-family: var(--display);
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      #s6-words b {
+        color: rgba(255, 255, 255, 0.34);
+        font-weight: 700;
+      }
+      #s6-words i {
+        color: rgba(255, 255, 255, 0.2);
+        font-style: normal;
+        font-size: 30px;
+      }
+      #s6-prog {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: 7px;
+        width: 1920px;
+        transform-origin: left center;
+        background: var(--grad);
+      }
+
+      /* ================= 7. quadro ================= */
+      #s7 .fill {
+        background:
+          radial-gradient(60% 60% at 50% 20%, #1d1552 0%, transparent 72%),
+          var(--ink);
+      }
+      #s7-head {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 74px;
+        display: flex;
+        justify-content: center;
+      }
+      #s7-pair {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 56px;
+        padding-top: 70px;
+      }
+      .panel {
+        width: 850px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+      }
+      .panel .screen {
+        width: 850px;
+        height: 478px;
+        border-radius: 22px;
+        overflow: hidden;
+        box-shadow: 0 34px 80px rgba(0, 0, 0, 0.5);
+        border: 2px solid rgba(255, 255, 255, 0.14);
+      }
+      .panel .screen img {
+        width: 850px;
+        height: 478px;
+        display: block;
+      }
+      .panel .who {
+        font-family: var(--sans);
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.72);
+      }
+
+      /* ================= 8. tela e celular ================= */
+      #s8 .fill {
+        background:
+          radial-gradient(56% 56% at 78% 40%, #241764 0%, transparent 72%),
+          var(--ink);
+      }
+      #s8-chip {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 88px;
+        display: flex;
+        justify-content: center;
+      }
+      #s8-mobile {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 110px;
+      }
+      #s8-text {
+        width: 640px;
+        font-size: 90px;
+        color: #fff;
+      }
+      #s8-phone {
+        width: 332px;
+        height: 720px;
+        border-radius: 46px;
+        overflow: hidden;
+        border: 9px solid #22194f;
+        box-shadow: 0 46px 110px rgba(0, 0, 0, 0.62);
+      }
+      #s8-phone img {
+        width: 314px;
+        height: 702px;
+        display: block;
+      }
+
+      /* ================= 9. fecho ================= */
+      #s9 .fill {
+        background:
+          radial-gradient(62% 58% at 50% 44%, #241764 0%, transparent 72%),
+          var(--ink);
+      }
+      #s9-glow-wrap {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 1000px;
+        height: 1000px;
+        margin: -560px 0 0 -500px;
+      }
+      #s9-glow {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(253, 77, 135, 0.34) 0%,
+          rgba(254, 156, 95, 0.15) 42%,
+          transparent 68%
+        );
+        filter: blur(22px);
+      }
+      #s9-stack {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 26px;
+      }
+      #s9-word {
+        font-family: var(--display);
+        font-size: 128px;
+        font-weight: 800;
+        letter-spacing: -0.045em;
+        color: #fff;
+        line-height: 1;
+      }
+      #s9-cta {
+        font-family: var(--display);
+        font-size: 56px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        background: var(--grad);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      #s9-foot {
+        font-size: 26px;
+        letter-spacing: 0.1em;
+        color: rgba(255, 255, 255, 0.56);
+      }
+
+      /* ---- véu de passagem ---- */
+      .dip {
+        position: absolute;
+        inset: 0;
+        background: #0c0e13;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="24"
+      data-width="1920"
+      data-height="1080"
+      data-fps="30"
+    >
+      <!-- ============ 1 · abertura: a marca se monta (0,00–2,60) ============ -->
+      <section id="s1" class="clip" data-start="0" data-duration="2.6" data-track-index="0">
+        <div class="fill"></div>
+        <div id="s1-halo-wrap" data-layout-allow-overflow="true"><div id="s1-halo"></div></div>
+        <div id="s1-stack">
+          <svg id="s1-mark" viewBox="0 0 512 512" width="330" height="330">
+            <defs>
+              <linearGradient id="gPink" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#ff5c93" />
+                <stop offset="1" stop-color="#e0356e" />
+              </linearGradient>
+              <linearGradient id="gOrange" x1="1" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#ffb070" />
+                <stop offset="1" stop-color="#fe8c55" />
+              </linearGradient>
+            </defs>
+            <rect id="s1-bg" class="mark-bg" width="512" height="512" rx="112" fill="#110c3a" />
+            <path
+              id="s1-bodyO"
+              class="mark-body"
+              d="M350 246 L262 350"
+              stroke="url(#gOrange)"
+              pathLength="1"
+            />
+            <path
+              id="s1-bodyP"
+              class="mark-body"
+              d="M162 246 L250 350"
+              stroke="url(#gPink)"
+              pathLength="1"
+            />
+            <circle id="s1-headP" class="mark-head" cx="148" cy="157" r="41" fill="url(#gPink)" />
+            <circle id="s1-headO" class="mark-head" cx="364" cy="156" r="41" fill="url(#gOrange)" />
+          </svg>
+          <div id="s1-word">
+            <span>V</span><span>c</span><span>a</span><span>l</span><span>l</span>
+          </div>
+          <div id="s1-tag">conversas que chegam direto</div>
+        </div>
+      </section>
+
+      <!-- ============ 2 · a promessa (2,60–5,20) ============ -->
+      <section id="s2" class="clip" data-start="2.6" data-duration="2.6" data-track-index="0">
+        <div id="s2-shot">
+          <img class="shot" src="assets/shots/01-tela-inicial.png" alt="" />
+        </div>
+      </section>
+
+      <!-- ============ 3 · três passos (5,20–7,90) ============ -->
+      <section id="s3" class="clip" data-start="5.2" data-duration="2.7" data-track-index="0">
+        <div class="step" id="s3a">
+          <img class="shot" src="assets/shots/03-criar-nova-call.png" alt="" />
+        </div>
+        <div class="step" id="s3b">
+          <img class="shot" src="assets/shots/05-antessala.png" alt="" />
+        </div>
+        <div class="step" id="s3c">
+          <img class="shot" src="assets/shots/06-aguardando.png" alt="" />
+        </div>
+        <div id="s3-ripple"></div>
+        <div id="s3-cursor"></div>
+        <div class="chiprow">
+          <div id="s3-chip1" class="pill"><span class="num">1</span>Criar nova call</div>
+        </div>
+        <div class="chiprow">
+          <div id="s3-chip2" class="pill"><span class="num">2</span>Seu nome</div>
+        </div>
+        <div class="chiprow">
+          <div id="s3-chip3" class="pill"><span class="num">3</span>No ar</div>
+        </div>
+      </section>
+
+      <!-- ============ 4 · manda o link (7,90–10,40) ============ -->
+      <section id="s4" class="clip" data-start="7.9" data-duration="2.5" data-track-index="0">
+        <div class="fill"></div>
+        <div id="s4-wrap">
+          <h2 id="s4-head" class="headline">Manda o link. Ou dita seis letras.</h2>
+          <div id="s4-card">
+            <div id="s4-code">
+              <img src="assets/shots/codigo.png" alt="Código P2P da sala" />
+              <div id="s4-ring"></div>
+            </div>
+            <div id="s4-wa"><img src="assets/shots/whatsapp.png" alt="Enviar pelo WhatsApp" /></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 5 · a sala enche (10,40–13,10) ============ -->
+      <section id="s5" class="clip" data-start="10.4" data-duration="2.7" data-track-index="0">
+        <div class="step" id="s5a">
+          <img class="shot" src="assets/shots/09-chamada-2.png" alt="" />
+        </div>
+        <div class="step" id="s5b">
+          <img class="shot" src="assets/shots/10-chamada-4.png" alt="" />
+        </div>
+        <div class="step" id="s5c">
+          <img class="shot" src="assets/shots/11-chamada-6.png" alt="" />
+        </div>
+        <div id="s5-count">
+          <div id="s5-count-inner" class="pill">
+            <span id="s5-n">2</span>
+            <span>pessoas</span>
+          </div>
+        </div>
+        <div id="s5-line">
+          <div id="s5-line-inner" class="pill pill--dark">
+            Até 16 pessoas. Sem conta. Sem instalar.
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 6 · mosaico de recursos (13,10–16,40) ============ -->
+      <section id="s6" class="clip" data-start="13.1" data-duration="3.3" data-track-index="0">
+        <div class="step" id="s6a">
+          <img class="shot" src="assets/shots/13-chat-enviado.png" alt="" />
+        </div>
+        <div class="step" id="s6b">
+          <img class="shot" src="assets/shots/14-pessoas.png" alt="" />
+        </div>
+        <div class="step" id="s6c">
+          <img class="shot" src="assets/shots/15-estatisticas.png" alt="" />
+        </div>
+        <div class="step" id="s6d">
+          <img class="shot" src="assets/shots/17-reacoes.png" alt="" />
+        </div>
+        <div class="step" id="s6e">
+          <img class="shot" src="assets/shots/22-legendas.png" alt="" />
+        </div>
+        <div class="step" id="s6f">
+          <img class="shot" src="assets/shots/26-gravando.png" alt="" />
+        </div>
+        <div id="s6-bar"></div>
+        <div id="s6-words">
+          <b id="w1">chat</b><i>·</i><b id="w2">pessoas</b><i>·</i><b id="w3">rede</b><i>·</i
+          ><b id="w4">reações</b><i>·</i><b id="w5">legendas</b><i>·</i><b id="w6">gravação</b>
+        </div>
+        <div id="s6-prog"></div>
+      </section>
+
+      <!-- ============ 7 · o quadro é de todo mundo (16,40–19,20) ============ -->
+      <section id="s7" class="clip" data-start="16.4" data-duration="2.8" data-track-index="0">
+        <div class="fill"></div>
+        <div class="step" id="s7-full">
+          <img class="shot" src="assets/shots/20-quadro-desenhado.png" alt="" />
+        </div>
+        <div id="s7-pair">
+          <div class="panel" id="s7-left">
+            <div class="screen"><img src="assets/shots/20-quadro-desenhado.png" alt="" /></div>
+            <div class="who">você</div>
+          </div>
+          <div class="panel" id="s7-right">
+            <div class="screen">
+              <img src="assets/shots/21-quadro-no-outro-lado.png" alt="" />
+            </div>
+            <div class="who">do outro lado</div>
+          </div>
+        </div>
+        <div id="s7-head">
+          <div id="s7-head-inner" class="pill">O que você desenha aparece lá na hora.</div>
+        </div>
+      </section>
+
+      <!-- ============ 8 · tela e celular (19,20–21,40) ============ -->
+      <section id="s8" class="clip" data-start="19.2" data-duration="2.2" data-track-index="0">
+        <div class="fill"></div>
+        <div class="step" id="s8-share">
+          <img class="shot" src="assets/shots/23-compartilhar-escolha.png" alt="" />
+        </div>
+        <div id="s8-chip">
+          <div id="s8-chip-inner" class="pill">Nitidez ou fluidez</div>
+        </div>
+        <div id="s8-mobile">
+          <h2 id="s8-text" class="headline">No celular também.</h2>
+          <div id="s8-phone"><img src="assets/shots/28-celular-chamada.png" alt="" /></div>
+        </div>
+      </section>
+
+      <!-- ============ 9 · fecho (21,40–24,00) ============ -->
+      <section id="s9" class="clip" data-start="21.4" data-duration="2.6" data-track-index="0">
+        <div class="fill"></div>
+        <div id="s9-glow-wrap" data-layout-allow-overflow="true"><div id="s9-glow"></div></div>
+        <div id="s9-stack">
+          <svg id="s9-mark" viewBox="0 0 512 512" width="190" height="190">
+            <rect id="s9-bg" class="mark-bg" width="512" height="512" rx="112" fill="#110c3a" />
+            <path
+              id="s9-bodyO"
+              class="mark-body"
+              d="M350 246 L262 350"
+              stroke="url(#gOrange)"
+              pathLength="1"
+            />
+            <path
+              id="s9-bodyP"
+              class="mark-body"
+              d="M162 246 L250 350"
+              stroke="url(#gPink)"
+              pathLength="1"
+            />
+            <circle id="s9-headP" class="mark-head" cx="148" cy="157" r="41" fill="url(#gPink)" />
+            <circle id="s9-headO" class="mark-head" cx="364" cy="156" r="41" fill="url(#gOrange)" />
+          </svg>
+          <div id="s9-word">Vcall</div>
+          <div id="s9-cta">Abra o navegador e chame.</div>
+          <div id="s9-foot">criptografada ponta a ponta · sem conta · sem instalar</div>
+        </div>
+      </section>
+
+      <!-- ============ véus de passagem ============ -->
+      <section id="dip1" class="clip" data-start="2.42" data-duration="0.36" data-track-index="1">
+        <div class="dip" id="dip1-inner"></div>
+      </section>
+      <section id="dip2" class="clip" data-start="21.22" data-duration="0.36" data-track-index="1">
+        <div class="dip" id="dip2-inner"></div>
+      </section>
+
+      <!-- ============ áudio ============ -->
+      <audio
+        id="bgm"
+        data-start="0"
+        data-duration="24"
+        data-track-index="8"
+        src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.18},{"t":0.9,"v":0.78},{"t":22.5,"v":0.78},{"t":24,"v":0}]}]}'
+      ></audio>
+
+      <audio
+        id="sfx-open"
+        data-start="0.12"
+        data-track-index="10"
+        data-volume="0.5"
+        src="assets/sfx/impact/impactSoft_medium_001.ogg"
+      ></audio>
+      <audio
+        id="sfx-cut2"
+        data-start="2.6"
+        data-track-index="11"
+        data-volume="0.42"
+        src="assets/sfx/impact/impactSoft_medium_001.ogg"
+      ></audio>
+      <audio
+        id="sfx-click"
+        data-start="6.02"
+        data-track-index="12"
+        data-volume="0.55"
+        src="assets/sfx/interface/click_003.ogg"
+      ></audio>
+      <audio
+        id="sfx-code"
+        data-start="8.74"
+        data-track-index="13"
+        data-volume="0.5"
+        src="assets/sfx/interface/click_002.ogg"
+      ></audio>
+      <audio
+        id="sfx-fill"
+        data-start="10.4"
+        data-track-index="14"
+        data-volume="0.4"
+        src="assets/sfx/impact/impactSoft_medium_001.ogg"
+      ></audio>
+      <audio
+        id="sfx-mosaic"
+        data-start="13.1"
+        data-track-index="15"
+        data-volume="0.38"
+        src="assets/sfx/impact/impactSoft_medium_001.ogg"
+      ></audio>
+      <audio
+        id="sfx-board"
+        data-start="16.4"
+        data-track-index="16"
+        data-volume="0.42"
+        src="assets/sfx/interface/switch_007.ogg"
+      ></audio>
+      <audio
+        id="sfx-split"
+        data-start="17.47"
+        data-track-index="17"
+        data-volume="0.46"
+        src="assets/sfx/impact/impactSoft_medium_001.ogg"
+      ></audio>
+      <audio
+        id="sfx-share"
+        data-start="19.2"
+        data-track-index="18"
+        data-volume="0.4"
+        src="assets/sfx/interface/switch_007.ogg"
+      ></audio>
+      <audio
+        id="sfx-logo"
+        data-start="21.46"
+        data-track-index="19"
+        data-volume="0.5"
+        src="assets/sfx/impact/impactBell_heavy_000.ogg"
+      ></audio>
+    </div>
+
+    <script>
+      /* ================================================================ *
+       * Linha do tempo única, pausada. Tudo em segundos absolutos.
+       *
+       * Cues da trilha (happy-beats vol-12, 109,96 BPM):
+       *   fortes  8,74 · 9,29 · 10,93 · 13,11 · 17,47 · 18,56 · 22,37
+       *   grade   13,11 13,64 14,20 14,73 15,29 15,84
+       * ================================================================ */
+      const tl = gsap.timeline({ paused: true });
+      const EASE = "power3.out";
+
+      /* ---------------- 1 · abertura (0,00–2,60) ---------------- */
+      tl.fromTo("#s1-halo-wrap", { opacity: 0, scale: 0.45 }, { opacity: 1, scale: 1, duration: 0.75, ease: EASE }, 0.05)
+        .fromTo("#s1-bg", { opacity: 0, scale: 0.68 }, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.7)" }, 0.12)
+        .fromTo(
+          ["#s1-headP", "#s1-headO"],
+          { opacity: 0, scale: 0 },
+          { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2.2)", stagger: 0.09 },
+          0.46,
+        )
+        .fromTo(
+          ["#s1-bodyP", "#s1-bodyO"],
+          { strokeDashoffset: 1 },
+          { strokeDashoffset: 0, duration: 0.55, ease: "power2.out", stagger: 0.07 },
+          0.68,
+        )
+        .fromTo(
+          "#s1-word span",
+          { opacity: 0, y: 46 },
+          { opacity: 1, y: 0, duration: 0.5, ease: EASE, stagger: 0.055 },
+          1.1,
+        )
+        .fromTo("#s1-tag", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 1.52)
+        .fromTo("#s1-stack", { scale: 1.07 }, { scale: 1, duration: 2.5, ease: "none" }, 0);
+
+      /* ---------------- véu 1 (2,42–2,78) ---------------- */
+      tl.fromTo("#dip1-inner", { opacity: 0 }, { opacity: 1, duration: 0.17, ease: "power2.in" }, 2.42)
+        .to("#dip1-inner", { opacity: 0, duration: 0.17, ease: "power2.out" }, 2.6);
+
+      /* ---------------- 2 · a promessa (2,60–5,20) ----------------
+         Abre fechado na manchete do próprio site e abre até a tela inteira. */
+      tl.fromTo(
+        "#s2-shot",
+        { scale: 1.85, transformOrigin: "34% 36%" },
+        { scale: 1, duration: 1.75, ease: "power2.inOut" },
+        2.6,
+      ).to("#s2-shot", { scale: 1.035, duration: 0.85, ease: "none" }, 4.35);
+
+      /* ---------------- 3 · três passos (5,20–7,90) ---------------- */
+      tl.set(["#s3b", "#s3c", "#s3-ripple"], { opacity: 0 }, 5.2)
+        .set(["#s3-chip2", "#s3-chip3"], { opacity: 0 }, 5.2)
+        .fromTo("#s3a", { scale: 1.05 }, { scale: 1, duration: 0.6, ease: EASE }, 5.2)
+        .fromTo("#s3-chip1", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.36, ease: EASE }, 5.3)
+        // o cursor desce até "Criar e entrar" (1128, 754) e clica
+        .fromTo(
+          "#s3-cursor",
+          { x: 1420, y: 520, opacity: 0 },
+          { opacity: 1, duration: 0.2, ease: "none" },
+          5.35,
+        )
+        .to("#s3-cursor", { x: 1128, y: 754, duration: 0.5, ease: "power2.inOut" }, 5.5)
+        .to("#s3-cursor", { scale: 0.74, duration: 0.09, ease: "power2.in" }, 6.0)
+        .to("#s3-cursor", { scale: 1, duration: 0.16, ease: "back.out(3)" }, 6.09)
+        .fromTo(
+          "#s3-ripple",
+          { x: 1128, y: 754, scale: 0.2, opacity: 0.95 },
+          { scale: 1.25, opacity: 0, duration: 0.5, ease: "power2.out" },
+          6.02,
+        )
+        // corte seco para a antessala
+        .set(["#s3a", "#s3-cursor"], { opacity: 0 }, 6.25)
+        .set("#s3b", { opacity: 1 }, 6.25)
+        .set("#s3-chip1", { opacity: 0 }, 6.25)
+        .fromTo("#s3b", { scale: 1.045 }, { scale: 1, duration: 0.55, ease: EASE }, 6.25)
+        .fromTo("#s3-chip2", { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.3, ease: EASE }, 6.27)
+        // corte seco para a sala no ar
+        .set("#s3b", { opacity: 0 }, 7.1)
+        .set("#s3c", { opacity: 1 }, 7.1)
+        .set("#s3-chip2", { opacity: 0 }, 7.1)
+        .fromTo("#s3c", { scale: 1.045 }, { scale: 1, duration: 0.55, ease: EASE }, 7.1)
+        .fromTo("#s3-chip3", { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.3, ease: EASE }, 7.12);
+
+      /* ---------------- 4 · manda o link (7,90–10,40) ---------------- */
+      tl.fromTo("#s4-head", { opacity: 0, y: 44 }, { opacity: 1, y: 0, duration: 0.5, ease: EASE }, 7.95)
+        .fromTo("#s4-card", { opacity: 0, y: 70, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: EASE }, 8.1)
+        // beat-locked: 8,74s (cue forte) — o código salta
+        .fromTo("#s4-code", { scale: 0.9 }, { scale: 1.06, duration: 0.26, ease: "back.out(3)" }, 8.74)
+        .to("#s4-code", { scale: 1, duration: 0.3, ease: "power2.out" }, 9.0)
+        .fromTo("#s4-ring", { opacity: 0.95, scale: 1 }, { opacity: 0, scale: 1.1, duration: 0.55, ease: "power2.out" }, 8.74)
+        // beat-grid: 9,29s — o botão do WhatsApp
+        .fromTo("#s4-wa", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.4, ease: EASE }, 9.29);
+
+      /* ---------------- 5 · a sala enche (10,40–13,10) ----------------
+         beat-grid: 10,40 · 11,46 · 12,55 */
+      tl.set(["#s5b", "#s5c"], { opacity: 0 }, 10.4)
+        .fromTo("#s5a", { scale: 1.035 }, { scale: 1, duration: 0.6, ease: EASE }, 10.4)
+        .fromTo("#s5-line-inner", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.45, ease: EASE }, 10.5)
+        .fromTo("#s5-count-inner", { opacity: 0, y: -34 }, { opacity: 1, y: 0, duration: 0.4, ease: EASE }, 10.55)
+        .set("#s5a", { opacity: 0 }, 11.46)
+        .set("#s5b", { opacity: 1 }, 11.46)
+        .fromTo("#s5b", { scale: 1.035 }, { scale: 1, duration: 0.55, ease: EASE }, 11.46)
+        .call(() => { document.getElementById("s5-n").textContent = "4"; }, [], 11.46)
+        .fromTo("#s5-count-inner", { scale: 0.86 }, { scale: 1, duration: 0.34, ease: "back.out(3)" }, 11.46)
+        .set("#s5b", { opacity: 0 }, 12.55)
+        .set("#s5c", { opacity: 1 }, 12.55)
+        .fromTo("#s5c", { scale: 1.035 }, { scale: 1, duration: 0.55, ease: EASE }, 12.55)
+        .call(() => { document.getElementById("s5-n").textContent = "6"; }, [], 12.55)
+        .fromTo("#s5-count-inner", { scale: 0.86 }, { scale: 1, duration: 0.34, ease: "back.out(3)" }, 12.55);
+
+      /* ---------------- 6 · mosaico (13,10–16,40) ----------------
+         beat-grid: 13,11 · 13,64 · 14,20 · 14,73 · 15,29 · 15,84.
+         As seis palavras ficam na tela os 3,3 s inteiros; só o destaque anda. */
+      const seis = ["#s6a", "#s6b", "#s6c", "#s6d", "#s6e", "#s6f"];
+      const palavras = ["#w1", "#w2", "#w3", "#w4", "#w5", "#w6"];
+      const marcas = [13.1, 13.64, 14.2, 14.73, 15.29, 15.84];
+
+      tl.set(seis.slice(1), { opacity: 0 }, 13.1)
+        .fromTo("#s6-bar", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "none" }, 13.1)
+        .fromTo("#s6-words", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.34, ease: EASE }, 13.12)
+        .fromTo("#s6-prog", { scaleX: 0 }, { scaleX: 1, duration: 3.26, ease: "none" }, 13.1);
+
+      marcas.forEach((t, i) => {
+        if (i > 0) {
+          tl.set(seis[i - 1], { opacity: 0 }, t).set(seis[i], { opacity: 1 }, t);
+        }
+        tl.fromTo(seis[i], { scale: 1.03 }, { scale: 1, duration: 0.42, ease: EASE }, t);
+        tl.to(palavras[i], { color: "#ffffff", duration: 0.18, ease: "none" }, t);
+        if (i > 0) tl.to(palavras[i - 1], { color: "rgba(255,255,255,0.34)", duration: 0.18, ease: "none" }, t);
+      });
+
+      /* ---------------- 7 · o quadro (16,40–19,20) ----------------
+         beat-locked: 17,47s (cue forte) — abre em dois lados */
+      tl.set("#s7-pair", { opacity: 0 }, 16.4)
+        .fromTo("#s7-full", { scale: 1.08 }, { scale: 1, duration: 1.07, ease: "power2.out" }, 16.4)
+        .fromTo("#s7-head-inner", { opacity: 0, y: -36 }, { opacity: 1, y: 0, duration: 0.42, ease: EASE }, 16.45)
+        // o quadro inteiro sai ANTES de o par entrar: dois layouts cheios em
+        // fusão viram dupla exposição
+        .to("#s7-full", { opacity: 0, duration: 0.13, ease: "power2.in" }, 17.27)
+        .set("#s7-pair", { opacity: 1 }, 17.47)
+        .fromTo("#s7-left", { x: -210, opacity: 0 }, { x: 0, opacity: 1, duration: 0.52, ease: EASE }, 17.47)
+        .fromTo("#s7-right", { x: 210, opacity: 0 }, { x: 0, opacity: 1, duration: 0.52, ease: EASE }, 17.53)
+        // beat-grid: 18,56 — um respiro no par
+        .fromTo("#s7-pair", { scale: 0.985 }, { scale: 1, duration: 0.5, ease: EASE }, 18.56);
+
+      /* ---------------- 8 · tela e celular (19,20–21,40) ---------------- */
+      tl.set("#s8-mobile", { opacity: 0 }, 19.2)
+        .fromTo("#s8-share", { scale: 1.05 }, { scale: 1, duration: 0.8, ease: EASE }, 19.2)
+        .fromTo("#s8-chip-inner", { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.34, ease: EASE }, 19.26)
+        .to(["#s8-share", "#s8-chip-inner"], { opacity: 0, duration: 0.16, ease: "power2.in" }, 20.2)
+        .set("#s8-mobile", { opacity: 1 }, 20.36)
+        .fromTo("#s8-text", { opacity: 0, x: -56 }, { opacity: 1, x: 0, duration: 0.46, ease: EASE }, 20.36)
+        .fromTo("#s8-phone", { opacity: 0, y: 150, rotation: 6 }, { opacity: 1, y: 0, rotation: 0, duration: 0.6, ease: EASE }, 20.4);
+
+      /* ---------------- véu 2 (21,22–21,58) ---------------- */
+      tl.fromTo("#dip2-inner", { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.in" }, 21.22)
+        .to("#dip2-inner", { opacity: 0, duration: 0.18, ease: "power2.out" }, 21.4);
+
+      /* ---------------- 9 · fecho (21,40–24,00) ---------------- */
+      tl.fromTo("#s9-glow-wrap", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.8, ease: EASE }, 21.42)
+        .fromTo("#s9-bg", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(1.8)" }, 21.46)
+        .fromTo(
+          ["#s9-headP", "#s9-headO"],
+          { opacity: 0, scale: 0 },
+          { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.2)", stagger: 0.06 },
+          21.66,
+        )
+        .fromTo(
+          ["#s9-bodyP", "#s9-bodyO"],
+          { strokeDashoffset: 1 },
+          { strokeDashoffset: 0, duration: 0.36, ease: "power2.out", stagger: 0.05 },
+          21.78,
+        )
+        .fromTo("#s9-word", { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.42, ease: EASE }, 22.04)
+        // beat-locked: 22,37s (cue forte) — a chamada final
+        .fromTo("#s9-cta", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.44, ease: EASE }, 22.37)
+        .fromTo("#s9-foot", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "none" }, 22.7);
+
+      /* ================================================================ *
+       * Reatividade ao áudio: o halo da abertura e o brilho do fecho
+       * respiram com o grave; o laço de "Vcall" ganha um brilho leve no
+       * agudo. Amostragem quadro a quadro, como manda a referência.
+       * ================================================================ */
+      (function reagirAoAudio() {
+        const dados = window.AUDIO_DATA;
+        if (!dados || !dados.frames || !dados.frames.length) return;
+        const halo = document.getElementById("s1-halo");
+        const glow = document.getElementById("s9-glow");
+        const word = document.getElementById("s9-word");
+        const fps = dados.fps || 30;
+
+        for (let f = 0; f < dados.totalFrames; f++) {
+          const q = dados.frames[f];
+          tl.call(
+            ((bass, treble) => () => {
+              // 0,92–1,10 de escala: respira, não pulsa.
+              const s = 0.94 + bass * 0.16;
+              halo.style.transform = "scale(" + s.toFixed(4) + ")";
+              halo.style.opacity = (0.72 + bass * 0.28).toFixed(3);
+              glow.style.transform = "scale(" + (0.96 + bass * 0.1).toFixed(4) + ")";
+              glow.style.opacity = (0.76 + bass * 0.24).toFixed(3);
+              word.style.textShadow = "0 0 " + (12 + treble * 36).toFixed(1) + "px rgba(253,77,135," + (0.18 + treble * 0.3).toFixed(3) + ")";
+            })(q.b, q.t),
+            [],
+            f / fps,
+          );
+        }
+      })();
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

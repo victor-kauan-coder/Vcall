@@ -21,8 +21,8 @@ import { Emitter } from "../lib/emitter.js";
 
 /** Teto por arquivo. Acima disso a transferência leva minutos e trava o canal. */
 export const MAX_FILE = 25 * 1024 * 1024;
-/** Pedaço em base64. Abaixo do teto prático de 256 kB do DataChannel. */
-const CHUNK = 48 * 1024;
+/** Pedaço em base64. Pequeno, para a fila do canal (128 kB) andar em passos finos. */
+const CHUNK = 16 * 1024;
 /** Sem novos pedaços por este tempo, a transferência é dada por abandonada. */
 const ABANDONADO_MS = 120_000;
 

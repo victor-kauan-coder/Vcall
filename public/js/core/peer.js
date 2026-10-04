@@ -60,8 +60,13 @@ const DC_CURSOR = { label: "cursor", id: 1, negotiated: true, ordered: false, ma
 const DC_AUDIO = { label: "audio-control", id: 2, negotiated: true, ordered: false, maxRetransmits: 0 };
 const DC_BLOB = { label: "canvas-blob", id: 3, negotiated: true, ordered: true };
 
-/** Acima disto o canal está congestionado; o remetente espera antes de empurrar mais. */
-const BLOB_HIGH_WATER = 512 * 1024;
+/**
+ * Acima disto o canal está congestionado; o remetente espera antes de empurrar
+ * mais. Com 512 kB na fila, o canal às vezes parava de enviar por 40 a 60 s
+ * (a fila parada, o vídeo seguindo normal) e um arquivo de 3 MB não chegava:
+ * 3 falhas em 8 rodadas; 256 kB ainda travava; 128 kB, nenhuma em 16.
+ */
+const BLOB_HIGH_WATER = 128 * 1024;
 
 const GRACE_MS = 2500;
 const RESTART_BACKOFF = [0, 1000, 2500, 5000, 8000, 12_000, 20_000];

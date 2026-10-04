@@ -220,6 +220,10 @@ export class MiniCall {
           cell.avatar.replaceChildren(...(copia ? [copia] : []));
         }
       }
+      // O tom do fundo do avatar (ver Tile.#pintarFundo) vem junto.
+      const ambiente = tile.avatarBox.style.cssText;
+      if (cell.avatar.style.cssText !== ambiente) cell.avatar.style.cssText = ambiente;
+      cell.avatar.classList.toggle("tem-ambiente", tile.avatarBox.classList.contains("tem-ambiente"));
       cell.avatar.hidden = !!stream;
       cell.video.hidden = !stream;
       cell.name.textContent = tile.nameEl.textContent;

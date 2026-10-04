@@ -466,7 +466,56 @@ body.na-chamada .ambient {
  * o espaço da etiqueta com o nome.
  */
 .tile__avatar .avatar {
+  position: relative; /* acima do fundo colorido, que é ::before/::after */
   width: clamp(32px, min(26cqw, 46cqh), 128px);
+}
+
+/*
+ * O fundo no tom do avatar. ui/stage.js põe --amb, a cor principal dele;
+ * aqui fica só o matiz, bem escuro e quase sem saturação. O destaque é o
+ * avatar: o fundo só dá a temperatura, clareia de leve atrás dele e escurece
+ * nas bordas. Escuro nos dois temas, como o vídeo e a etiqueta pedem; o grão
+ * fino tira o degrau das faixas no gradiente escuro.
+ *
+ * ::after é o brilho suave atrás do avatar, que acompanha a voz de quem fala
+ * com a câmera desligada. Navegador sem cor relativa fica com o halo neutro.
+ */
+@supports (color: oklch(from red l c h)) {
+  .tile__avatar::before,
+  .tile__avatar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 700ms var(--ease-out);
+  }
+  .tile__avatar::before {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+      radial-gradient(ellipse 75% 85% at 50% 50%, oklch(from var(--amb) 0.25 min(c, 0.05) h), oklch(from var(--amb) 0.15 min(c, 0.025) h));
+  }
+  .tile__avatar::after {
+    --av: clamp(32px, min(26cqw, 46cqh), 128px);
+    background: radial-gradient(
+      circle calc(var(--av) * 1.1) at 50% 50%,
+      oklch(from var(--amb) 0.45 min(c, 0.09) h / 0.45),
+      transparent
+    );
+    transition:
+      opacity 700ms var(--ease-out),
+      scale 240ms var(--ease-out);
+  }
+  .tile__avatar.tem-ambiente::before,
+  .tile__avatar.tem-ambiente::after {
+    opacity: 1;
+  }
+  .tile.is-speaking .tile__avatar.tem-ambiente::after {
+    scale: calc(1 + var(--lv, 0) * 0.12);
+  }
+  .tile__avatar.tem-ambiente .avatar {
+    box-shadow: 0 18px 36px -18px oklch(from var(--amb) 0.1 0.03 h / 0.9);
+  }
 }
 
 .tile__label {
@@ -487,7 +536,6 @@ body.na-chamada .ambient {
   z-index: var(--z-tile-overlay);
   pointer-events: none;
 }
-
 .tile__label .icon {
   width: 14px;
   height: 14px;

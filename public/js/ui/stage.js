@@ -14,7 +14,7 @@
  *   4. senão, grade igualitária.
  */
 import { el, icon, clear, setIcon } from "../lib/dom.js";
-import { avatarEl, setAvatar } from "./avatars.js";
+import { avatarEl, corDoAvatar, setAvatar } from "./avatars.js";
 import { QUALITY_ICON, QUALITY_LABEL } from "../core/stats.js";
 import { SPRING, animate, burst, calm, flip } from "./motion.js";
 import { prefs } from "../lib/util.js";
@@ -30,6 +30,8 @@ const CONNECTION_TEXT = {
 };
 
 class Tile {
+  #vezDoFundo = 0;
+
   constructor({ id, peerId, kind, name, avatar, self }) {
     this.id = id;
     this.peerId = peerId;
@@ -53,6 +55,7 @@ class Tile {
     if (self && kind === "cam") this.video.classList.add("is-mirrored");
 
     this.avatarBox = el("div.tile__avatar", {}, [avatarEl(avatar, { title: name })]);
+    this.#pintarFundo(avatar);
 
     this.netBox = el("div.tile__net", { dataset: { quality: "unknown" } }, [
       icon(QUALITY_ICON.unknown, { size: "sm", label: QUALITY_LABEL.unknown }),
@@ -257,7 +260,23 @@ class Tile {
   setAvatarSpec(spec, name) {
     setAvatar(this.avatarBox.firstElementChild, spec);
     this.avatarBox.firstElementChild?.setAttribute("aria-label", `Avatar de ${name}`);
+    this.#pintarFundo(spec);
   }
+
+  /**
+   * O fundo de quem está sem câmera ganha o tom do próprio avatar (a cor
+   * final é decidida em .tile__avatar, no app.css). A troca de avatar no meio
+   * da chamada pode chegar antes da cor do anterior; só a última vale.
+   */
+  #pintarFundo(spec) {
+    const vez = ++this.#vezDoFundo;
+    corDoAvatar(spec).then((cor) => {
+      if (vez !== this.#vezDoFundo) return;
+      this.avatarBox.classList.toggle("tem-ambiente", !!cor);
+      if (cor) this.avatarBox.style.setProperty("--amb", cor);
+    });
+  }
+
 
   setMic(on) {
     setIcon(this.micIcon, on ? "mic" : "mic-off");

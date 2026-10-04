@@ -149,6 +149,61 @@ export function setAvatar(node, spec) {
   node.innerHTML = uniquifyIds(avatarSvg(spec));
 }
 
+/**
+ * A cor principal de um avatar, para o fundo do ladrilho ficar no tom dele.
+ *
+ * O avatar (SVG gerado ou foto) é desenhado num canvas de 32 px e as cores
+ * são contadas em caixas de 16 tons por canal. Cor viva pesa mais que cinza:
+ * o traço preto dos avatares desenhados e a parede branca atrás de uma foto
+ * não podem ganhar. Devolve hex, ou null; o tom final é decidido no CSS.
+ */
+const corCache = new Map();
+
+export function corDoAvatar(spec) {
+  const foto = isPhoto(spec);
+  const chave = foto ? spec.photo : cacheKey(spec?.style, spec?.seed);
+  if (!corCache.has(chave)) {
+    const src = foto ? spec.photo : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarSvg(spec))}`;
+    corCache.set(chave, extrairCor(src).catch(() => null));
+  }
+  return corCache.get(chave);
+}
+
+async function extrairCor(src) {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  const lado = 32;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = lado;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, lado, lado);
+  const { data } = ctx.getImageData(0, 0, lado, lado);
+
+  const caixas = new Map();
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 200) continue; // cantos transparentes do círculo
+    const k = ((data[i] >> 4) << 8) | ((data[i + 1] >> 4) << 4) | (data[i + 2] >> 4);
+    const c = caixas.get(k) || { n: 0, r: 0, g: 0, b: 0 };
+    c.n += 1;
+    c.r += data[i];
+    c.g += data[i + 1];
+    c.b += data[i + 2];
+    caixas.set(k, c);
+  }
+
+  let melhor = null;
+  let maiorPeso = 0;
+  for (const { n, r, g, b } of caixas.values()) {
+    const cor = [r / n, g / n, b / n];
+    const max = Math.max(...cor);
+    const sat = max ? (max - Math.min(...cor)) / max : 0;
+    const peso = n * (0.08 + sat) * (max < 40 ? 0.1 : 1);
+    if (peso > maiorPeso) [melhor, maiorPeso] = [cor, peso];
+  }
+  return melhor && `#${melhor.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Avatar inicial para quem nunca escolheu um. */
 export function defaultAvatar() {
   return { style: AVATAR_STYLES[0], seed: randomSeed() };

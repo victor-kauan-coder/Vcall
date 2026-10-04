@@ -86,6 +86,16 @@
 .pip__avatar[hidden] {
   display: none;
 }
+/* O fundo no tom do avatar, como .tile__avatar no app.css (lá está o
+   porquê de cada camada). Repetido aqui porque a janela PiP do navegador não
+   carrega o app.css. */
+@supports (color: oklch(from red l c h)) {
+  .pip__avatar.tem-ambiente {
+    background:
+      radial-gradient(circle closest-side at 50% 50%, oklch(from var(--amb) 0.45 min(c, 0.09) h / 0.45), transparent),
+      radial-gradient(ellipse 75% 85% at 50% 50%, oklch(from var(--amb) 0.25 min(c, 0.05) h), oklch(from var(--amb) 0.15 min(c, 0.025) h));
+  }
+}
 /* Estilo completo do avatar aqui: na janela PiP do navegador o app.css não
    é carregado, e sem ele o SVG do avatar não tem tamanho. */
 .pip__avatar .avatar {

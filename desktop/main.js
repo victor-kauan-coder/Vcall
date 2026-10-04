@@ -30,9 +30,10 @@ import { RoomRegistry } from "../src/rooms.js";
 import { hostControl } from "./guard.js";
 import { Tunnel } from "./tunnel.js";
 import { conferir } from "./atualizacao.js";
+import * as atualizador from "./atualizador.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
-import { descreverFontes, montarResposta, sessaoWayland } from "./captura.js";
-import { executavelParaRegistrar, precisaSemSandbox } from "./linux.js";
+import { descreverFontes, montarResposta, sessaoWayland, umPorVez } from "./captura.js";
+import { executavelParaRegistrar, opcoesDeExibicao, precisaSemSandbox } from "./linux.js";
 import { descartarWhisper, ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, prepararWhisper, responderModelo, WHISPER, WHISPER_PADRAO } from "./fala.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -64,6 +65,9 @@ if (process.platform === "linux") {
   // Sem este recurso o Chromium tenta capturar pelo X11, que no Wayland só
   // enxerga janelas XWayland — e a pessoa vê uma tela preta ou nada.
   app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
+  // XWayland quando houver e GTK 3: o mesmo ambiente das versões anteriores
+  // (ver opcoesDeExibicao em desktop/linux.js).
+  for (const [chave, valor] of opcoesDeExibicao()) app.commandLine.appendSwitch(chave, valor);
   // AppImage em distro que restringe user namespaces (Ubuntu 24.04+, kernels
   // endurecidos): sem isto o app nem abre. Ver desktop/linux.js.
   if (precisaSemSandbox()) app.commandLine.appendSwitch("no-sandbox");
@@ -135,7 +139,7 @@ async function subirServidor() {
        * aplicativo de verdade a rota devolvia 404 e o bloco "Atualizações"
        * das configurações nunca respondia.
        */
-      atualizacao: async (url) => conferir({ forcar: url.searchParams.get("forcar") === "1" }),
+      atualizacao: async (url) => conferir({ forcar: url.searchParams.get("forcar") === "1", atual: app.getVersion() }),
 
       "tunnel/abrir": async () => {
         if (tunnel?.url) return { estado: "pronto", url: tunnel.url };
@@ -461,6 +465,24 @@ ipcMain.on("vcall:sobreposicao-estado", (e, estado) => {
   if (sobreposicao && !sobreposicao.isDestroyed()) sobreposicao.webContents.send("vcall:estado", estado);
 });
 
+/*
+ * Atualização automática (desktop/atualizador.js). Só a página do próprio app
+ * fala com este canal: uma sala de outra pessoa, aberta por convite, não
+ * reinicia o seu Vcall.
+ */
+ipcMain.handle("vcall:atualizacao", (e, acao) => {
+  let origem = "";
+  try {
+    origem = new URL(e.senderFrame?.url || "").origin;
+  } catch {
+    /* sem origem: recusa abaixo */
+  }
+  if (origem !== baseUrl) throw new Error("origem não autorizada");
+  if (acao === "verificar") return atualizador.verificar();
+  if (acao === "instalar") return atualizador.instalar();
+  return atualizador.estadoAtual();
+});
+
 ipcMain.handle("vcall:info", () => ({
   version: app.getVersion(),
   platform: process.platform,
@@ -637,18 +659,42 @@ function permissoes() {
     return true;
   });
 
+  /*
+   * 4. O APP CAÍA NO LINUX. Duas causas, tratadas em lugares diferentes:
+   *    - fechar ou cancelar o seletor do sistema (portal) derrubava o processo
+   *      inteiro: bug do Electron até a 34 (electron/electron#45198), corrigido
+   *      ao subir a versão do Electron;
+   *    - dois pedidos ao mesmo tempo abriam duas sessões do portal disputando o
+   *      PipeWire. Agora é um pedido por vez, e o que chega no meio é recusado.
+   */
+  const vezDeCaptura = umPorVez();
   ses.setDisplayMediaRequestHandler(
     async (pedido, callback) => {
       let respondido = false;
+      const vez = vezDeCaptura.pegar();
+      let prazo = 0;
       const responder = (resposta) => {
         if (respondido) return;
         respondido = true;
+        clearTimeout(prazo);
+        if (vez !== null) vezDeCaptura.soltar(vez);
         try {
           callback(resposta);
         } catch (err) {
           registrar("captura-recusada", { erro: String(err?.message || err) });
         }
       };
+      if (vez === null) {
+        registrar("captura-em-andamento");
+        responder({});
+        return;
+      }
+      // Portal que nunca responde: recusa depois de um tempo, para a próxima
+      // tentativa não ficar presa atrás desta.
+      prazo = setTimeout(() => {
+        registrar("captura-sem-resposta");
+        responder({});
+      }, 125_000);
 
       const atual = escolha && escolha.ate > Date.now() ? escolha : null;
       escolha = null;
@@ -715,9 +761,20 @@ if (!app.requestSingleInstanceLock()) {
     permissoes();
     pendente = destinoDoLink(linkDosArgumentos(process.argv));
     criarJanela();
+    atualizador.iniciar({ registrar });
   });
 
-  app.on("window-all-closed", () => app.quit());
+  // GPU, rede, áudio, captura: quando um processo auxiliar cai, o Chromium pode
+  // levar o app junto ("GPU process isn't usable"). Fica o motivo no registro.
+  app.on("child-process-gone", (_e, d) => {
+    registrar("processo-caiu", { tipo: d.type, motivo: d.reason, codigo: d.exitCode, nome: d.name || d.serviceName || null });
+  });
+
+  // Com uma versão nova já baixada e conferida, fechar o Vcall é a hora de
+  // instalar (Windows e AppImage) — sem interromper chamada nenhuma.
+  app.on("window-all-closed", () => {
+    if (!atualizador.aoFechar()) app.quit();
+  });
 
   // O túnel é a parte exposta à internet: cai junto com o app, sempre.
   app.on("before-quit", () => tunnel?.stop());

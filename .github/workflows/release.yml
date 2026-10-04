@@ -53,6 +53,7 @@ jobs:
             dist/*.rpm
             dist/*.pacman
             dist/*.tar.gz
+            dist/latest-linux.yml
 
   windows:
     runs-on: windows-latest
@@ -76,7 +77,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
 
   publicar:
     needs: [linux, windows]
@@ -93,6 +97,20 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then V="${{ inputs.versao }}"; else V="${GITHUB_REF_NAME#v}"; fi
           echo "versao=$V" >> "$GITHUB_OUTPUT"
+      # Cada instalador ganha um .sig: o app só instala sozinho o que tiver
+      # assinatura conferida com a chave pública que vai dentro dele
+      # (desktop/assinatura.js). O segredo é a chave privada, em PEM.
+      # Sem o segredo a release sai do mesmo jeito: o app só não instala esta
+      # versão sozinho (sem .sig ele recusa) e continua apontando o download.
+      - name: Assinar os instaladores (atualização automática)
+        env:
+          VCALL_UPDATE_KEY: ${{ secrets.VCALL_UPDATE_KEY }}
+        run: |
+          if [ -z "$VCALL_UPDATE_KEY" ]; then
+            echo "::warning::Segredo VCALL_UPDATE_KEY ausente: release sem assinatura, sem atualização automática."
+          else
+            node scripts/assinar-atualizacao.mjs pacotes "${{ steps.v.outputs.versao }}"
+          fi
       - name: Somas de verificação
         run: cd pacotes && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2

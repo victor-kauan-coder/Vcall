@@ -64,6 +64,27 @@ export function precisaSemSandbox({ plataforma = process.platform, env = process
 }
 
 /**
+ * Opções de exibição do Chromium no Linux, como pares [chave, valor].
+ *
+ * O Electron 38+ abre como app Wayland nativo numa sessão Wayland. Lá o
+ * compositor não deixa o app posicionar janela: a mini-janela não vai para o
+ * canto e a sobreposição do modo jogo não fica onde deveria. Com XWayland
+ * disponível (DISPLAY definido), o Vcall continua por ele, como até a 3.6 —
+ * e o compartilhar tela segue pelo portal do sistema do mesmo jeito.
+ *
+ * GTK 3 fixo: o Electron 36+ usa GTK 4 no GNOME, e um processo que acabe
+ * carregando GTK 3 junto (tema, método de entrada, bibliotecas do sistema)
+ * aborta com "GTK 2/3 symbols detected". O GTK 3 é o que sempre foi usado.
+ */
+export function opcoesDeExibicao({ plataforma = process.platform, env = process.env } = {}) {
+  if (plataforma !== "linux") return [];
+  const opcoes = [["gtk-version", "3"]];
+  const wayland = String(env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" || !!env.WAYLAND_DISPLAY;
+  if (wayland && env.DISPLAY) opcoes.push(["ozone-platform", "x11"]);
+  return opcoes;
+}
+
+/**
  * Qual executável o .desktop do usuário deve chamar — ou `null` quando o
  * sistema já cuida disso (pacote instalado em /opt ou /usr).
  */

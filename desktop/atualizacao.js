@@ -1,28 +1,28 @@
 /**
  * desktop/atualizacao.js — existe versão nova no GitHub?
  *
- * DECISÃO QUE VALE ENTENDER ANTES DE MEXER: este módulo AVISA, não instala.
+ * A parte pura da atualização: comparar versões, consultar a última release e
+ * decidir, pelo jeito como o Vcall foi instalado, se dá para atualizar
+ * sozinho. Quem baixa e instala é desktop/atualizador.js, e só depois de
+ * conferir a assinatura do pacote (desktop/assinatura.js) — o hash que vem no
+ * mesmo lugar do arquivo não basta, e por isso este módulo, antes, só avisava.
  *
- * Um atualizador que baixa e executa sozinho é, por construção, um caminho de
- * execução remota de código: quem conseguir responder no lugar do GitHub — ou
- * entrar na conta do repositório — passa a mandar um programa qualquer para
- * todas as máquinas que têm o Vcall instalado. Para um programa de chamada de
- * vídeo, que já tem acesso a câmera e microfone, esse risco não se paga.
- *
- * Então o fluxo é: conferir a versão, avisar, e abrir a página de download no
- * navegador se a pessoa quiser. Quem instala é ela, e o sistema operacional
- * continua podendo dizer de onde veio o arquivo.
- *
- * Para passar a instalar sozinho um dia, o mínimo honesto seria assinar os
- * pacotes e conferir a assinatura aqui — não basta conferir o hash que vem no
- * mesmo lugar de onde veio o arquivo.
+ * Onde não dá para instalar sozinho (.tar.gz, ou o app rodando fora do
+ * pacote), o fluxo continua o de antes: conferir, avisar e abrir a página de
+ * download.
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 export const REPO = process.env.VCALL_REPO || "victor-kauan-coder/vcall";
-export const VERSAO = process.env.VCALL_VERSAO || "3.6.2";
+/**
+ * Reserva para o executável antigo (Node SEA, scripts/build-installer.mjs). O
+ * app Electron passa a própria versão (`app.getVersion()`) em `conferir`: com
+ * o número escrito à mão aqui, uma release em que ele não fosse trocado faria
+ * o app se achar mais velho do que é — e avisar de "atualização" para sempre.
+ */
+export const VERSAO = process.env.VCALL_VERSAO || "3.7.0";
 
 const CACHE = path.join(os.homedir(), ".vcall", "atualizacao.json");
 
@@ -59,7 +59,7 @@ async function pegarJson(url) {
   const res = await fetch(url, {
     signal: corte,
     headers: {
-      "user-agent": `vcall/${VERSAO}`,
+      "user-agent": "vcall",
       accept: "application/vnd.github+json",
     },
   });
@@ -92,18 +92,20 @@ async function gravarCache(dados) {
  * @returns {Promise<{tem: boolean, versao: string|null, atual: string,
  *   url: string, notas: string|null, erro: string|null, conferidoEm: number}>}
  */
-export async function conferir({ forcar = false } = {}) {
+export async function conferir({ forcar = false, atual = VERSAO } = {}) {
   const paginaDeDownload = `https://github.com/${REPO}/releases/latest`;
 
   if (!forcar) {
     const cache = await lerCache();
-    if (cache && Date.now() - cache.conferidoEm < VALIDADE_MS) return cache;
+    // O cache de outra versão não vale: quem acabou de atualizar não pode ver
+    // o aviso da versão que já tem.
+    if (cache && cache.atual === atual && Date.now() - cache.conferidoEm < VALIDADE_MS) return cache;
   }
 
   const base = {
     tem: false,
     versao: null,
-    atual: VERSAO,
+    atual,
     url: paginaDeDownload,
     notas: null,
     erro: null,
@@ -118,7 +120,7 @@ export async function conferir({ forcar = false } = {}) {
       versao: tag || null,
       notas: solto.body ? String(solto.body).slice(0, 2000) : null,
       url: solto.html_url || paginaDeDownload,
-      tem: Boolean(tag) && maisNova(tag, VERSAO),
+      tem: Boolean(tag) && maisNova(tag, atual),
     };
     await gravarCache(resposta);
     return resposta;
@@ -133,4 +135,22 @@ export async function conferir({ forcar = false } = {}) {
     await gravarCache({ ...resposta, conferidoEm: Date.now() - VALIDADE_MS + 15 * 60 * 1000 });
     return resposta;
   }
+}
+
+/**
+ * Dá para atualizar sozinho, do jeito que este Vcall foi instalado?
+ *
+ *   "sozinho"  Windows (instalador) e AppImage: baixa, confere e instala ao fechar.
+ *   "senha"    .deb, .rpm e pacman: baixa e confere; instalar pede a senha do
+ *              sistema (é o gerenciador de pacotes que instala), então só
+ *              quando a pessoa clica — nunca de surpresa ao fechar.
+ *   "manual"   .tar.gz, macOS ou fora do pacote: só avisa, como antes.
+ */
+export function modoDeInstalacao({ plataforma = process.platform, empacotado = false, appImage = false, tipoPacote = null } = {}) {
+  if (!empacotado) return "manual";
+  if (plataforma === "win32") return "sozinho";
+  if (plataforma !== "linux") return "manual";
+  if (appImage) return "sozinho";
+  if (["deb", "rpm", "pacman"].includes(String(tipoPacote || "").trim())) return "senha";
+  return "manual";
 }

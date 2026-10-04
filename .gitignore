@@ -26,3 +26,6 @@ node_modules/
 public/vendor/whisper/
 scripts/.whisper-entry.mjs
 bench-fala.json
+*.key
+*-privada.pem
+brag-output/

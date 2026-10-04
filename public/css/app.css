@@ -457,9 +457,16 @@ body.na-chamada .ambient {
   display: grid;
   place-items: center;
   background: radial-gradient(circle at 50% 42%, var(--tile-glow), var(--tile-bg) 70%);
+  container-type: size;
 }
+/*
+ * O avatar segue o MENOR lado do ladrilho. Medido só pela largura, ele passava
+ * da altura nos ladrilhos baixos (janela pouco alta, faixa do destaque, mini-
+ * janela) e era cortado em cima e embaixo — parecia achatado. A altura reserva
+ * o espaço da etiqueta com o nome.
+ */
 .tile__avatar .avatar {
-  width: clamp(56px, 26%, 128px);
+  width: clamp(32px, min(26cqw, 46cqh), 128px);
 }
 
 .tile__label {

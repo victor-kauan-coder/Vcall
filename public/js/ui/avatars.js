@@ -61,7 +61,7 @@ function cacheKey(style, seed) {
  */
 let uid = 0;
 
-function uniquifyIds(svg) {
+export function uniquifyIds(svg) {
   const ids = new Set();
   for (const m of svg.matchAll(/\bid="([^"]+)"/g)) ids.add(m[1]);
   if (!ids.size) return svg;

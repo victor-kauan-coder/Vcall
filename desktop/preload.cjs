@@ -74,6 +74,20 @@ contextBridge.exposeInMainWorld("vcallDesktop", {
   descartarWhisper: (nivel) => ipcRenderer.invoke("vcall:whisper-descartar", String(nivel || "")),
   /** Apaga o modelo de fala guardado (corrompido): a próxima vez baixa de novo. */
   descartarFala: (lang) => ipcRenderer.invoke("vcall:fala-descartar", String(lang || "pt-BR")),
+  /**
+   * Atualização automática: estado (fase, versão, progresso), procurar agora,
+   * reiniciar e instalar, e avisos de mudança.
+   */
+  atualizacao: {
+    estado: () => ipcRenderer.invoke("vcall:atualizacao", "estado"),
+    verificar: () => ipcRenderer.invoke("vcall:atualizacao", "verificar"),
+    instalar: () => ipcRenderer.invoke("vcall:atualizacao", "instalar"),
+    aoMudar: (fn) => {
+      const ouvir = (_e, s) => fn(s);
+      ipcRenderer.on("vcall:atualizacao", ouvir);
+      return () => ipcRenderer.removeListener("vcall:atualizacao", ouvir);
+    },
+  },
   /** Diz qual fonte a próxima captura deve usar, e se leva o som do sistema. */
   escolherFonte: (id, audio) => ipcRenderer.invoke("vcall:escolher", { id: String(id || ""), audio: !!audio }),
 });

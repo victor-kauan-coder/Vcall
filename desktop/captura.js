@@ -64,6 +64,37 @@ export function descreverFontes(fontes, { propria = null } = {}) {
 }
 
 /**
+ * Um pedido de captura por vez.
+ *
+ * No Linux cada pedido abre uma sessão do portal do sistema. Duas abertas ao
+ * mesmo tempo (clique duplo, ou um segundo clique depois que a página desistiu
+ * de esperar o seletor) disputam o mesmo PipeWire, e é o tipo de situação que
+ * derruba o processo. Quem chega com outro em andamento é recusado na hora.
+ *
+ * O prazo libera a vez se o portal nunca responder: sem ele, um seletor
+ * travado impediria compartilhar de novo até reiniciar o app.
+ *
+ * @param {number} prazoMs  depois disso a vez é liberada à força
+ * @param {() => number} agora  relógio injetável nos testes
+ */
+export function umPorVez(prazoMs = 130_000, agora = Date.now) {
+  let ocupadoAte = 0;
+  let vez = 0;
+  return {
+    /** Devolve um número de vez, ou `null` se já há um pedido em andamento. */
+    pegar() {
+      if (agora() < ocupadoAte) return null;
+      ocupadoAte = agora() + prazoMs;
+      return ++vez;
+    },
+    /** Libera só se ainda for a vez de quem chama (uma vez vencida não solta a nova). */
+    soltar(minhaVez) {
+      if (minhaVez === vez) ocupadoAte = 0;
+    },
+  };
+}
+
+/**
  * Monta a resposta do setDisplayMediaRequestHandler.
  *
  * Regras:

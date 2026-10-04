@@ -6,13 +6,14 @@
  * API: a janela é um documento de verdade, então cabe interface completa, e
  * não só um vídeo como no Picture-in-Picture comum.
  *
- * Funciona igual no aplicativo de mesa (Electron 33 traz a API) e no Chrome
+ * Funciona igual no aplicativo de mesa (o Electron traz a API) e no Chrome
  * e no Edge. Os vídeos NÃO são movidos da tela principal: cada um ganha um
  * segundo <video> ligado ao mesmo stream, que custa só a decodificação já
  * feita. Esses vídeos são mudos — o som continua saindo por ui/audio.js; dois
  * caminhos tocando a mesma voz dariam eco.
  */
 import { animate, SPRING } from "./motion.js";
+import { uniquifyIds } from "./avatars.js";
 
 const MAX_TILES = 4;
 const TICK_MS = 400;
@@ -208,7 +209,15 @@ export class MiniCall {
         const html = src?.outerHTML || "";
         if (html !== cell.avatarHtml) {
           cell.avatarHtml = html;
-          cell.avatar.replaceChildren(...(src ? [src.cloneNode(true)] : []));
+          /*
+           * Cópia com ids próprios. No app de mesa a mini-janela é o MESMO
+           * documento da chamada, e o degradê do avatar é achado pelo id: com
+           * a cópia exata, `url(#…)` apontava para o original, que fica oculto
+           * no modo compacto — e o avatar saía desbotado, quase branco.
+           */
+          const copia = src ? src.cloneNode(false) : null;
+          if (copia) copia.innerHTML = uniquifyIds(src.innerHTML);
+          cell.avatar.replaceChildren(...(copia ? [copia] : []));
         }
       }
       cell.avatar.hidden = !!stream;

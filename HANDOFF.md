@@ -128,10 +128,25 @@ opções ficam em `opcoesLinux()`, em `desktop/perfil.js`.
 minutos e explica o que instalar. Um portal ausente deixava o botão
 pressionado para sempre.
 
-**O que ainda não foi verificado em máquina Linux de verdade:** tudo nesta
-seção foi corrigido a partir de leitura de código e de relatos conhecidos do
-Chromium. Nenhuma distribuição foi testada de fato por falta de máquina. Se
-você tem acesso a uma, comece por Ubuntu (Snap) e Fedora (Wayland).
+**Compartilhar tela derrubava o app (até a 3.6).** Duas causas:
+
+- Fechar ou cancelar o seletor do portal derrubava o processo inteiro: bug do
+  Electron até a 34 ([electron#45198](https://github.com/electron/electron/issues/45198)),
+  corrigido na 35/36. **Não volte o Electron para antes da 35.** A 3.7 usa a 44.
+- Dois pedidos de captura simultâneos abriam duas sessões do portal no mesmo
+  PipeWire. `umPorVez()` em `desktop/captura.js` recusa o segundo e tem prazo.
+
+**Electron 38+ abre como Wayland nativo.** No Wayland nativo a janela não se
+posiciona (mini-janela e sobreposição do modo jogo perdem o canto). Por isso
+`opcoesDeExibicao()` (`desktop/linux.js`) força `--ozone-platform=x11` quando há
+XWayland, e `--gtk-version=3` (o Electron 36+ usa GTK 4 no GNOME, e misturar com
+GTK 3 aborta o processo). Quedas de processos auxiliares (GPU, rede) vão para o
+registro como `processo-caiu`.
+
+**O que já foi verificado em Linux:** a 3.7 rodou no Ubuntu 26.04 (WSLg, com
+Wayland e XWayland): abre, entra na sala e compartilha a tela, inclusive com
+dois pedidos seguidos, sem cair. **Ainda não testado:** o seletor do portal de
+verdade (o WSL não tem portal) num Ubuntu e num Fedora instalados.
 
 ---
 
@@ -201,14 +216,25 @@ sobrescreve o cabeçalho `Host` em silêncio, e o teste passava sem testar nada.
 
 ## 8. Atualizações
 
-`desktop/atualizacao.js` consulta a API de releases do GitHub e **só avisa**.
-Não baixa e não executa — um atualizador automático é, por construção, um
-caminho de execução remota de código num programa que já tem câmera e
-microfone. Para passar a instalar sozinho, o mínimo é assinar os pacotes e
-conferir a assinatura no cliente.
+Desde a 3.7 o app **se atualiza sozinho**, mas só com o pacote assinado por nós:
 
-A versão vem de `VCALL_VERSAO` (padrão `3.0.0`). **Ela está defasada**: o
-repositório já publicou `v3.4.0`. Acerte `VERSAO` ao lançar.
+- `desktop/atualizador.js` procura (ao abrir e a cada 6 h) e baixa com o
+  electron-updater; a instalação automática DELE fica desligada, porque é
+  armada antes de qualquer conferência.
+- Baixado o pacote, ele busca `<pacote>.sig` na release e confere com a chave
+  pública que vai no app (`desktop/chave-atualizacao.pem`, Ed25519). A mensagem
+  assinada inclui a versão: um instalador antigo e legítimo não passa por novo.
+- Windows e AppImage instalam ao fechar o app; .deb/.rpm/pacman só pelo botão
+  (o sistema pede senha); .tar.gz só avisa (`modoDeInstalacao()`).
+- **A chave privada não está no repositório.** Ela é o segredo
+  `VCALL_UPDATE_KEY` do GitHub, usado pelo job "publicar" para assinar
+  (`scripts/assinar-atualizacao.mjs`). Sem o segredo, a release sai sem `.sig`
+  e os apps recusam instalar sozinhos aquela versão (só avisam). Perder a chave
+  privada = gerar outra e publicar uma versão com a pública nova; quem estiver
+  na antiga precisa instalar essa à mão.
+
+A versão instalada vem de `app.getVersion()` (o `package.json` empacotado).
+`VERSAO` em `desktop/atualizacao.js` só serve ao executável antigo (SEA).
 
 ---
 

@@ -102,6 +102,18 @@ export function stagger(els, { gap = 45, delay = 0, ...opts } = {}) {
  * É o que faz a grade de vídeos se reorganizar deslizando quando alguém
  * entra ou sai, em vez de pular. Quem não existia antes entra crescendo.
  */
+/*
+ * SÓ ESCALA UNIFORME. A versão anterior escalava largura e altura por fatores
+ * diferentes (`scale: sx sy`): quando o ladrilho mudava de proporção — alguém
+ * entra, sai, começa a falar, a janela muda de tamanho — o conteúdo inteiro
+ * esticava durante a mola, e o avatar virava uma elipse achatada. Como a
+ * reorganização também acontece quando muda quem fala, as animações se
+ * sobrepunham e o ladrilho passava boa parte do tempo deformado. Agora, se a
+ * proporção muda, o ladrilho só desliza do centro antigo para o novo; a escala
+ * entra apenas quando ela é a mesma nos dois eixos.
+ */
+const flipsAtivos = new WeakMap();
+
 export function flip(getNodes, mutate) {
   if (calm()) return mutate();
   const before = new Map(getNodes().map((n) => [n, n.getBoundingClientRect()]));
@@ -114,17 +126,27 @@ export function flip(getNodes, mutate) {
       animate(n, [{ opacity: 0, scale: "0.86" }, { opacity: 1, scale: "1" }], { ...SPRING.bouncy, fill: "backwards" });
       continue;
     }
-    const dx = a.left - b.left;
-    const dy = a.top - b.top;
     const sx = a.width / b.width;
     const sy = a.height / b.height;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) continue;
-    n.animate(
-      [
-        { transformOrigin: "0 0", translate: `${dx}px ${dy}px`, scale: `${sx} ${sy}` },
-        { transformOrigin: "0 0", translate: "0 0", scale: "1 1" },
-      ],
-      SPRING.soft,
+    const uniforme = Math.abs(sx - sy) < 0.04;
+    const s = uniforme ? (sx + sy) / 2 : 1;
+    // Sem escala, o ponto que acompanha é o centro: o ladrilho sai de onde estava.
+    const dx = uniforme ? a.left - b.left : a.left + a.width / 2 - (b.left + b.width / 2);
+    const dy = uniforme ? a.top - b.top : a.top + a.height / 2 - (b.top + b.height / 2);
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(s - 1) < 0.01) continue;
+    // A medida de antes já inclui o que a animação anterior estava mostrando:
+    // a nova parte dali, e a anterior sai de cena em vez de se somar a ela.
+    flipsAtivos.get(n)?.cancel();
+    const origem = uniforme ? "0 0" : "50% 50%";
+    flipsAtivos.set(
+      n,
+      n.animate(
+        [
+          { transformOrigin: origem, translate: `${dx}px ${dy}px`, scale: String(s) },
+          { transformOrigin: origem, translate: "0 0", scale: "1" },
+        ],
+        SPRING.soft,
+      ),
     );
   }
   return result;

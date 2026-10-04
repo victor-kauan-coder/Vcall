@@ -15,13 +15,19 @@ import { WebSocket } from "ws";
 import { createHttpServer } from "../src/http.js";
 import { attachSignaling } from "../src/signaling.js";
 import { parseClientMessage } from "../src/protocol.js";
-import { descreverFontes, montarResposta, sessaoWayland, audioDoSistemaSuportado } from "../desktop/captura.js";
+import { descreverFontes, montarResposta, sessaoWayland, audioDoSistemaSuportado, umPorVez } from "../desktop/captura.js";
 import { lerZip, montarTar, zipParaTarGz, nomeDoModelo, responderModelo } from "../desktop/fala.js";
 import { destinoDoLink } from "../desktop/protocol.js";
 import { linkAbrir, linkDaSala, linkDoAplicativo, linkWhatsApp, salaDoFragmento, ehCelular } from "../public/js/lib/invite.js";
 import { createBoardNotice } from "../public/js/features/board-notice.js";
-import { executavelParaRegistrar, namespacesDisponiveis, precisaSemSandbox } from "../desktop/linux.js";
+import { executavelParaRegistrar, namespacesDisponiveis, opcoesDeExibicao, precisaSemSandbox } from "../desktop/linux.js";
 import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
+import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/assinatura.js";
+import { maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
+import { generateKeyPairSync } from "node:crypto";
+import { mkdtempSync, writeFileSync as gravar } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
 
 let passou = 0;
@@ -307,6 +313,63 @@ server.close();
   assert.equal(sessaoWayland({ XDG_SESSION_TYPE: "x11" }), false);
   assert.equal(audioDoSistemaSuportado("linux"), false);
   ok("desktop: escolha de tela/janela, Linux sem audio:undefined, som só quando pedido");
+
+  // O app caía no Linux com dois pedidos de captura ao mesmo tempo (duas
+  // sessões do portal no mesmo PipeWire): agora é um por vez, com prazo.
+  let t = 0;
+  const fila = umPorVez(1000, () => t);
+  const a = fila.pegar();
+  assert.ok(a !== null, "o primeiro pedido passa");
+  assert.equal(fila.pegar(), null, "o segundo, no meio do primeiro, é recusado");
+  fila.soltar(a);
+  const b = fila.pegar();
+  assert.ok(b !== null, "depois de responder, a vez volta");
+  t = 1500;
+  const c = fila.pegar();
+  assert.ok(c !== null, "portal que nunca respondeu não prende a vez para sempre");
+  fila.soltar(b);
+  assert.equal(fila.pegar(), null, "a vez vencida, ao soltar atrasada, não libera a vez nova");
+  ok("desktop: um pedido de captura por vez, com prazo");
+}
+
+/* ================================================================== *
+ * Atualização automática (desktop/assinatura.js, desktop/atualizacao.js)
+ * ================================================================== */
+{
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const chavePrivada = privateKey.export({ type: "pkcs8", format: "pem" });
+  const chavePublica = publicKey.export({ type: "spki", format: "pem" });
+  const pasta = mkdtempSync(juntar(tmpdir(), "vcall-assina-"));
+  const arquivo = juntar(pasta, "VcallSetup-3.7.0.exe");
+  gravar(arquivo, Buffer.from("instalador de mentira"));
+  const sha512 = await sha512DoArquivo(arquivo);
+  const assinatura = assinar({ versao: "3.7.0", sha512, chavePrivada });
+
+  assert.equal(confere({ versao: "3.7.0", sha512, assinatura, chavePublica }), true, "o pacote assinado por nós passa");
+  assert.equal(confere({ versao: "v3.7.0", sha512, assinatura, chavePublica }), true, "a tag com v na frente é a mesma versão");
+  gravar(arquivo, Buffer.from("instalador trocado no caminho"));
+  const outro = await sha512DoArquivo(arquivo);
+  assert.equal(confere({ versao: "3.7.0", sha512: outro, assinatura, chavePublica }), false, "arquivo trocado: recusa");
+  assert.equal(confere({ versao: "3.8.0", sha512, assinatura, chavePublica }), false, "instalador antigo fingindo ser versão nova: recusa");
+  const intrusa = generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" });
+  assert.equal(confere({ versao: "3.7.0", sha512, assinatura: assinar({ versao: "3.7.0", sha512, chavePrivada: intrusa }), chavePublica }), false, "assinado por outra chave: recusa");
+  assert.equal(confere({ versao: "3.7.0", sha512, assinatura: "lixo", chavePublica }), false, "assinatura malformada: recusa, sem exceção");
+  assert.equal(confere({ versao: "3.7.0", sha512, assinatura: "", chavePublica }), false, "sem assinatura: recusa");
+
+  const nomes = ["Vcall-3.7.0-x86_64.AppImage", "Vcall-3.7.0-amd64.deb", "Vcall-3.7.0-x86_64.rpm", "Vcall-3.7.0-x64.pacman"];
+  assert.equal(nomeNaRelease(nomes, "Vcall-3.7.0-amd64.deb"), "Vcall-3.7.0-amd64.deb");
+  assert.equal(nomeNaRelease(nomes, "update.rpm"), "Vcall-3.7.0-x86_64.rpm", "nome diferente no disco: acha pela extensão");
+  assert.equal(nomeNaRelease(nomes, "algo.zip"), null);
+
+  assert.equal(modoDeInstalacao({ plataforma: "win32", empacotado: true }), "sozinho");
+  assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, appImage: true }), "sozinho");
+  assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, tipoPacote: "deb\n" }), "senha", "Ubuntu/Fedora: o sistema pede a senha");
+  assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, tipoPacote: "rpm" }), "senha");
+  assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true }), "manual", ".tar.gz: só avisa");
+  assert.equal(modoDeInstalacao({ plataforma: "win32", empacotado: false }), "manual", "rodando do código-fonte: só avisa");
+  assert.equal(maisNova("v3.10.0", "3.9.0"), true, "3.10 é mais nova que 3.9");
+  assert.equal(maisNova("3.7.0", "3.7.0"), false);
+  ok("atualização: só instala o que foi assinado por nós, na versão certa; modo por tipo de instalação");
 }
 
 /* ================================================================== *
@@ -394,6 +457,13 @@ server.close();
   assert.equal(precisaSemSandbox({ plataforma: "linux", env: appimage, ler: ubuntu2404 }), true, "AppImage no Ubuntu 24.04: só assim abre");
   assert.equal(precisaSemSandbox({ plataforma: "linux", env: appimage, ler: fedora }), false, "no Fedora o sandbox continua ligado");
   assert.equal(precisaSemSandbox({ plataforma: "linux", env: {}, ler: ubuntu2404 }), false, "pacote .deb: nunca desliga");
+  // Electron 38+ abre como Wayland nativo, e lá a janela não se posiciona:
+  // com XWayland disponível, o Vcall segue por ele. GTK 3 sempre.
+  const ex = (env) => Object.fromEntries(opcoesDeExibicao({ plataforma: "linux", env }));
+  assert.deepEqual(ex({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0", DISPLAY: ":0" }), { "gtk-version": "3", "ozone-platform": "x11" });
+  assert.deepEqual(ex({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0" }), { "gtk-version": "3" }, "Wayland sem XWayland: fica nativo");
+  assert.deepEqual(ex({ XDG_SESSION_TYPE: "x11", DISPLAY: ":0" }), { "gtk-version": "3" }, "X11: nada a forçar");
+  assert.deepEqual(opcoesDeExibicao({ plataforma: "win32", env: {} }), [], "fora do Linux, nada");
   assert.equal(precisaSemSandbox({ plataforma: "win32", env: appimage, ler: ubuntu2404 }), false);
 
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: appimage, execPath: "/tmp/.mount_x/vcall" }), appimage.APPIMAGE, "AppImage registra o próprio arquivo");

@@ -38,6 +38,16 @@ files:
 
 asar: true
 
+# Atualização automática (desktop/atualizador.js). Com isto o build grava o
+# app-update.yml dentro do app e gera latest.yml / latest-linux.yml, que o
+# workflow de release publica junto dos instaladores. O CI usa --publish never:
+# quem sobe os arquivos é o próprio workflow, depois de assiná-los.
+publish:
+  - provider: github
+    owner: victor-kauan-coder
+    repo: vcall
+    releaseType: release
+
 protocols:
   - name: Vcall
     schemes: [vcall]

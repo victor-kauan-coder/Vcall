@@ -81,6 +81,7 @@
   inset: 0;
   display: grid;
   place-items: center;
+  container-type: size;
 }
 .pip__avatar[hidden] {
   display: none;
@@ -89,7 +90,9 @@
    é carregado, e sem ele o SVG do avatar não tem tamanho. */
 .pip__avatar .avatar {
   display: block;
-  width: min(52%, 84px);
+  /* Pelo menor lado: a mini-janela é larga e baixa, e o círculo medido pela
+     largura passava da altura e era cortado (ver .tile__avatar em app.css). */
+  width: min(52cqw, 62cqh, 84px);
   height: auto;
   aspect-ratio: 1;
   border-radius: 50%;

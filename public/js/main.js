@@ -1211,11 +1211,31 @@ function seletorDePaletas() {
  * Aviso discreto de versão nova, uma vez por abertura.
  *
  * Deliberadamente sem ação automática e sem janela modal: quem abriu o
- * programa quer entrar numa chamada, não fazer manutenção. O aviso espera a
- * tela assentar, some sozinho, e o caminho para baixar continua nas
- * configurações quando a pessoa tiver tempo.
+ * programa quer entrar numa chamada, não fazer manutenção. No app que se
+ * atualiza sozinho, o aviso só vem quando a versão nova já está baixada e
+ * conferida — e diz quando ela entra. Onde ele só sabe avisar, aponta as
+ * configurações.
  */
 function avisarDeAtualizacao() {
+  const api = window.vcallDesktop?.atualizacao;
+  if (api) {
+    let avisada = null;
+    api.aoMudar((s) => {
+      if (!s?.versao || avisada === s.versao) return;
+      if (s.fase === "pronta") {
+        avisada = s.versao;
+        const texto =
+          s.modo === "sozinho"
+            ? `Versão ${s.versao} baixada. Ela é instalada quando você fechar o Vcall.`
+            : `Versão ${s.versao} baixada. Instale em Configurações › Atualizações.`;
+        toast(texto, { tone: "info", ms: 10000, key: "atualizacao" });
+      } else if (s.fase === "aviso") {
+        avisada = s.versao;
+        toast(`Versão ${s.versao} disponível — veja em Configurações › Atualizações.`, { tone: "info", ms: 9000, key: "atualizacao" });
+      }
+    });
+    return;
+  }
   setTimeout(async () => {
     try {
       const r = await host.atualizacao();
@@ -1231,15 +1251,67 @@ function avisarDeAtualizacao() {
 }
 
 /**
- * O bloco "verificar atualizações" das configurações.
+ * O bloco "Atualizações" das configurações.
  *
  * Só aparece dentro do executável: no navegador comum quem atualiza a página
  * é o próprio servidor, e um botão de atualizar programa não teria o que
- * fazer. O botão força a consulta — sem ele, a resposta vem do cache de
- * algumas horas que o aplicativo guarda para não bater no GitHub a cada
- * abertura.
+ * fazer. No app que se atualiza sozinho ele mostra o andamento (procurando,
+ * baixando, conferindo a assinatura, pronta) e oferece reiniciar na hora.
  */
 function blocoDeAtualizacao() {
+  const api = window.vcallDesktop?.atualizacao;
+  if (!api) return blocoDeAtualizacaoSoAviso();
+
+  const estado = el("div.field__hint", { text: "Conferindo…" });
+  const barra = el("progress", { max: 100, value: 0, hidden: true, style: { width: "100%" } });
+  const verificar = el("button.btn", { type: "button", text: "Verificar agora" });
+  const instalar = el("button.btn.btn--primary", { type: "button", text: "Reiniciar e atualizar", hidden: true });
+  const baixar = el("a.btn", { target: "_blank", rel: "noopener noreferrer", text: "Baixar pelo site", hidden: true });
+
+  let bloco = null;
+  let visto = false;
+  let parar = null;
+  const pintar = (s) => {
+    // Fechou as configurações: o próximo aviso desliga a escuta.
+    if (bloco?.isConnected) visto = true;
+    else if (visto) return parar?.();
+    if (!s) return;
+    barra.hidden = s.fase !== "baixando";
+    barra.value = s.progresso || 0;
+    instalar.hidden = s.fase !== "pronta";
+    baixar.hidden = !(s.fase === "aviso" || s.fase === "erro");
+    if (s.url) baixar.href = s.url;
+    verificar.disabled = ["procurando", "baixando", "conferindo"].includes(s.fase);
+    const textos = {
+      parado: `Versão instalada: ${s.atual}.`,
+      procurando: "Procurando atualizações…",
+      baixando: `Baixando a versão ${s.versao}… ${s.progresso || 0}%`,
+      conferindo: `Conferindo a assinatura da versão ${s.versao}…`,
+      pronta:
+        s.modo === "sozinho"
+          ? `Versão ${s.versao} pronta. Ela é instalada quando você fechar o Vcall — ou agora, reiniciando.`
+          : `Versão ${s.versao} pronta. Para instalar, o sistema vai pedir a sua senha.`,
+      atual: `Você está na versão mais recente (${s.atual}).`,
+      aviso: `Versão ${s.versao} disponível. Você está na ${s.atual}. Esta instalação não se atualiza sozinha: baixe pelo site.`,
+      erro: `Não deu para atualizar agora (${s.erro}). Versão instalada: ${s.atual}.`,
+    };
+    estado.textContent = textos[s.fase] || textos.parado;
+  };
+
+  parar = api.aoMudar(pintar);
+  api.estado().then(pintar).catch(() => {});
+  verificar.addEventListener("click", () => api.verificar().then(pintar).catch(() => {}));
+  instalar.addEventListener("click", () => {
+    instalar.disabled = true;
+    api.instalar().catch(() => (instalar.disabled = false));
+  });
+
+  bloco = el("div.stack", {}, [estado, barra, el("div.row", {}, [verificar, instalar, baixar])]);
+  return bloco;
+}
+
+/** Versão antiga do bloco: só confere e aponta a página de download. */
+function blocoDeAtualizacaoSoAviso() {
   const estado = el("div.field__hint", { text: "Conferindo…" });
   const notas = el("div.field__hint", { style: { opacity: "0.7" } });
   const baixar = el("a.btn.btn--primary", {

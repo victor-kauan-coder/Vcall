@@ -12,7 +12,7 @@ import { spawn } from "node:child_process";
 import readline from "node:readline";
 import { desinstalar, instalar, pastaDeInstalacao } from "./instalador.js";
 
-const VERSAO = process.env.VCALL_VERSAO || "3.7.2";
+const VERSAO = process.env.VCALL_VERSAO || "3.7.3";
 
 const linha = (t = "") => process.stdout.write(`${t}\n`);
 

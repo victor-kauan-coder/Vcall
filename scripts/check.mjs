@@ -5,7 +5,7 @@
  *   1. todo arquivo .js compila;
  *   2. todo import relativo aponta para um arquivo existente;
  *   3. todo ícone referenciado no código e no HTML existe no sprite;
- *   4. toda variável CSS usada está definida em tokens.css;
+ *   4. todo CSS fecha as chaves e toda variável usada está definida;
  *   5. a resolução de caminhos funciona no Linux E no Windows.
  *
  * Roda com: npm run check
@@ -92,6 +92,10 @@ const referenced = new Map();
 
 for (const file of cssFiles) {
   const src = await readFile(file, "utf8");
+  // Uma chave sem par não dá erro no navegador: ele só ignora tudo o que vem
+  // depois. Foi assim que o "Carregando o vídeo…" ficou sempre visível (3.7.0).
+  const { warnings } = await esbuild.transform(src, { loader: "css" });
+  for (const w of warnings) fail(`${path.relative(root, file)}:${w.location?.line}: ${w.text}`);
   for (const m of src.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)) defined.add(m[1]);
   for (const m of src.matchAll(/var\(\s*(--[a-z0-9-]+)/g)) {
     if (!referenced.has(m[1])) referenced.set(m[1], path.relative(root, file));

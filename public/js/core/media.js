@@ -68,7 +68,7 @@ export class LocalMedia extends Emitter {
 
     if (audio) {
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: this.#audioConstraints() });
+        const s = await this.#abrir("audio");
         await this.#usarMic(s.getAudioTracks()[0] || null);
         result.audio = true;
       } catch (err) {
@@ -78,7 +78,7 @@ export class LocalMedia extends Emitter {
 
     if (video) {
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: this.#videoConstraints() });
+        const s = await this.#abrir("video");
         this.#swap("cam", s.getVideoTracks()[0] || null);
         result.video = true;
       } catch (err) {
@@ -132,7 +132,7 @@ export class LocalMedia extends Emitter {
       return false;
     }
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: this.#videoConstraints() });
+      const s = await this.#abrir("video");
       this.#swap("cam", s.getVideoTracks()[0] || null);
       return true;
     } catch (err) {
@@ -160,7 +160,7 @@ export class LocalMedia extends Emitter {
     if (kind === "audioinput" && this.micTrack) {
       const wasEnabled = this.micTrack.enabled;
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: this.#audioConstraints() });
+        const s = await this.#abrir("audio", { recuar: false });
         await this.#usarMic(s.getAudioTracks()[0] || null, wasEnabled);
         return true;
       } catch (err) {
@@ -170,7 +170,7 @@ export class LocalMedia extends Emitter {
     }
     if (kind === "videoinput" && this.camEnabled) {
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: this.#videoConstraints() });
+        const s = await this.#abrir("video", { recuar: false });
         this.#swap("cam", s.getVideoTracks()[0] || null);
         return true;
       } catch (err) {
@@ -228,7 +228,7 @@ export class LocalMedia extends Emitter {
     }
     const wasEnabled = this.micTrack.enabled;
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: this.#audioConstraints() });
+      const s = await this.#abrir("audio");
       await this.#usarMic(s.getAudioTracks()[0] || null, wasEnabled);
     } catch {
       /* mantém a trilha atual */
@@ -288,24 +288,46 @@ export class LocalMedia extends Emitter {
 
   /* ---------------------------------------------------------------- */
 
-  #audioConstraints() {
+  /**
+   * Abre o microfone ou a câmera escolhidos. O id vai como `exact`: com
+   * `ideal` o navegador prefere a câmera que melhor atende à resolução pedida
+   * e ignora a escolha. Se o id salvo não existe mais (aparelho desconectado,
+   * ou o navegador gerou ids novos), `recuar` abre o padrão do sistema.
+   */
+  async #abrir(kind, { recuar = true } = {}) {
+    const pedir = (comId) =>
+      navigator.mediaDevices.getUserMedia(
+        kind === "audio"
+          ? { audio: this.#audioConstraints(comId) }
+          : { video: this.#videoConstraints(comId) },
+      );
+    try {
+      return await pedir(true);
+    } catch (err) {
+      const id = this.selected[kind === "audio" ? "audioinput" : "videoinput"];
+      if (!recuar || !id || !["OverconstrainedError", "NotFoundError"].includes(err?.name)) throw err;
+      return pedir(false);
+    }
+  }
+
+  #audioConstraints(comId = true) {
     let base = this.processing
       ? AUDIO_CONSTRAINTS
       : { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
     // Com a supressão por IA ligada, a do navegador sai: as duas juntas
     // "comem" o começo e o fim das palavras.
     if (this.processing && this.voz.ruido) base = { ...base, noiseSuppression: false };
-    const id = this.selected.audioinput;
-    return id ? { ...base, deviceId: { ideal: id } } : base;
+    const id = comId && this.selected.audioinput;
+    return id ? { ...base, deviceId: { exact: id } } : base;
   }
 
-  #videoConstraints() {
-    const id = this.selected.videoinput;
+  #videoConstraints(comId = true) {
+    const id = comId && this.selected.videoinput;
     const base = { ...VIDEO_CONSTRAINTS };
     // Em celular, `facingMode` e `deviceId` juntos brigam; o id ganha.
     if (id) {
       delete base.facingMode;
-      return { ...base, deviceId: { ideal: id } };
+      return { ...base, deviceId: { exact: id } };
     }
     return env.isTouch ? base : (delete base.facingMode, base);
   }

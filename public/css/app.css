@@ -2826,6 +2826,8 @@ body.is-recording .topbar::after {
  */
 .paletaOpcao__nome {
   text-align: center;
+}
+
 /* ------------------------------------------------------------------ *
  * Ladrilho "você está apresentando" (tela inteira, sem efeito espelho)
  * ------------------------------------------------------------------ */

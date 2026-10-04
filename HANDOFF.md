@@ -224,8 +224,9 @@ Desde a 3.7 o app **se atualiza sozinho**, mas só com o pacote assinado por nó
 - Baixado o pacote, ele busca `<pacote>.sig` na release e confere com a chave
   pública que vai no app (`desktop/chave-atualizacao.pem`, Ed25519). A mensagem
   assinada inclui a versão: um instalador antigo e legítimo não passa por novo.
-- Windows e AppImage instalam ao fechar o app; .deb/.rpm/pacman só pelo botão
-  (o sistema pede senha); .tar.gz só avisa (`modoDeInstalacao()`).
+- Windows e AppImage instalam ao fechar o app; .deb/.rpm só pelo botão (o
+  sistema pede senha); pacman e .tar.gz só avisam (`modoDeInstalacao()`). O
+  pacman não entra no `latest-linux.yml` do electron-builder 25.
 - **A chave privada não está no repositório.** Ela é o segredo
   `VCALL_UPDATE_KEY` do GitHub, usado pelo job "publicar" para assinar
   (`scripts/assinar-atualizacao.mjs`). Sem o segredo, a release sai sem `.sig`

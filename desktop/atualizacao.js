@@ -141,16 +141,18 @@ export async function conferir({ forcar = false, atual = VERSAO } = {}) {
  * Dá para atualizar sozinho, do jeito que este Vcall foi instalado?
  *
  *   "sozinho"  Windows (instalador) e AppImage: baixa, confere e instala ao fechar.
- *   "senha"    .deb, .rpm e pacman: baixa e confere; instalar pede a senha do
- *              sistema (é o gerenciador de pacotes que instala), então só
- *              quando a pessoa clica — nunca de surpresa ao fechar.
- *   "manual"   .tar.gz, macOS ou fora do pacote: só avisa, como antes.
+ *   "senha"    .deb e .rpm: baixa e confere; instalar pede a senha do sistema
+ *              (é o gerenciador de pacotes que instala), então só quando a
+ *              pessoa clica — nunca de surpresa ao fechar.
+ *   "manual"   pacman, .tar.gz, macOS ou fora do pacote: só avisa. O pacman
+ *              fica aqui porque o electron-builder 25 não o lista no
+ *              latest-linux.yml, e sem isso o atualizador não acha o pacote.
  */
 export function modoDeInstalacao({ plataforma = process.platform, empacotado = false, appImage = false, tipoPacote = null } = {}) {
   if (!empacotado) return "manual";
   if (plataforma === "win32") return "sozinho";
   if (plataforma !== "linux") return "manual";
   if (appImage) return "sozinho";
-  if (["deb", "rpm", "pacman"].includes(String(tipoPacote || "").trim())) return "senha";
+  if (["deb", "rpm"].includes(String(tipoPacote || "").trim())) return "senha";
   return "manual";
 }

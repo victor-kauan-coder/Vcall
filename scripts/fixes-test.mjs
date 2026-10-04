@@ -365,6 +365,7 @@ server.close();
   assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, appImage: true }), "sozinho");
   assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, tipoPacote: "deb\n" }), "senha", "Ubuntu/Fedora: o sistema pede a senha");
   assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, tipoPacote: "rpm" }), "senha");
+  assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, tipoPacote: "pacman" }), "manual", "pacman fora do latest-linux.yml: só avisa");
   assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true }), "manual", ".tar.gz: só avisa");
   assert.equal(modoDeInstalacao({ plataforma: "win32", empacotado: false }), "manual", "rodando do código-fonte: só avisa");
   assert.equal(maisNova("v3.10.0", "3.9.0"), true, "3.10 é mais nova que 3.9");

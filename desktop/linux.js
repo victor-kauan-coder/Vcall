@@ -66,22 +66,34 @@ export function precisaSemSandbox({ plataforma = process.platform, env = process
 /**
  * Opções de exibição do Chromium no Linux, como pares [chave, valor].
  *
- * O Electron 38+ abre como app Wayland nativo numa sessão Wayland. Lá o
- * compositor não deixa o app posicionar janela: a mini-janela não vai para o
- * canto e a sobreposição do modo jogo não fica onde deveria. Com XWayland
- * disponível (DISPLAY definido), o Vcall continua por ele, como até a 3.6 —
- * e o compartilhar tela segue pelo portal do sistema do mesmo jeito.
- *
  * GTK 3 fixo: o Electron 36+ usa GTK 4 no GNOME, e um processo que acabe
  * carregando GTK 3 junto (tema, método de entrada, bibliotecas do sistema)
  * aborta com "GTK 2/3 symbols detected". O GTK 3 é o que sempre foi usado.
  */
-export function opcoesDeExibicao({ plataforma = process.platform, env = process.env } = {}) {
-  if (plataforma !== "linux") return [];
-  const opcoes = [["gtk-version", "3"]];
+export function opcoesDeExibicao({ plataforma = process.platform } = {}) {
+  return plataforma === "linux" ? [["gtk-version", "3"]] : [];
+}
+
+/**
+ * Argumentos para reabrir o app pelo XWayland, ou `null` se não precisa.
+ *
+ * O Electron 38+ abre como app Wayland nativo numa sessão Wayland, e lá o
+ * compositor não deixa o app posicionar janela: a mini-janela não vai para o
+ * canto e a sobreposição do modo jogo não fica onde deveria. Com XWayland
+ * disponível (DISPLAY definido), o Vcall segue por ele, como até a 3.6.
+ *
+ * A opção tem de estar na linha de comando DE VERDADE. O Electron escolhe
+ * Wayland ou X11 antes de o main.js rodar; posta depois (appendSwitch), ela só
+ * chegava ao processo da GPU. No Fedora (GNOME, XDG_SESSION_TYPE=wayland) a
+ * janela nascia Wayland, a GPU tentava desenhar nela como X11 e caía três
+ * vezes, e o app não abria. Quem passou --ozone-platform por conta própria
+ * fica com a escolha.
+ */
+export function argsParaX11({ plataforma = process.platform, env = process.env, argv = process.argv } = {}) {
+  if (plataforma !== "linux" || !env.DISPLAY) return null;
   const wayland = String(env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" || !!env.WAYLAND_DISPLAY;
-  if (wayland && env.DISPLAY) opcoes.push(["ozone-platform", "x11"]);
-  return opcoes;
+  if (!wayland || argv.some((a) => a.startsWith("--ozone-platform"))) return null;
+  return [...argv.slice(1), "--ozone-platform=x11"];
 }
 
 /**

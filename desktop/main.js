@@ -33,7 +33,7 @@ import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
 import { descreverFontes, montarResposta, sessaoWayland, umPorVez } from "./captura.js";
-import { executavelParaRegistrar, opcoesDeExibicao, precisaSemSandbox } from "./linux.js";
+import { argsParaX11, executavelParaRegistrar, opcoesDeExibicao, precisaSemSandbox } from "./linux.js";
 import { descartarWhisper, ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, prepararWhisper, responderModelo, WHISPER, WHISPER_PADRAO } from "./fala.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -65,8 +65,14 @@ if (process.platform === "linux") {
   // Sem este recurso o Chromium tenta capturar pelo X11, que no Wayland só
   // enxerga janelas XWayland — e a pessoa vê uma tela preta ou nada.
   app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
-  // XWayland quando houver e GTK 3: o mesmo ambiente das versões anteriores
-  // (ver opcoesDeExibicao em desktop/linux.js).
+  // XWayland quando houver: reabre já com a opção na linha de comando, antes
+  // de qualquer janela. O AppImage reabre pelo próprio arquivo, porque a pasta
+  // montada some quando este processo sai. Ver argsParaX11 em desktop/linux.js.
+  const x11 = argsParaX11();
+  if (x11) {
+    app.relaunch({ args: x11, execPath: process.env.APPIMAGE || process.execPath });
+    app.exit(0);
+  }
   for (const [chave, valor] of opcoesDeExibicao()) app.commandLine.appendSwitch(chave, valor);
   // AppImage em distro que restringe user namespaces (Ubuntu 24.04+, kernels
   // endurecidos): sem isto o app nem abre. Ver desktop/linux.js.

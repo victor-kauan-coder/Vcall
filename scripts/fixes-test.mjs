@@ -20,7 +20,7 @@ import { lerZip, montarTar, zipParaTarGz, nomeDoModelo, responderModelo } from "
 import { destinoDoLink } from "../desktop/protocol.js";
 import { linkAbrir, linkDaSala, linkDoAplicativo, linkWhatsApp, salaDoFragmento, ehCelular } from "../public/js/lib/invite.js";
 import { createBoardNotice } from "../public/js/features/board-notice.js";
-import { executavelParaRegistrar, namespacesDisponiveis, opcoesDeExibicao, precisaSemSandbox } from "../desktop/linux.js";
+import { argsParaX11, executavelParaRegistrar, namespacesDisponiveis, opcoesDeExibicao, precisaSemSandbox } from "../desktop/linux.js";
 import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
 import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/assinatura.js";
 import { maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
@@ -459,11 +459,18 @@ server.close();
   assert.equal(precisaSemSandbox({ plataforma: "linux", env: appimage, ler: fedora }), false, "no Fedora o sandbox continua ligado");
   assert.equal(precisaSemSandbox({ plataforma: "linux", env: {}, ler: ubuntu2404 }), false, "pacote .deb: nunca desliga");
   // Electron 38+ abre como Wayland nativo, e lá a janela não se posiciona:
-  // com XWayland disponível, o Vcall segue por ele. GTK 3 sempre.
-  const ex = (env) => Object.fromEntries(opcoesDeExibicao({ plataforma: "linux", env }));
-  assert.deepEqual(ex({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0", DISPLAY: ":0" }), { "gtk-version": "3", "ozone-platform": "x11" });
-  assert.deepEqual(ex({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0" }), { "gtk-version": "3" }, "Wayland sem XWayland: fica nativo");
-  assert.deepEqual(ex({ XDG_SESSION_TYPE: "x11", DISPLAY: ":0" }), { "gtk-version": "3" }, "X11: nada a forçar");
+  // com XWayland disponível, o Vcall reabre por ele. A opção vai na linha de
+  // comando de verdade (via appendSwitch ela só chegava à GPU, e o app não
+  // abria no Fedora). GTK 3 sempre.
+  const argv = ["/opt/Vcall/vcall", "vcall://sala/abc"];
+  const x11 = (env, a = argv) => argsParaX11({ plataforma: "linux", env, argv: a });
+  assert.deepEqual(x11({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0", DISPLAY: ":0" }), ["vcall://sala/abc", "--ozone-platform=x11"], "Fedora/Ubuntu GNOME: reabre pelo XWayland, com o link");
+  assert.equal(x11({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0", DISPLAY: ":0" }, [...argv, "--ozone-platform=x11"]), null, "já reaberto: não entra em laço");
+  assert.equal(x11({ XDG_SESSION_TYPE: "wayland", DISPLAY: ":0" }, [...argv, "--ozone-platform=wayland"]), null, "escolha da pessoa vale");
+  assert.equal(x11({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0" }), null, "Wayland sem XWayland: fica nativo");
+  assert.equal(x11({ XDG_SESSION_TYPE: "x11", DISPLAY: ":0" }), null, "X11: nada a fazer");
+  assert.equal(argsParaX11({ plataforma: "win32", env: { DISPLAY: ":0", WAYLAND_DISPLAY: "w" }, argv }), null, "fora do Linux, nada");
+  assert.deepEqual(opcoesDeExibicao({ plataforma: "linux" }), [["gtk-version", "3"]]);
   assert.deepEqual(opcoesDeExibicao({ plataforma: "win32", env: {} }), [], "fora do Linux, nada");
   assert.equal(precisaSemSandbox({ plataforma: "win32", env: appimage, ler: ubuntu2404 }), false);
 

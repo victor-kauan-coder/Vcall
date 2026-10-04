@@ -137,10 +137,16 @@ pressionado para sempre.
   PipeWire. `umPorVez()` em `desktop/captura.js` recusa o segundo e tem prazo.
 
 **Electron 38+ abre como Wayland nativo.** No Wayland nativo a janela não se
-posiciona (mini-janela e sobreposição do modo jogo perdem o canto). Por isso
-`opcoesDeExibicao()` (`desktop/linux.js`) força `--ozone-platform=x11` quando há
-XWayland, e `--gtk-version=3` (o Electron 36+ usa GTK 4 no GNOME, e misturar com
-GTK 3 aborta o processo). Quedas de processos auxiliares (GPU, rede) vão para o
+posiciona (mini-janela e sobreposição do modo jogo perdem o canto). Por isso,
+quando há XWayland, o app se reabre uma vez com `--ozone-platform=x11` na linha
+de comando (`argsParaX11()` em `desktop/linux.js`). **Não troque isso por
+`appendSwitch`:** o Electron escolhe Wayland/X11 antes do main.js, e a opção
+posta depois só chega à GPU. Foi o que fez a 3.7.0/3.7.1 não abrir no Fedora
+(GPU caindo com exit 139 e "XGetWindowAttributes failed for window 1"). O WSLg
+não mostra o problema porque deixa `XDG_SESSION_TYPE` vazio; para reproduzir,
+rode com `XDG_SESSION_TYPE=wayland`. `opcoesDeExibicao()` fica só com
+`--gtk-version=3` (o Electron 36+ usa GTK 4 no GNOME, e misturar com GTK 3
+aborta o processo). Quedas de processos auxiliares (GPU, rede) vão para o
 registro como `processo-caiu`.
 
 **O que já foi verificado em Linux:** a 3.7 rodou no Ubuntu 26.04 (WSLg, com

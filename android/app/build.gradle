@@ -1,0 +1,62 @@
+plugins {
+    id "com.android.application"
+}
+
+// A versão do APK acompanha a do app de mesa (package.json da raiz).
+def pacote = new groovy.json.JsonSlurper().parse(file("../../package.json"))
+def (maior, menor, rev) = pacote.version.tokenize(".")*.toInteger()
+
+android {
+    namespace "com.vcall.app"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.vcall.app"
+        minSdk 26
+        targetSdk 36
+        versionName pacote.version
+        versionCode maior * 10000 + menor * 100 + rev
+    }
+
+    // Assinatura de release: a chave fica FORA do repositório. Sem ela, o
+    // assembleRelease sai sem assinar (e o Android recusa instalar).
+    def chave = System.getenv("VCALL_ANDROID_KEYSTORE")
+    signingConfigs {
+        if (chave) {
+            release {
+                storeFile file(chave)
+                storePassword System.getenv("VCALL_ANDROID_SENHA")
+                keyAlias System.getenv("VCALL_ANDROID_ALIAS") ?: "vcall"
+                keyPassword System.getenv("VCALL_ANDROID_SENHA")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            if (chave) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // A tela inicial usa a logo vetorial e a fonte do app, sem cópia no repositório.
+    sourceSets.main.assets.srcDirs += "build/generated/vcall-assets"
+}
+
+def copiarMarca = tasks.register("copiarMarca", Copy) {
+    from("../../brand/vcall-simbolo.svg") { into "inicio" }
+    from("../../public/fonts/bricolage-latin.woff2") { into "inicio" }
+    into "build/generated/vcall-assets"
+}
+tasks.named("preBuild") { dependsOn copiarMarca }
+
+dependencies {
+    testImplementation "junit:junit:4.13.2"
+}

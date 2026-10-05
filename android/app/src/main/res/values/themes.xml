@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tinta">#FF12103B</color>
+    <color name="fundo_claro">#FFF5F6F9</color>
+    <color name="fundo_escuro">#FF0C0E13</color>
+    <string name="app_name">Vcall</string>
+
+    <!-- Claro: o WebView lê isLightTheme para responder a prefers-color-scheme. -->
+    <style name="Tema" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fundo_claro</item>
+        <item name="android:statusBarColor">@color/fundo_claro</item>
+        <item name="android:navigationBarColor">@color/fundo_claro</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

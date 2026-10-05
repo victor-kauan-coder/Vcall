@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Vcall</title>
+  <style>
+    @font-face {
+      font-family: "Bricolage Grotesque";
+      src: url("bricolage-latin.woff2") format("woff2");
+      font-weight: 200 800;
+      font-display: swap;
+    }
+    :root {
+      --bg: #f5f6f9;
+      --surface: #ffffff;
+      --surface-2: #eef1f5;
+      --border: #d8dee7;
+      --text: #11161f;
+      --muted: #5d6877;
+      --accent: #dd2f6b;
+      --accent-ink: #ffffff;
+      --erro: #b4234f;
+      --brilho: rgba(253, 77, 135, 0.14);
+      --brilho-2: rgba(254, 156, 95, 0.12);
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c0e13;
+        --surface: #181c24;
+        --surface-2: #1f242e;
+        --border: #272d39;
+        --text: #e9edf5;
+        --muted: #8b97ac;
+        --accent: #fd4d87;
+        --accent-ink: #12103b;
+        --erro: #ff7aa3;
+        --brilho: rgba(253, 77, 135, 0.16);
+        --brilho-2: rgba(254, 156, 95, 0.10);
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font: 400 16px/1.5 "Bricolage Grotesque", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(120% 60% at 0% 0%, var(--brilho), transparent 60%),
+        radial-gradient(90% 50% at 100% 0%, var(--brilho-2), transparent 60%),
+        var(--bg);
+      -webkit-tap-highlight-color: transparent;
+    }
+    ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); }
+    main {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 28px 20px 32px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .marca { display: flex; align-items: center; gap: 10px; }
+    .marca img { width: 40px; height: 38px; }
+    .marca span { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+
+    h1 {
+      margin: 48px 0 8px;
+      font-size: 34px;
+      line-height: 1.08;
+      font-weight: 750;
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+    }
+    .sub { margin: 0 0 28px; color: var(--muted); text-wrap: pretty; }
+
+    form { display: grid; gap: 12px; }
+    label { font-size: 14px; font-weight: 600; }
+    .campo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      min-height: 56px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
+    }
+    .campo:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent);
+    }
+    .campo svg { flex: none; color: var(--muted); }
+    input {
+      flex: 1;
+      min-width: 0;
+      height: 54px;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      caret-color: var(--accent);
+    }
+    input::placeholder { color: var(--muted); opacity: 0.8; }
+    .acoes { display: grid; grid-template-columns: auto 1fr; gap: 10px; }
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 52px;
+      padding: 0 18px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font: 600 16px/1 inherit;
+      font-family: inherit;
+      transition: transform 120ms ease-out, background-color 160ms ease-out;
+    }
+    button:active { transform: scale(0.97); }
+    button:focus-visible { outline: 3px solid color-mix(in oklab, var(--accent) 45%, transparent); outline-offset: 2px; }
+    .entrar {
+      background: var(--accent);
+      border-color: transparent;
+      color: var(--accent-ink);
+      box-shadow: 0 10px 24px -14px color-mix(in oklab, var(--accent) 90%, transparent);
+    }
+    .erro { min-height: 1.5em; margin: 0; color: var(--erro); font-size: 14px; }
+
+    section { margin-top: 36px; }
+    h2 { margin: 0 0 10px; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; color: var(--muted); }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    li {
+      display: flex;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    li .abrir {
+      flex: 1;
+      min-width: 0;
+      justify-content: flex-start;
+      border: 0;
+      background: transparent;
+      gap: 12px;
+      text-align: left;
+    }
+    li .abrir span { display: grid; min-width: 0; }
+    li .abrir b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    li .abrir small { color: var(--muted); font-size: 13px; font-weight: 400; }
+    li .abrir svg { flex: none; color: var(--muted); }
+    li .esquecer { border: 0; background: transparent; min-width: 52px; padding: 0; color: var(--muted); }
+
+    footer { margin-top: auto; padding-top: 40px; color: var(--muted); font-size: 14px; }
+    footer p { margin: 0 0 6px; text-wrap: pretty; }
+    footer small { opacity: 0.8; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="marca"><img src="vcall-simbolo.svg" alt="" /><span>Vcall</span></div>
+
+    <h1>Entre na chamada</h1>
+    <p class="sub">Cole o link do convite. Quem cria a chamada é o Vcall no computador; daqui você entra nela.</p>
+
+    <form id="form" autocomplete="off" novalidate>
+      <label for="link">Link do convite</label>
+      <div class="campo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <input id="link" type="url" inputmode="url" enterkeyhint="go" spellcheck="false" autocapitalize="off" placeholder="https://…trycloudflare.com/#…" />
+      </div>
+      <p class="erro" id="erro" role="alert"></p>
+      <div class="acoes">
+        <button type="button" id="colar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+          Colar
+        </button>
+        <button type="submit" class="entrar">
+          Entrar
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </button>
+      </div>
+    </form>
+
+    <section id="recentes" hidden>
+      <h2>Recentes</h2>
+      <ul id="lista"></ul>
+    </section>
+
+    <footer>
+      <p>Recebeu o convite no WhatsApp? Toque e segure o link, escolha Compartilhar e depois Vcall.</p>
+      <small id="versao"></small>
+    </footer>
+  </main>
+
+  <template id="item">
+    <li>
+      <button type="button" class="abrir">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span><b></b><small></small></span>
+      </button>
+      <button type="button" class="esquecer" aria-label="Tirar dos recentes">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </li>
+  </template>
+
+  <script>
+    const ponte = window.VcallAndroid;
+    const $ = (id) => document.getElementById(id);
+    const erro = (texto) => ($("erro").textContent = texto || "");
+
+    const MOTIVO = "Não deu para abrir a chamada. O link pode ter expirado (o Vcall de quem convidou foi fechado) ou a internet caiu.";
+    const params = new URLSearchParams(location.search);
+    if (params.has("erro")) erro(MOTIVO);
+
+    function entrar(texto) {
+      if (!String(texto || "").trim()) return erro("Cole o link que te mandaram.");
+      if (!ponte || !ponte.entrar(texto)) return erro("Isso não parece um link de chamada do Vcall.");
+      erro("");
+    }
+
+    $("form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      entrar($("link").value);
+    });
+
+    // A área de transferência é lida pelo app, só quando a pessoa pede.
+    $("colar").addEventListener("click", () => ponte && ponte.pedirColagem());
+    window.receberColagem = (texto) => {
+      if (!texto) return erro("A área de transferência está vazia.");
+      $("link").value = texto.trim();
+      entrar(texto);
+    };
+
+    // Recentes
+    const quando = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
+    function haQuanto(ms) {
+      const min = Math.round((ms - Date.now()) / 60000);
+      if (min > -60) return quando.format(min, "minute");
+      const h = Math.round(min / 60);
+      if (h > -24) return quando.format(h, "hour");
+      return quando.format(Math.round(h / 24), "day");
+    }
+    function nomeDoServidor(url) {
+      try {
+        const host = new URL(url).hostname;
+        return host.endsWith(".trycloudflare.com") ? host.split(".")[0] : host;
+      } catch {
+        return url;
+      }
+    }
+    function mostrarRecentes() {
+      let lista = [];
+      try {
+        lista = JSON.parse((ponte && ponte.recentes()) || "[]");
+      } catch {}
+      $("recentes").hidden = !lista.length;
+      $("lista").replaceChildren(
+        ...lista.map(({ url, quando }) => {
+          const li = $("item").content.firstElementChild.cloneNode(true);
+          li.querySelector("b").textContent = nomeDoServidor(url);
+          li.querySelector("small").textContent = haQuanto(quando);
+          li.querySelector(".abrir").addEventListener("click", () => entrar(url));
+          li.querySelector(".esquecer").addEventListener("click", () => {
+            ponte.esquecer(url);
+            mostrarRecentes();
+          });
+          return li;
+        }),
+      );
+    }
+    mostrarRecentes();
+    if (ponte) $("versao").textContent = `Vcall ${ponte.versao()} para Android`;
+  </script>
+</body>
+</html>

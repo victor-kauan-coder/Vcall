@@ -3,7 +3,10 @@
 Leia isto antes de mexer em qualquer coisa. É o mapa que não dá para deduzir
 lendo os arquivos em ordem alfabética.
 
-**Repositório:** `victor-kauan-coder/vcall` · **Versão no `package.json`:** 3.0.0
+> **Trabalho em andamento (2026-10-05):** app Android (APK) e logo em vetor,
+> na branch `android`. Ver a seção 12 antes de continuar.
+
+**Repositório:** `victor-kauan-coder/vcall` · **Versão no `package.json`:** 3.7.3
 **Idioma do código:** português. Nomes de funções, variáveis e comentários em
 português. Mantenha — misturar os dois é pior que escolher o errado.
 
@@ -281,3 +284,109 @@ Não feito:
 - árvore de retransmissão / SFU (seção 5)
 - gestos de arrastar para fechar as folhas no celular
 - assinatura de pacote (seção 8)
+
+---
+
+## 12. App Android e logo em vetor (em andamento, branch `android`)
+
+Pedido: um APK otimizado, com tudo funcionando, e a logo vetorizada para o app.
+
+### O que é (e o que não é)
+
+**Não existe servidor público:** quem cria a chamada é o app de mesa (servidor
+local + túnel `https://…trycloudflare.com`). Por isso o APK **entra** em
+chamadas, não cria. Ele é um WebView em Java puro, sem AndroidX:
+
+- **Tela inicial** vem de dentro do APK (`assets/inicio/index.html`): logo,
+  campo para colar o link, botão Colar, recentes. Servida pela origem falsa
+  `https://appassets.androidplatform.net/` (`shouldInterceptRequest`).
+- **A chamada** é carregada do servidor de quem convidou: a MESMA interface
+  do computador, então as duas pontas sempre falam a mesma versão.
+- **`assets/injetar.js`** roda em toda página de chamada: salva downloads
+  `blob:` (arquivo da conversa, gravação, transcrição, quadro) em
+  `Downloads/Vcall` pela ponte; avisa o Android quando a pessoa entra/sai da
+  sala (`#dock` visível); passa a cor do tema (meta theme-color) para as
+  barras do sistema; e esconde barra e controles na mini-janela. Só usa
+  coisas que a interface tem desde a 3.x, para funcionar com app de mesa antigo.
+
+| Arquivo | Papel |
+| --- | --- |
+| `android/app/src/main/java/com/vcall/app/MainActivity.java` | WebView, permissões de câmera/microfone, escolher arquivo, mini-janela (PiP), botão voltar (na chamada vira PiP), convites, bordas da tela, recriar a página se o motor cair |
+| `…/Ponte.java` | `window.VcallAndroid`. Métodos de navegação e área de transferência só valem na tela inicial (qualquer página vê a ponte) |
+| `…/ChamadaService.java` | Serviço em primeiro plano "Chamada em andamento" (sem ele o Android corta câmera/mic fora do app) |
+| `…/Links.java` + `src/test/…/LinksTest.java` | Acha a sala no texto colado/compartilhado: `https://…/#sala`, `/abrir#sala`, `vcall://join?u=…`, sem `https://`, no meio de mensagem. Só HTTPS (exceto localhost) |
+| `…/Recentes.java` | Últimas 6 salas (SharedPreferences) |
+| `AndroidManifest.xml` | `configChanges` amplo (girar a tela não recarrega = não derruba a chamada), PiP, intents: `vcall://`, `https://*.trycloudflare.com`, Compartilhar (text/plain) |
+| `res/xml/rede.xml` | Só HTTPS; HTTP só para localhost (teste com `adb reverse`) |
+| `app/build.gradle` | Versão vem do `package.json` da raiz. Copia `brand/vcall-simbolo.svg` e a fonte Bricolage para os assets na hora do build. Release com R8 e assinatura por variáveis de ambiente (abaixo) |
+
+### Logo em vetor (feito)
+
+- `brand/vcall-simbolo.svg` (só o símbolo), `brand/vcall-icone.svg` (ícone
+  com o fundo `#12103b`, cantos 115/512), `brand/vcall-logo.svg` (símbolo +
+  "Vcall"). O símbolo é geometria limpa (cápsulas + círculos) ajustada sobre
+  `public/assets/logo-mark.png` (96% de sobreposição); as letras são traçado.
+- Ícone do Android: `res/drawable/ic_launcher_foreground.xml` (adaptável,
+  com gradientes) e `ic_launcher_monochrome.xml` (ícone temático do Android
+  13+ e ícone da notificação). Gerados por `brand/gerar-logo.py`.
+- Cuidado: no SVG a cor com alfa é `#RRGGBBAA`; no Android é `#AARRGGBB`.
+  O gerador guarda a opacidade à parte e escreve cada formato.
+
+### Estado
+
+- [x] Compila: `assembleDebug` OK, **APK de 86 KB**.
+- [x] `LinksTest`: 10/10.
+- [ ] **Nada testado em aparelho/emulador ainda.** Parou no boot do emulador.
+- [ ] Assinatura de release (chave fora do repositório, como a das atualizações).
+- [ ] Job no CI para gerar o APK e anexar à release.
+- [ ] Opcional: `public/js/abrir.js` no Android oferecer "Abrir no app"
+      (`intent://join?u=…#Intent;scheme=vcall;package=com.vcall.app;S.browser_fallback_url=…;end`).
+
+### Como compilar
+
+```bash
+cd android
+export JAVA_HOME="C:/Program Files/Android/Android Studio/jbr"   # JDK 21 do Android Studio
+./gradlew testDebugUnitTest assembleDebug
+# APK: android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Gradle 8.14.3 e AGP 8.11.0 já estão no cache (`~/.gradle`), SDK 36 em
+`%LOCALAPPDATA%/Android/Sdk`. Release assinado: defina
+`VCALL_ANDROID_KEYSTORE` (caminho do .jks), `VCALL_ANDROID_SENHA` e
+opcionalmente `VCALL_ANDROID_ALIAS`, e rode `./gradlew assembleRelease`.
+Gerar a chave (uma vez, guardar fora do repo, junto da chave de atualização):
+`keytool -genkeypair -v -keystore ~/.vcall/android/vcall.jks -alias vcall -keyalg RSA -keysize 4096 -validity 36500`.
+**Perder essa chave = não dá para atualizar o app instalado.**
+
+### Como testar (o plano que estava em curso)
+
+1. Emulador: `emulator -avd Medium_Phone_API_36.1 -camera-back emulated -camera-front emulated`.
+2. Servidor: `npm start` na raiz (porta 3000) e `adb reverse tcp:3000 tcp:3000`
+   (no emulador, `http://localhost:3000` é origem segura: câmera funciona).
+3. `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`.
+4. Abrir uma sala: `adb shell am start -a android.intent.action.VIEW -d "vcall://join?u=http%3A%2F%2Flocalhost%3A3000%2F%23<sala de 16+ caracteres>"`.
+5. Segundo participante: Playwright no Windows em `http://localhost:3000/#<sala>`
+   com `--use-fake-device-for-media-stream` (ver `scripts/ui-test.mjs`).
+6. Controlar a página do app: build de depuração liga a inspeção;
+   `adb shell cat /proc/net/unix | grep webview_devtools` e
+   `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`, depois
+   `chromium.connectOverCDP("http://localhost:9222")`.
+
+Conferir, um por um: tela inicial (claro/escuro), colar link, recentes,
+permissões, vídeo e áudio nos dois sentidos, ligar/desligar câmera e mic,
+trocar câmera frontal/traseira, conversa, enviar arquivo (seletor) e receber
+(cai em Downloads/Vcall), reações, levantar a mão, quadro com o dedo, temas,
+gravar e baixar, mini-janela (botão início e voltar), seguir em segundo plano
+com a notificação, "Sair da chamada" pela notificação, girar a tela sem cair,
+Compartilhar → Vcall, link `vcall://`, servidor fora do ar (volta ao início
+com aviso).
+
+### Limites conhecidos (do WebView, não do app)
+
+- **Compartilhar a tela não existe** no WebView do Android (`getDisplayMedia`);
+  a interface já esconde o botão sozinha.
+- **Legenda da própria fala** não: o reconhecimento de voz do navegador não
+  existe no WebView e o motor offline é do app de mesa. Legendas dos outros
+  chegam normalmente (são texto).
+- Notificações da página (Notification API) não existem no WebView.

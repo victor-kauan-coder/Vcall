@@ -1,0 +1,197 @@
+package com.vcall.app;
+
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.ContentValues;
+import android.graphics.Color;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Base64;
+import android.webkit.JavascriptInterface;
+import android.widget.Toast;
+
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * window.VcallAndroid: o que a página pede ao Android.
+ *
+ * Estes métodos rodam numa thread do WebView, e QUALQUER página aberta no app
+ * os enxerga — inclusive uma que alguém mande como "convite". Por isso o que
+ * mexe em navegação ou lê a área de transferência só vale na tela inicial
+ * (que é nossa), e salvar arquivo só escreve em Downloads/Vcall.
+ */
+final class Ponte {
+    private final MainActivity tela;
+    private final Map<Integer, Arquivo> abertos = new HashMap<>();
+    private int proximo = 1;
+
+    Ponte(MainActivity tela) {
+        this.tela = tela;
+    }
+
+    /* --- tela inicial --- */
+
+    @JavascriptInterface
+    public boolean entrar(String texto) {
+        if (!tela.naTelaInicial) return false;
+        String sala = Links.paraSala(texto);
+        if (sala == null) return false;
+        tela.runOnUiThread(() -> tela.abrirSala(sala));
+        return true;
+    }
+
+    /** Lê a área de transferência a pedido (botão "Colar") e devolve à página. */
+    @JavascriptInterface
+    public void pedirColagem() {
+        if (!tela.naTelaInicial) return;
+        tela.runOnUiThread(() -> {
+            ClipboardManager cm = tela.getSystemService(ClipboardManager.class);
+            ClipData clip = cm == null ? null : cm.getPrimaryClip();
+            CharSequence t = clip != null && clip.getItemCount() > 0 ? clip.getItemAt(0).coerceToText(tela) : "";
+            tela.evaluar("window.receberColagem && window.receberColagem(" + JSONObject.quote(String.valueOf(t)) + ")");
+        });
+    }
+
+    @JavascriptInterface
+    public String recentes() {
+        return tela.naTelaInicial ? Recentes.lista(tela) : "[]";
+    }
+
+    @JavascriptInterface
+    public void esquecer(String url) {
+        if (tela.naTelaInicial) Recentes.esquecer(tela, url);
+    }
+
+    @JavascriptInterface
+    public String versao() {
+        return tela.versao();
+    }
+
+    /* --- página da chamada (injetar.js) --- */
+
+    @JavascriptInterface
+    public void chamada(boolean ligada) {
+        tela.runOnUiThread(() -> tela.chamada(ligada));
+    }
+
+    @JavascriptInterface
+    public void corDaPagina(String cor) {
+        try {
+            int c = Color.parseColor(cor.trim());
+            tela.runOnUiThread(() -> tela.corDaPagina(c));
+        } catch (Exception ignorado) {
+            // cor que o Android não lê (rgb(), var()…): fica a de antes
+        }
+    }
+
+    /*
+     * Download de arquivo feito na página (blob:). Vem em pedaços de base64:
+     * um arquivo de 25 MB numa string só pesaria 33 MB de uma vez na ponte.
+     */
+
+    @JavascriptInterface
+    public int abrirArquivo(String nome, String mime) {
+        String limpo = nome == null ? "" : nome.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
+        if (limpo.isEmpty() || limpo.startsWith(".")) limpo = "arquivo-vcall" + limpo;
+        if (limpo.length() > 120) limpo = limpo.substring(limpo.length() - 120);
+        String tipo = mime == null || mime.isEmpty() ? "application/octet-stream" : mime;
+        try {
+            Arquivo a = Build.VERSION.SDK_INT >= 29 ? novoEmDownloads(limpo, tipo) : novoNaPastaDoApp(limpo);
+            synchronized (abertos) {
+                abertos.put(proximo, a);
+                return proximo++;
+            }
+        } catch (Exception e) {
+            avisar("Não deu para salvar “" + limpo + "”.");
+            return 0;
+        }
+    }
+
+    @JavascriptInterface
+    public boolean escreverArquivo(int id, String base64) {
+        Arquivo a;
+        synchronized (abertos) {
+            a = abertos.get(id);
+        }
+        if (a == null) return false;
+        try {
+            a.saida.write(Base64.decode(base64, Base64.DEFAULT));
+            return true;
+        } catch (Exception e) {
+            fechar(id, false);
+            return false;
+        }
+    }
+
+    @JavascriptInterface
+    public void fecharArquivo(int id) {
+        fechar(id, true);
+    }
+
+    private void fechar(int id, boolean ok) {
+        Arquivo a;
+        synchronized (abertos) {
+            a = abertos.remove(id);
+        }
+        if (a == null) return;
+        try {
+            a.saida.close();
+            if (a.uri != null) {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                if (ok) tela.getContentResolver().update(a.uri, v, null, null);
+                else tela.getContentResolver().delete(a.uri, null, null);
+            }
+            avisar(ok ? "“" + a.nome + "” salvo em " + a.onde : "Não deu para salvar “" + a.nome + "”.");
+        } catch (Exception e) {
+            avisar("Não deu para salvar “" + a.nome + "”.");
+        }
+    }
+
+    private Arquivo novoEmDownloads(String nome, String tipo) throws Exception {
+        ContentValues v = new ContentValues();
+        v.put(MediaStore.MediaColumns.DISPLAY_NAME, nome);
+        v.put(MediaStore.MediaColumns.MIME_TYPE, tipo);
+        v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Vcall");
+        v.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = tela.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+        if (uri == null) throw new IllegalStateException("sem Downloads");
+        OutputStream out = tela.getContentResolver().openOutputStream(uri);
+        if (out == null) throw new IllegalStateException("sem saída");
+        return new Arquivo(nome, uri, out, "Downloads/Vcall");
+    }
+
+    /** Android 8 e 9: sem permissão de armazenamento, fica na pasta do app. */
+    private Arquivo novoNaPastaDoApp(String nome) throws Exception {
+        File pasta = tela.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (pasta == null) throw new IllegalStateException("sem armazenamento");
+        File f = new File(pasta, nome);
+        return new Arquivo(nome, null, new FileOutputStream(f), "Android/data/" + tela.getPackageName() + "/files/Download");
+    }
+
+    private void avisar(String texto) {
+        tela.runOnUiThread(() -> Toast.makeText(tela, texto, Toast.LENGTH_LONG).show());
+    }
+
+    private static final class Arquivo {
+        final String nome;
+        final Uri uri;
+        final OutputStream saida;
+        final String onde;
+
+        Arquivo(String nome, Uri uri, OutputStream saida, String onde) {
+            this.nome = nome;
+            this.uri = uri;
+            this.saida = saida;
+            this.onde = onde;
+        }
+    }
+}

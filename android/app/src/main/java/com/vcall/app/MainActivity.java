@@ -424,9 +424,8 @@ public class MainActivity extends Activity {
             if (confirmar != null) startActivity(confirmar.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } else if (st != PackageInstaller.STATUS_SUCCESS) {
             String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-            Atualizador.falhou(this, st == PackageInstaller.STATUS_FAILURE_ABORTED
-                    ? "Atualização cancelada."
-                    : "Não deu para atualizar" + (msg != null ? " (" + msg + ")." : "."));
+            if (st == PackageInstaller.STATUS_FAILURE_ABORTED) Atualizador.cancelada(this);
+            else Atualizador.falhou(this, "Não deu para atualizar" + (msg != null ? " (" + msg + ")." : "."));
         }
     }
 

@@ -145,6 +145,12 @@ final class Atualizador {
         return true;
     }
 
+    /** Cancelou a confirmação do sistema: o APK baixado continua pronto para outra tentativa. */
+    static void cancelada(MainActivity tela) {
+        if (baixado != null && baixado.exists()) mudar(tela, "pronta", "", 100);
+        else falhou(tela, "Atualização cancelada.");
+    }
+
     static void falhou(MainActivity tela, String motivo) {
         mudar(tela, "erro", motivo, 0);
         baixado = null;

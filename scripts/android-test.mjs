@@ -255,6 +255,62 @@ await passo("quadro", async () => {
   await espera(1000);
 });
 
+await passo("pinça", async () => {
+  await acao("Quadro branco");
+  await espera(2000);
+  const cena0 = await b.evaluate(() => JSON.stringify(window.vcall.board?.scene?.() || "").length);
+  const escala = () => a.evaluate(() => window.vcall.board.view.scale);
+  const e0 = await escala();
+  const s = await a.context().newCDPSession(a);
+  const meio = await a.evaluate(() => {
+    const c = [...document.querySelectorAll("canvas")].sort((x, y) => y.clientWidth * y.clientHeight - x.clientWidth * x.clientHeight)[0];
+    const r = c.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  const gesto = async (de, ate) => {
+    const pontos = (d) => [{ x: meio.x - d, y: meio.y, id: 0 }, { x: meio.x + d, y: meio.y, id: 1 }];
+    await s.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pontos(de) });
+    for (let i = 1; i <= 10; i++) {
+      await s.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pontos(de + ((ate - de) * i) / 10) });
+      await espera(16);
+    }
+    await s.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await espera(400);
+  };
+  await gesto(40, 120);
+  const e1 = await escala();
+  check("abrir os dedos aproxima", e1 > e0 * 2, `${e0.toFixed(2)} → ${e1.toFixed(2)}`);
+  await gesto(120, 40);
+  const e2 = await escala();
+  check("fechar os dedos afasta", e2 < e1 / 2, `${e1.toFixed(2)} → ${e2.toFixed(2)}`);
+  await espera(1500);
+  const cena1 = await b.evaluate(() => JSON.stringify(window.vcall.board?.scene?.() || "").length);
+  check("a pinça não deixa risco no quadro dos outros", cena1 === cena0, `${cena0} → ${cena1}`);
+  await acao("Fechar o quadro");
+  await espera(800);
+});
+
+await passo("desempenho", async () => {
+  const r = await a.evaluate(
+    () =>
+      new Promise((ok) => {
+        let quadros = 0;
+        let pior = 0;
+        let antes = performance.now();
+        const t0 = antes;
+        const conta = (t) => {
+          quadros++;
+          pior = Math.max(pior, t - antes);
+          antes = t;
+          if (t - t0 < 5000) requestAnimationFrame(conta);
+          else ok({ fps: Math.round((quadros * 1000) / (t - t0)), piorQuadroMs: Math.round(pior) });
+        };
+        requestAnimationFrame(conta);
+      }),
+  );
+  check("a chamada roda fluida no celular (≥ 50 quadros/s)", r.fps >= 50, `${r.fps} quadros/s, pior quadro ${r.piorQuadroMs} ms`);
+});
+
 await passo("gravar", async () => {
   const antes = arquivosBaixados();
   await acao("Gravar a chamada");

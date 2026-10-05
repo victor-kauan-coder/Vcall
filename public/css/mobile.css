@@ -614,3 +614,18 @@
     justify-content: center;
   }
 }
+
+/*
+ * Celular: sem desfoque por trás (backdrop-filter). Desfoque sobre vídeo é
+ * refeito a cada quadro do vídeo; era o que mais pesava na placa de vídeo do
+ * celular e fazia as animações engasgarem. As superfícies já têm fundo
+ * semitransparente próprio.
+ */
+@media (pointer: coarse) {
+  *,
+  *::before,
+  *::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}

@@ -6,6 +6,7 @@
  * chamada fica cansativa de assistir.
  */
 import { Emitter } from "../lib/emitter.js";
+import { env } from "../lib/util.js";
 import { audioContext, resumeAudio, sourceFor, releaseSource, contextState } from "./audio-graph.js";
 
 const FFT_SIZE = 512;
@@ -122,8 +123,14 @@ export class VoiceActivity extends Emitter {
 
   #ensureLoop() {
     if (this.#raf) return;
-    const loop = () => {
+    // No celular, medir a cada quadro (60x/s) disputava a vez com as animações
+    // e elas engasgavam; 20x/s ainda diz na hora quem está falando.
+    const passo = env.isTouch ? 50 : 0;
+    let ultimo = 0;
+    const loop = (t) => {
       this.#raf = requestAnimationFrame(loop);
+      if (t - ultimo < passo) return;
+      ultimo = t;
       this.#measure();
     };
     this.#raf = requestAnimationFrame(loop);

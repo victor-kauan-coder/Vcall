@@ -467,19 +467,57 @@ public class MainActivity extends Activity {
      * ------------------------------------------------------------------ */
 
     /**
-     * A página ocupa o espaço entre as barras do sistema (e fica acima do
-     * teclado). Do Android 15 em diante a janela sempre vai até a borda; aqui
-     * isso vale do 11 em diante, e o espaço das barras é devolvido como margem.
+     * Tela cheia: a barra de notificações some (volta deslizando de cima) e a
+     * página vai até a borda, inclusive na área da câmera. Quem desvia do
+     * recorte da câmera é a própria página (viewport-fit=cover e
+     * env(safe-area-inset-*)): o WebView recebe só o recorte. Embaixo fica a
+     * margem da barra de navegação e do teclado.
      */
     private void ajustarBordas() {
-        if (Build.VERSION.SDK_INT < 30) return;
-        getWindow().setDecorFitsSystemWindows(false);
-        raiz.setOnApplyWindowInsetsListener((v, insets) -> {
-            Insets barras = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-            Insets teclado = insets.getInsets(WindowInsets.Type.ime());
-            v.setPadding(barras.left, barras.top, barras.right, Math.max(barras.bottom, teclado.bottom));
-            return WindowInsets.CONSUMED;
-        });
+        Window w = getWindow();
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams lp = w.getAttributes();
+            lp.layoutInDisplayCutoutMode = Build.VERSION.SDK_INT >= 30
+                    ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            w.setAttributes(lp);
+        }
+        if (Build.VERSION.SDK_INT >= 30) {
+            w.setDecorFitsSystemWindows(false);
+            raiz.setOnApplyWindowInsetsListener((v, insets) -> {
+                Insets nav = insets.getInsets(WindowInsets.Type.navigationBars());
+                Insets teclado = insets.getInsets(WindowInsets.Type.ime());
+                v.setPadding(nav.left, 0, nav.right, Math.max(nav.bottom, teclado.bottom));
+                return new WindowInsets.Builder(insets)
+                        .setInsets(WindowInsets.Type.navigationBars(), Insets.NONE)
+                        .setInsets(WindowInsets.Type.statusBars(), Insets.NONE)
+                        .setInsets(WindowInsets.Type.ime(), Insets.NONE)
+                        .build();
+            });
+        }
+        esconderBarraDeNotificacoes();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void esconderBarraDeNotificacoes() {
+        Window w = getWindow();
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController c = w.getInsetsController();
+            if (c == null) return;
+            c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            c.hide(WindowInsets.Type.statusBars());
+        } else {
+            View d = w.getDecorView();
+            d.setSystemUiVisibility(d.getSystemUiVisibility()
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        }
+    }
+
+    /** Diálogos do sistema (permissões, instalar) trazem a barra de volta. */
+    @Override
+    public void onWindowFocusChanged(boolean comFoco) {
+        super.onWindowFocusChanged(comFoco);
+        if (comFoco) esconderBarraDeNotificacoes();
     }
 
     /** A página avisa a cor do fundo dela (meta theme-color); as barras acompanham. */

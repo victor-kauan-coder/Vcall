@@ -219,6 +219,9 @@
    claro, e o pastel no meio da tela escura é o que dá o ar acolhedor. */
 .dash__stage {
   display: grid;
+  /* Coluna que encolhe: com a automática, o max-width: 100% da ilustração
+     apontava para a própria coluna, e no celular o desenho saía da tela. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 9% 8% 7%;
   aspect-ratio: 5 / 4;
@@ -521,7 +524,9 @@
     display: none;
   }
   .dash__hero {
-    grid-template-columns: 1fr;
+    /* minmax(0, …): `1fr` sozinho nunca fica menor que o conteúdo, e no
+       celular a coluna esticava para 466 px numa tela de 360. */
+    grid-template-columns: minmax(0, 1fr);
     min-height: 0;
   }
   .dash__art {
@@ -531,6 +536,14 @@
   }
   .dash__headline {
     max-width: 18ch;
+  }
+}
+
+/* Celular deitado: a ilustração ocupava a primeira tela inteira e escondia
+   "Criar nova call". Em tela baixa ela é só enfeite. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .dash__art {
+    display: none;
   }
 }
 

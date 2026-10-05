@@ -87,6 +87,11 @@ const INCOMPLETA_TTL_MS = 120_000;
 
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 8;
+/**
+ * Um traço feito com o dedo só vai para os outros depois disto. Se um segundo
+ * dedo encostar antes, era uma pinça (zoom), e o traço some sem ninguém ver.
+ */
+const ESPERA_TOQUE_MS = 120;
 
 /** Lado maior de uma imagem depois do redimensionamento, em pixels. */
 const IMAGE_MAX_SIDE = 1600;
@@ -789,6 +794,9 @@ export class InfiniteCanvas extends Emitter {
 
   #bindPointer() {
     const c = this.#canvas;
+    /** Dedos na tela (pointerId → posição). Dois ou mais: pinça. */
+    const toques = new Map();
+    let pinca = null;
 
     const sendLaser = throttle((p) => {
       this.emit("cursor", { x: p.x, y: p.y, name: this.selfName, color: this.color, world: true });
@@ -797,6 +805,7 @@ export class InfiniteCanvas extends Emitter {
     const flushStroke = throttle(() => {
       const d = this.#drawing;
       if (!d?.op || (d.op.type !== "pen" && d.op.type !== "marker")) return;
+      if (d.toque && performance.now() - d.t0 < ESPERA_TOQUE_MS) return;
       const from = d.sentUpTo;
       const slice = d.op.points.slice(from);
       if (!slice.length) return;
@@ -817,6 +826,16 @@ export class InfiniteCanvas extends Emitter {
 
     this.#dispose(
       on(c, "pointerdown", (e) => {
+        if (e.pointerType === "touch") {
+          toques.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (toques.size >= 2) {
+            if (!pinca) comecarPinca();
+            c.setPointerCapture(e.pointerId);
+            e.preventDefault();
+            return;
+          }
+        }
+        if (pinca) return;
         if (e.button === 1 || this.#spaceHeld || this.tool === "hand") {
           c.setPointerCapture(e.pointerId);
           this.#panning = { x: e.clientX, y: e.clientY };
@@ -873,7 +892,7 @@ export class InfiniteCanvas extends Emitter {
           points: [start],
         };
         if (this.fill && (this.tool === "rect" || this.tool === "ellipse")) op.fill = this.color;
-        this.#drawing = { op, sentUpTo: 0 };
+        this.#drawing = { op, sentUpTo: 0, toque: e.pointerType === "touch", t0: performance.now() };
         this.#live.set(this.selfId, op);
         this.#scheduleRender();
       }),
@@ -881,6 +900,11 @@ export class InfiniteCanvas extends Emitter {
 
     this.#dispose(
       on(c, "pointermove", (e) => {
+        if (e.pointerType === "touch" && toques.has(e.pointerId)) toques.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinca) {
+          moverPinca();
+          return;
+        }
         if (this.#panning) {
           this.panBy(e.clientX - this.#panning.x, e.clientY - this.#panning.y);
           this.#panning = { x: e.clientX, y: e.clientY };
@@ -961,9 +985,48 @@ export class InfiniteCanvas extends Emitter {
       this.add(op, { local: true, record: true });
     };
 
-    this.#dispose(on(c, "pointerup", finish));
-    this.#dispose(on(c, "pointercancel", finish));
-    this.#dispose(on(c, "lostpointercapture", finish));
+    /*
+     * Pinça: dois dedos aproximam/afastam (em volta do ponto entre eles) e
+     * arrastam o quadro juntos. O traço que o primeiro dedo começou some se
+     * ainda não tinha ido para os outros; se já tinha, fica como está.
+     */
+    const comecarPinca = () => {
+      const d = this.#drawing;
+      if (d?.op && !d.sentUpTo) {
+        this.#drawing = null;
+        this.#live.delete(this.selfId);
+        this.#scheduleRender();
+      } else {
+        finish();
+      }
+      this.#panning = null;
+      const [a, b] = [...toques.values()];
+      pinca = { dist: Math.hypot(a.x - b.x, a.y - b.y), meio: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    };
+    const moverPinca = () => {
+      if (toques.size < 2) return;
+      const [a, b] = [...toques.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const meio = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const r = c.getBoundingClientRect();
+      this.panBy(meio.x - pinca.meio.x, meio.y - pinca.meio.y);
+      if (pinca.dist > 10) this.zoomBy(dist / pinca.dist, { x: meio.x - r.left, y: meio.y - r.top });
+      pinca = { dist, meio };
+    };
+    // Ao tirar os dedos, a pinça só acaba quando o último sai: o dedo que
+    // sobrar não começa um traço no meio do gesto.
+    const soltar = (e) => {
+      if (e.pointerType === "touch") toques.delete(e.pointerId);
+      if (pinca) {
+        if (!toques.size) pinca = null;
+        return;
+      }
+      finish();
+    };
+
+    this.#dispose(on(c, "pointerup", soltar));
+    this.#dispose(on(c, "pointercancel", soltar));
+    this.#dispose(on(c, "lostpointercapture", soltar));
     this.#dispose(on(c, "dblclick", (e) => this.#onDoubleClick(e)));
   }
 

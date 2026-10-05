@@ -2303,14 +2303,24 @@ function wireMesh() {
 
   // A barrinha de nível acompanha a voz quadro a quadro. É barato: os valores
   // já foram medidos pelo detector de fala, aqui só se pintam.
+  // No celular, 20 pinturas por segundo (o detector também mede nesse ritmo).
   let levelRaf = 0;
-  const paintLevels = () => {
+  let ultimaPintura = 0;
+  let nivelDoMic = "";
+  const passoPintura = env.isTouch ? 50 : 0;
+  const paintLevels = (t) => {
     levelRaf = requestAnimationFrame(paintLevels);
+    if (t - ultimaPintura < passoPintura) return;
+    ultimaPintura = t;
     for (const [id, level] of mesh.vad.levels) {
       stage.get(id === mesh.selfId ? "self" : id, "cam")?.setLevel(level);
       // A própria voz também acende o botão do microfone: dá para saber que
       // o microfone está pegando sem procurar o seu ladrilho na grade.
-      if (id === mesh.selfId) dock?.get("mic")?.style.setProperty("--lv", Math.min(1, level * 3.2).toFixed(2));
+      if (id !== mesh.selfId) continue;
+      const lv = Math.min(1, level * 3.2).toFixed(2);
+      if (lv === nivelDoMic) continue; // escrever o mesmo valor ainda recalcula o estilo
+      nivelDoMic = lv;
+      dock?.get("mic")?.style.setProperty("--lv", lv);
     }
   };
   levelRaf = requestAnimationFrame(paintLevels);

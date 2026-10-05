@@ -56,7 +56,8 @@
     main {
       max-width: 480px;
       margin: 0 auto;
-      padding: 28px 20px 32px;
+      /* O app vai até a borda: o recorte da câmera e a barra de navegação ficam de fora. */
+      padding: max(28px, calc(env(safe-area-inset-top) + 12px)) 20px calc(32px + env(safe-area-inset-bottom));
       display: flex;
       flex-direction: column;
       min-height: 100vh;

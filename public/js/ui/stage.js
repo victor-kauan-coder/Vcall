@@ -17,7 +17,7 @@ import { el, icon, clear, setIcon } from "../lib/dom.js";
 import { avatarEl, corDoAvatar, setAvatar } from "./avatars.js";
 import { QUALITY_ICON, QUALITY_LABEL } from "../core/stats.js";
 import { SPRING, animate, burst, calm, flip } from "./motion.js";
-import { prefs } from "../lib/util.js";
+import { env, prefs } from "../lib/util.js";
 
 const CONNECTION_TEXT = {
   new: "Conectando…",
@@ -28,6 +28,8 @@ const CONNECTION_TEXT = {
   exhausted: "Não foi possível reconectar",
   closed: "Desconectado",
 };
+
+const TOQUE = typeof matchMedia === "function" && env.isTouch; // os testes carregam este módulo no Node
 
 class Tile {
   #vezDoFundo = 0;
@@ -322,7 +324,9 @@ class Tile {
     // O anel da marca gira na velocidade da voz: fala mais alto, gira mais
     // rápido; em silêncio ele para onde estava. É a voz desenhada, não um
     // pulso de relógio.
-    if (v > 0.05) {
+    // No celular o anel não gira: repintar o degradê cônico a cada quadro era
+    // caro para a placa de vídeo. Ele continua acendendo com a voz (--lv).
+    if (v > 0.05 && !TOQUE) {
       this.spin = ((this.spin || 0) + 1.5 + v * 9) % 360;
       this.node.style.setProperty("--spin", `${this.spin.toFixed(1)}deg`);
     }

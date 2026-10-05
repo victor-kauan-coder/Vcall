@@ -180,6 +180,8 @@ public class MainActivity extends Activity {
         public void onReceivedError(WebView v, WebResourceRequest req, android.webkit.WebResourceError erro) {
             if (!req.isForMainFrame() || HOST_LOCAL.equals(req.getUrl().getHost())) return;
             // Túnel fechado, sem internet, link de ontem: volta para o início com o motivo.
+            Uri u = req.getUrl();
+            Recentes.esquecerServidor(MainActivity.this, u.getScheme() + "://" + u.getAuthority() + "/");
             v.loadUrl(INICIO + "?erro=" + Uri.encode(String.valueOf(erro.getDescription())));
         }
 

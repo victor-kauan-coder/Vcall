@@ -159,6 +159,32 @@
     footer { margin-top: auto; padding-top: 40px; color: var(--muted); font-size: 14px; }
     footer p { margin: 0 0 6px; text-wrap: pretty; }
     footer small { opacity: 0.8; }
+    .atualizacao {
+      margin-top: 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 12px 12px 16px;
+      border-radius: 16px;
+      background: color-mix(in oklab, var(--accent) 8%, var(--surface));
+      border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--border));
+    }
+    .atualizacao p { margin: 0; flex: 1; min-width: 0; display: grid; }
+    .atualizacao b { font-weight: 650; }
+    .atualizacao span { color: var(--muted); font-size: 14px; }
+    .atualizacao button { min-height: 44px; padding: 0 16px; }
+    .procurar {
+      min-height: 44px;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .procurar:disabled { text-decoration: none; opacity: 1; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -188,6 +214,11 @@
       </div>
     </form>
 
+    <div class="atualizacao" id="atualizacao" role="status" hidden>
+      <p><b id="atualizacaoTitulo"></b><span id="atualizacaoTexto"></span></p>
+      <button type="button" class="entrar" id="instalar">Atualizar</button>
+    </div>
+
     <section id="recentes" hidden>
       <h2>Recentes</h2>
       <ul id="lista"></ul>
@@ -195,7 +226,7 @@
 
     <footer>
       <p>Recebeu o convite no WhatsApp? Toque e segure o link, escolha Compartilhar e depois Vcall.</p>
-      <small id="versao"></small>
+      <small><span id="versao"></span> · <button type="button" class="procurar" id="procurar">Procurar atualização</button></small>
     </footer>
   </main>
 
@@ -278,6 +309,33 @@
     }
     mostrarRecentes();
     if (ponte) $("versao").textContent = `Vcall ${ponte.versao()} para Android`;
+
+    // Atualização (Atualizador.java): procura sozinha de 6 em 6 horas e baixa;
+    // instalar é um toque aqui e a confirmação do sistema.
+    function mostrarAtualizacao(e) {
+      const pronta = e.fase === "pronta";
+      const baixando = e.fase === "baixando";
+      $("atualizacao").hidden = !(pronta || baixando);
+      $("atualizacaoTitulo").textContent = `Vcall ${e.versao || ""}`;
+      $("atualizacaoTexto").textContent = pronta ? "Versão nova pronta para instalar." : `Baixando… ${e.progresso || 0}%`;
+      $("instalar").hidden = !pronta;
+      $("procurar").textContent =
+        { procurando: "Procurando…", atual: "Esta é a versão mais nova", erro: e.erro || "Não deu para procurar agora" }[e.fase] ||
+        "Procurar atualização";
+      $("procurar").disabled = e.fase === "procurando" || baixando;
+    }
+    window.aoAtualizar = mostrarAtualizacao;
+    if (ponte) {
+      try {
+        mostrarAtualizacao(JSON.parse(ponte.atualizacao()));
+      } catch {}
+      $("procurar").addEventListener("click", () => ponte.procurarAtualizacao());
+      $("instalar").addEventListener("click", () => {
+        if (!ponte.instalarAtualizacao()) mostrarAtualizacao({ fase: "erro", erro: "O arquivo baixado sumiu. Procure de novo." });
+      });
+    } else {
+      $("procurar").hidden = true;
+    }
   </script>
 </body>
 </html>

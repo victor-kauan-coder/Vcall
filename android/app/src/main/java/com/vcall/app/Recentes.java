@@ -38,6 +38,21 @@ final class Recentes {
         }
     }
 
+    /** Link que não abriu (túnel fechado): sai da lista, com todas as salas daquele servidor. */
+    static synchronized void esquecerServidor(Context c, String origem) {
+        try {
+            JSONArray antiga = new JSONArray(lista(c));
+            JSONArray nova = new JSONArray();
+            for (int i = 0; i < antiga.length(); i++) {
+                JSONObject r = antiga.getJSONObject(i);
+                if (!r.optString("url").startsWith(origem)) nova.put(r);
+            }
+            prefs(c).edit().putString("lista", nova.toString()).apply();
+        } catch (Exception ignorado) {
+            prefs(c).edit().remove("lista").apply();
+        }
+    }
+
     static synchronized void esquecer(Context c, String url) {
         try {
             JSONArray antiga = new JSONArray(lista(c));

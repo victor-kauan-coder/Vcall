@@ -82,8 +82,42 @@ jobs:
             dist/*.exe.blockmap
             dist/latest.yml
 
+  # O APK é assinado com a chave do app Android: o Android só aceita uma
+  # atualização assinada pela mesma chave do app instalado (o atualizador do
+  # app conta com isso). Segredos: VCALL_ANDROID_KEYSTORE (o .jks em base64)
+  # e VCALL_ANDROID_SENHA. Sem eles, a release sai sem o APK.
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: APK
+        env:
+          CHAVE: ${{ secrets.VCALL_ANDROID_KEYSTORE }}
+          VCALL_ANDROID_SENHA: ${{ secrets.VCALL_ANDROID_SENHA }}
+        run: |
+          mkdir -p apk
+          if [ -z "$CHAVE" ]; then
+            echo "::warning::Segredos do Android ausentes: release sem o APK."
+            exit 0
+          fi
+          echo "$CHAVE" | base64 -d > "$RUNNER_TEMP/vcall.jks"
+          export VCALL_ANDROID_KEYSTORE="$RUNNER_TEMP/vcall.jks"
+          cd android
+          ./gradlew --no-daemon testReleaseUnitTest assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "../apk/Vcall-$(node -p "require('../package.json').version").apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: apk/*.apk
+          if-no-files-found: ignore
+
   publicar:
-    needs: [linux, windows]
+    needs: [linux, windows, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

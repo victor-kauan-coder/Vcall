@@ -4,7 +4,9 @@ plugins {
 
 // A versão do APK acompanha a do app de mesa (package.json da raiz).
 def pacote = new groovy.json.JsonSlurper().parse(file("../../package.json"))
-def (maior, menor, rev) = pacote.version.tokenize(".")*.toInteger()
+// -PversaoTeste=3.7.3 gera um APK "mais velho" para testar o atualizador.
+def versao = project.findProperty("versaoTeste") ?: pacote.version
+def (maior, menor, rev) = versao.tokenize(".")*.toInteger()
 
 android {
     namespace "com.vcall.app"
@@ -14,7 +16,7 @@ android {
         applicationId "com.vcall.app"
         minSdk 26
         targetSdk 36
-        versionName pacote.version
+        versionName versao
         versionCode maior * 10000 + menor * 100 + rev
     }
 

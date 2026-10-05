@@ -76,12 +76,13 @@ final class Atualizador {
         SharedPreferences prefs = tela.getSharedPreferences("atualizacao", Context.MODE_PRIVATE);
         long agora = System.currentTimeMillis();
         if (!pedido && agora - prefs.getLong("ultima", 0) < INTERVALO) return;
-        prefs.edit().putLong("ultima", agora).apply();
         mudar(tela, "procurando", "", 0);
 
         new Thread(() -> {
             try {
                 JSONObject rel = new JSONObject(ler(RELEASES));
+                // Só conta como verificada se o GitHub respondeu: sem internet ao abrir, tenta de novo na próxima vez.
+                prefs.edit().putLong("ultima", agora).apply();
                 String nova = rel.getString("tag_name").replaceFirst("^v", "");
                 File pasta = new File(tela.getCacheDir(), "atualizacao");
                 if (!maisNova(nova, tela.versao())) {

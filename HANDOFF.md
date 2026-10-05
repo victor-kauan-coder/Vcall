@@ -3,7 +3,7 @@
 Leia isto antes de mexer em qualquer coisa. É o mapa que não dá para deduzir
 lendo os arquivos em ordem alfabética.
 
-> **App Android (2026-10-05):** branch `android`, testado no emulador. Ver a seção 12.
+> **App Android:** desde a 3.7.4. Ver a seção 12.
 
 **Repositório:** `victor-kauan-coder/vcall` · **Versão no `package.json`:** 3.7.3
 **Idioma do código:** português. Nomes de funções, variáveis e comentários em
@@ -286,7 +286,7 @@ Não feito:
 
 ---
 
-## 12. App Android e logo em vetor (em andamento, branch `android`)
+## 12. App Android e logo em vetor
 
 Pedido: um APK otimizado, com tudo funcionando, e a logo vetorizada para o app.
 
@@ -359,47 +359,24 @@ Bugs achados no teste e corrigidos:
   o app de mesa for atualizado; até lá o app recupera a página sozinho.
 - A notificação ia para "Silenciosas"; agora é `CallStyle` (Android 12+).
 
-### Próximo passo (parou aqui em 2026-10-05): atualizador + release 3.7.4
+### Atualizador do app (3.7.4)
 
-O usuário aprovou: **juntar a branch `android` no `main` e lançar a 3.7.4
-com o APK na release**, e quer **atualizador no app Android igual ao desktop**.
+`Atualizador.java` procura `releases/latest` na API do GitHub ao abrir a
+tela inicial (de 6 em 6 h, contando só buscas que deram certo) ou pelo
+"Procurar atualização" do rodapé, baixa o anexo `Vcall-*.apk` para o cache e
+mostra "Vcall X · Atualizar". Instalar passa o APK ao `PackageInstaller`; o
+sistema pede um toque (o app não veio da Play Store). Sem assinatura extra:
+o Android só aceita APK com a MESMA chave e recusa versão mais velha. Teste
+de ponta a ponta: `./gradlew assembleRelease -PversaoTeste=3.7.3` gera um APK
+"velho" com a mesma chave; instalado, ele acha a release nova e se atualiza.
 
-Feito, mas **ainda não compilado nem testado**:
-- `Atualizador.java`: procura `releases/latest` na API do GitHub ao abrir a
-  tela inicial (de 6 em 6 h) ou pelo botão, baixa o anexo `Vcall-*.apk` para o
-  cache e instala pelo `PackageInstaller` (o sistema pede um toque de
-  confirmação). Sem assinatura extra: o Android só aceita APK assinado com a
-  mesma chave e recusa versão mais velha. `maisNova()` compara versões.
-- `Ponte`: `atualizacao()` (estado + dispara a busca), `procurarAtualizacao()`,
-  `instalarAtualizacao()`, só na tela inicial.
-- `MainActivity`: `ACAO_INSTALACAO` trata o retorno do instalador (pede a
-  confirmação ou mostra o motivo da falha).
-- Manifesto: `REQUEST_INSTALL_PACKAGES`.
-
-Falta:
-1. Tela inicial (`assets/inicio/index.html`): aviso "Versão X pronta" com
-   botão Atualizar (+ progresso "Baixando… N%") e, no rodapé, "Procurar
-   atualização". Ligar com `window.aoAtualizar = (estado) => …` e
-   `JSON.parse(VcallAndroid.atualizacao())` ao carregar.
-2. Teste JUnit de `Atualizador.maisNova` (3.10.0 > 3.9.2; iguais = false).
-3. Compilar (`./gradlew testDebugUnitTest assembleDebug`) e rodar
-   `scripts/android-test.mjs` (37 verificações).
-4. CI: job `android` em `.github/workflows/release.yml` (setup-java 21,
-   `./gradlew assembleRelease`, copia para `apk/Vcall-<versão>.apk`, sobe
-   como artefato; `publicar` passa a depender dele). Assina com os segredos
-   `VCALL_ANDROID_KEYSTORE` (o .jks em base64) e `VCALL_ANDROID_SENHA`; sem
-   eles, aviso e release sem APK. **Pedir ao usuário para criar os segredos**
-   (`base64 -w0 ~/.vcall/android/vcall.jks | gh secret set VCALL_ANDROID_KEYSTORE`
-   e `gh secret set VCALL_ANDROID_SENHA < ~/.vcall/android/senha.txt`).
-   Sem os segredos, gerar o APK aqui e anexar com `gh release upload v3.7.4`.
-5. Versão 3.7.4 (package.json, package-lock, fallbacks em
-   `desktop/atualizacao.js` e `desktop/setup.js`) e `docs/release/v3.7.4.md`:
-   app Android (o que faz, como instalar: baixar o .apk e permitir "instalar
-   apps desconhecidos"), correção da legenda que derrubava o celular, logo em
-   vetor. Mesclar `android` no `main`, tag `v3.7.4`, conferir os .sig e o APK.
-6. Teste do atualizador de ponta a ponta: com a 3.7.4 publicada, gerar um APK
-   de release com versão 3.7.3 (mesma chave) e instalar no emulador; ele deve
-   achar a 3.7.4, baixar e, com a confirmação, se atualizar.
+**CI:** o job `android` do `release.yml` gera e assina o APK se existirem os
+segredos `VCALL_ANDROID_KEYSTORE` (o .jks em base64) e `VCALL_ANDROID_SENHA`.
+Sem eles a release sai sem APK (aviso no log) e o APK é anexado à mão:
+`gh release upload v<versão> dist-android/Vcall-<versão>.apk`. Criar os
+segredos (o usuário decide):
+`base64 -w0 ~/.vcall/android/vcall.jks | gh secret set VCALL_ANDROID_KEYSTORE --repo victor-kauan-coder/Vcall`
+e `gh secret set VCALL_ANDROID_SENHA --repo victor-kauan-coder/Vcall < ~/.vcall/android/senha.txt`.
 
 ### Como compilar
 

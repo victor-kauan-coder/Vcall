@@ -15,11 +15,37 @@
   /*
    * 1. Downloads. O WebView não baixa link blob: (arquivo da conversa,
    * gravação, transcrição, quadro). O arquivo vai para Downloads/Vcall pela
-   * ponte, em pedaços. A página costuma revogar o blob logo depois do
-   * clique; a revogação espera um minuto para a leitura terminar.
+   * ponte, em pedaços.
+   *
+   * O conteúdo NÃO pode ser lido com fetch(blob:): o CSP do servidor não põe
+   * blob: em connect-src, e o fetch falha ("Failed to fetch"). Por isso cada
+   * Blob é guardado quando a página cria o endereço dele. A página costuma
+   * revogar o endereço logo depois do clique; o esquecimento espera um minuto.
    */
+  const blobs = new Map();
+  const criar = URL.createObjectURL.bind(URL);
+  URL.createObjectURL = (obj) => {
+    const u = criar(obj);
+    if (obj instanceof Blob) blobs.set(u, obj);
+    return u;
+  };
   const revogar = URL.revokeObjectURL.bind(URL);
-  URL.revokeObjectURL = (u) => setTimeout(() => revogar(u), 60000);
+  URL.revokeObjectURL = (u) =>
+    setTimeout(() => {
+      blobs.delete(u);
+      revogar(u);
+    }, 60000);
+  const blobDe = (href) => {
+    if (blobs.has(href)) return blobs.get(href);
+    if (href.startsWith("data:")) {
+      const virgula = href.indexOf(",");
+      const cab = href.slice(5, virgula);
+      const dados = href.slice(virgula + 1);
+      const bin = cab.includes(";base64") ? atob(dados) : decodeURIComponent(dados);
+      return new Blob([Uint8Array.from(bin, (c) => c.charCodeAt(0))], { type: cab.split(";")[0] });
+    }
+    return null;
+  };
 
   const lerPedaco = (blob) =>
     new Promise((ok, erro) => {
@@ -31,7 +57,8 @@
 
   const salvar = async (href, nome) => {
     try {
-      const blob = await (await fetch(href)).blob();
+      const blob = blobDe(href);
+      if (!blob) throw new Error("arquivo criado antes de o app se ligar à página");
       const id = ponte.abrirArquivo(nome, blob.type || "");
       if (!id) return;
       const PEDACO = 768 * 1024;
@@ -96,7 +123,7 @@
     estilo = document.createElement("style");
     estilo.id = "vcall-android-mini";
     estilo.textContent = `
-      #topbar, #dock, .panel, .toasts, [class*="toast"] { display: none !important; }
+      #topbar, #dock, .panel, .toasts, [class*="toast"], .vol, .tile__actions, .tile__net { display: none !important; }
       #stage { position: fixed !important; inset: 0 !important; margin: 0 !important; padding: 4px !important; }
     `;
     document.head.append(estilo);

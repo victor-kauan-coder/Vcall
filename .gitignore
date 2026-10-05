@@ -29,3 +29,4 @@ bench-fala.json
 *.key
 *-privada.pem
 brag-output/
+dist-android/

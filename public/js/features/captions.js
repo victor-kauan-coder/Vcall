@@ -27,7 +27,13 @@ import { avatarEl } from "../ui/avatars.js";
 import { FalaOffline, falaOfflineDisponivel } from "./fala-offline.js";
 import { FalaWhisper, whisperDisponivel } from "./fala-whisper.js";
 
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+/*
+ * O WebView do Android (o app do celular) anuncia webkitSpeechRecognition, mas
+ * não tem o reconhecedor: ao começar, o próprio WebView mata a página e a
+ * pessoa cai da chamada. Ali é como se não existisse.
+ */
+const ehWebViewAndroid = /Android/.test(navigator.userAgent) && /\bwv\b/.test(navigator.userAgent);
+const SR = ehWebViewAndroid ? null : window.SpeechRecognition || window.webkitSpeechRecognition;
 
 /** Quanto tempo uma frase encerrada continua na tela. */
 const HOLD_MS = 5000;

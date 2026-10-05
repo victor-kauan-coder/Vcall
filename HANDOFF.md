@@ -3,8 +3,7 @@
 Leia isto antes de mexer em qualquer coisa. É o mapa que não dá para deduzir
 lendo os arquivos em ordem alfabética.
 
-> **Trabalho em andamento (2026-10-05):** app Android (APK) e logo em vetor,
-> na branch `android`. Ver a seção 12 antes de continuar.
+> **App Android (2026-10-05):** branch `android`, testado no emulador. Ver a seção 12.
 
 **Repositório:** `victor-kauan-coder/vcall` · **Versão no `package.json`:** 3.7.3
 **Idioma do código:** português. Nomes de funções, variáveis e comentários em
@@ -334,13 +333,31 @@ chamadas, não cria. Ele é um WebView em Java puro, sem AndroidX:
 
 ### Estado
 
-- [x] Compila: `assembleDebug` OK, **APK de 86 KB**.
+- [x] Compila: APK de release com R8 e assinado: **75 KB** (`dist-android/`, fora do git).
 - [x] `LinksTest`: 10/10.
-- [ ] **Nada testado em aparelho/emulador ainda.** Parou no boot do emulador.
-- [ ] Assinatura de release (chave fora do repositório, como a das atualizações).
-- [ ] Job no CI para gerar o APK e anexar à release.
-- [ ] Opcional: `public/js/abrir.js` no Android oferecer "Abrir no app"
-      (`intent://join?u=…#Intent;scheme=vcall;package=com.vcall.app;S.browser_fallback_url=…;end`).
+- [x] Testado no emulador (Android 16, WebView 153) com `scripts/android-test.mjs`
+      (celular + navegador no Windows na mesma sala): 37 verificações.
+      Entrar, áudio/vídeo nos dois sentidos, mic/câmera, trocar de câmera,
+      conversa, receber e baixar arquivo, enviar arquivo pelo seletor do
+      Android, reação, mão, quadro com o dedo, gravar, legendas (aviso), barras
+      do sistema, mini-janela (botão início e voltar) com a mídia seguindo,
+      girar a tela, desligar pela notificação, Compartilhar → Vcall, link
+      expirado, recentes, Colar.
+- [x] Chave de assinatura FORA do repositório: `~/.vcall/android/vcall.jks`
+      (senha em `senha.txt` ao lado). **Perder = não dá para atualizar o app
+      instalado.** Faça backup.
+- [ ] Job no CI para gerar o APK e anexar à release (precisa dos segredos).
+- [ ] Opcional: `public/js/abrir.js` no Android oferecer "Abrir no app".
+
+Bugs achados no teste e corrigidos:
+- 404 com acento na frase de status fechava o app (ali só ASCII).
+- `fetch(blob:)` é bloqueado pelo CSP do servidor: `injetar.js` guarda cada
+  Blob ao criar o endereço (`createObjectURL`).
+- **O WebView mata a página ao iniciar `webkitSpeechRecognition`** (anuncia a
+  API, mas não tem o reconhecedor): `captions.js` trata WebView como sem
+  reconhecimento. É código da interface, então só chega a quem convida quando
+  o app de mesa for atualizado; até lá o app recupera a página sozinho.
+- A notificação ia para "Silenciosas"; agora é `CallStyle` (Android 12+).
 
 ### Como compilar
 

@@ -1860,7 +1860,9 @@ function wireCaptions() {
 function toggleCaptions() {
   if (!captionsSupported) {
     toast(
-      "Este navegador não transcreve fala. No Chrome ou no Edge funciona — e mesmo aqui você continua LENDO as legendas de quem ligar o recurso.",
+      /VcallAndroid/.test(navigator.userAgent)
+        ? "O app do celular não transcreve a sua fala, mas você continua LENDO as legendas de quem ligar o recurso."
+        : "Este navegador não transcreve fala. No Chrome ou no Edge funciona — e mesmo aqui você continua LENDO as legendas de quem ligar o recurso.",
       { tone: "info", ms: 7000 },
     );
     return;

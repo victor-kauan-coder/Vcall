@@ -129,13 +129,16 @@ public class MainActivity extends Activity {
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest req) {
             Uri u = req.getUrl();
+            // Aqui, e não no onPageStarted: este pedido vem antes de qualquer
+            // script da página, e a tela inicial já chama a ponte ao carregar.
+            if (req.isForMainFrame()) naTelaInicial = HOST_LOCAL.equals(u.getHost());
             if (!HOST_LOCAL.equals(u.getHost())) return null;
             String caminho = u.getPath() == null ? "" : u.getPath().replaceFirst("^/", "");
             if (caminho.contains("..")) return null;
             try {
                 return new WebResourceResponse(tipo(caminho), "utf-8", getAssets().open(caminho));
             } catch (IOException e) {
-                return new WebResourceResponse("text/plain", "utf-8", 404, "Não encontrado", null, null);
+                return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", null, null); // a frase do status só aceita ASCII: com acento, o app fecha
             }
         }
 

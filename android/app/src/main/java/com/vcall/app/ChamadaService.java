@@ -5,11 +5,13 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.Person;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.IBinder;
 
@@ -21,7 +23,7 @@ import android.os.IBinder;
  * abria o WhatsApp no meio da chamada e os outros paravam de ouvi-la.
  */
 public class ChamadaService extends Service {
-    private static final String CANAL = "chamada";
+    private static final String CANAL = "chamada-ativa";
     private static final int ID = 1;
 
     static void iniciar(Context c) {
@@ -42,15 +44,19 @@ public class ChamadaService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CANAL) == null) {
-            NotificationChannel canal = new NotificationChannel(CANAL, "Chamada em andamento", NotificationManager.IMPORTANCE_LOW);
+            // Importância padrão, mas muda: com "baixa" ela ia para "Silenciosas", recolhida.
+            NotificationChannel canal = new NotificationChannel(CANAL, "Chamada em andamento", NotificationManager.IMPORTANCE_DEFAULT);
+            canal.setSound(null, null);
+            canal.enableVibration(false);
             canal.setShowBadge(false);
             nm.createNotificationChannel(canal);
         }
 
         int imutavel = PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT;
         Intent voltar = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        Intent sair = new Intent(this, MainActivity.class).setAction(MainActivity.ACAO_SAIR)
-                .setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent sair = PendingIntent.getActivity(this, 1,
+                new Intent(this, MainActivity.class).setAction(MainActivity.ACAO_SAIR).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                imutavel);
 
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CANAL) : new Notification.Builder(this);
         b.setSmallIcon(R.drawable.ic_launcher_monochrome)
@@ -58,9 +64,15 @@ public class ChamadaService extends Service {
                 .setContentText("Toque para voltar à chamada")
                 .setOngoing(true)
                 .setCategory(Notification.CATEGORY_CALL)
-                .setContentIntent(PendingIntent.getActivity(this, 0, voltar, imutavel))
-                .addAction(new Notification.Action.Builder(null, "Sair da chamada",
-                        PendingIntent.getActivity(this, 1, sair, imutavel)).build());
+                .setContentIntent(PendingIntent.getActivity(this, 0, voltar, imutavel));
+        if (Build.VERSION.SDK_INT >= 31) {
+            // Estilo de chamada: fica no topo da gaveta, com o "desligar" sempre à mostra.
+            Person quem = new Person.Builder().setName("Chamada em andamento").setImportant(true)
+                    .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher)).build();
+            b.setStyle(Notification.CallStyle.forOngoingCall(quem, sair));
+        } else {
+            b.addAction(new Notification.Action.Builder(null, "Sair da chamada", sair).build());
+        }
 
         if (Build.VERSION.SDK_INT >= 29) {
             // Só os tipos que o Android já liberou; pedir câmera sem a permissão derruba o serviço (14+).

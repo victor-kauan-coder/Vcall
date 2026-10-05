@@ -75,6 +75,24 @@ final class Ponte {
         return tela.versao();
     }
 
+    /** Estado da atualização; ao abrir a tela inicial, também procura (de 6 em 6 horas). */
+    @JavascriptInterface
+    public String atualizacao() {
+        if (!tela.naTelaInicial) return "{}";
+        Atualizador.procurar(tela, false);
+        return Atualizador.estado();
+    }
+
+    @JavascriptInterface
+    public void procurarAtualizacao() {
+        if (tela.naTelaInicial) Atualizador.procurar(tela, true);
+    }
+
+    @JavascriptInterface
+    public boolean instalarAtualizacao() {
+        return tela.naTelaInicial && Atualizador.instalar(tela);
+    }
+
     /* --- página da chamada (injetar.js) --- */
 
     @JavascriptInterface

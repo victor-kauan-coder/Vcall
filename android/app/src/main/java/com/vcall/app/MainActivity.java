@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -56,6 +57,7 @@ public class MainActivity extends Activity {
     static final String HOST_LOCAL = "appassets.androidplatform.net";
     static final String INICIO = "https://" + HOST_LOCAL + "/inicio/index.html";
     static final String ACAO_SAIR = "com.vcall.app.SAIR";
+    static final String ACAO_INSTALACAO = "com.vcall.app.INSTALACAO";
 
     private static final int PEDIDO_PERMISSOES = 1;
     private static final int PEDIDO_ARQUIVO = 2;
@@ -386,6 +388,10 @@ public class MainActivity extends Activity {
     /** Devolve true se a intent abriu (ou vai abrir) uma sala. */
     private boolean tratarIntent(Intent intent) {
         if (intent == null) return false;
+        if (ACAO_INSTALACAO.equals(intent.getAction())) {
+            resultadoDaInstalacao(intent);
+            return false; // a tela segue onde estava (ou abre no início)
+        }
         if (ACAO_SAIR.equals(intent.getAction())) {
             web.loadUrl(INICIO);
             return true;
@@ -405,6 +411,21 @@ public class MainActivity extends Activity {
         }
         abrirSala(sala);
         return true;
+    }
+
+    /** O instalador do sistema devolve aqui: pedir confirmação, ou dizer por que não deu. */
+    @SuppressWarnings("deprecation")
+    private void resultadoDaInstalacao(Intent intent) {
+        int st = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+        if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            Intent confirmar = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+            if (confirmar != null) startActivity(confirmar.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } else if (st != PackageInstaller.STATUS_SUCCESS) {
+            String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+            Atualizador.falhou(this, st == PackageInstaller.STATUS_FAILURE_ABORTED
+                    ? "Atualização cancelada."
+                    : "Não deu para atualizar" + (msg != null ? " (" + msg + ")." : "."));
+        }
     }
 
     /** Leva o app para a sala. No meio de outra chamada, pergunta antes. */

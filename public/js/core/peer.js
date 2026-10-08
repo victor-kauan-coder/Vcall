@@ -31,7 +31,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { jitter } from "../lib/util.js";
-import { applyProfile, preferCodecs, PROFILES, screenCodecPreference } from "./tuning.js";
+import { applyProfile, cameraParaSala, preferCodecs, PROFILES, screenCodecPreference } from "./tuning.js";
 
 /** Ordem canônica das linhas de mídia. Não altere sem versionar o protocolo. */
 export const ROLES = ["mic", "cam", "screen", "screenAudio"];
@@ -211,7 +211,7 @@ export class Peer extends Emitter {
     this.#lastLocal = local;
     await Promise.all([
       this.#setTrack("mic", local.mic, PROFILES.mic),
-      this.#setTrack("cam", local.cam, PROFILES.camera),
+      this.#setTrack("cam", local.cam, this.#perfilCamera()),
       this.#setTrack("screen", local.screen, local.screenProfile || PROFILES.screenText),
       this.#setTrack("screenAudio", local.screenAudio, PROFILES.screenAudio),
     ]);
@@ -223,7 +223,7 @@ export class Peer extends Emitter {
   async pausarCamera(pausar) {
     if (this.#camPausada === !!pausar) return;
     this.#camPausada = !!pausar;
-    await applyProfile(this.tx.cam?.sender, PROFILES.camera, { active: !this.#camPausada });
+    await applyProfile(this.tx.cam?.sender, this.#perfilCamera());
     this.emit("cam-pausada", this.#camPausada);
   }
 
@@ -254,7 +254,7 @@ export class Peer extends Emitter {
   async retune(local = {}) {
     await Promise.all([
       applyProfile(this.tx.mic?.sender, PROFILES.mic),
-      applyProfile(this.tx.cam?.sender, PROFILES.camera, { active: !this.#camPausada }),
+      applyProfile(this.tx.cam?.sender, this.#perfilCamera()),
       applyProfile(this.tx.screen?.sender, local.screenProfile || PROFILES.screenText),
       applyProfile(this.tx.screenAudio?.sender, PROFILES.screenAudio),
     ]);
@@ -270,7 +270,21 @@ export class Peer extends Emitter {
   }
 
   async setCameraBudget({ maxBitrate, maxFramerate }) {
-    return applyProfile(this.tx.cam?.sender, PROFILES.camera, { maxBitrate, maxFramerate, active: !this.#camPausada });
+    const teto = this.#perfilCamera();
+    return applyProfile(this.tx.cam?.sender, teto, {
+      maxBitrate: Math.min(maxBitrate, teto.maxBitrate),
+      maxFramerate: Math.min(maxFramerate, teto.maxFramerate),
+    });
+  }
+
+  /** A sala mudou de tamanho (mesh.js): a câmera enviada a este par acompanha. */
+  async ajustarCamera(outros) {
+    this.peerCount = outros;
+    await applyProfile(this.tx.cam?.sender, this.#perfilCamera());
+  }
+
+  #perfilCamera() {
+    return { ...PROFILES.camera, ...cameraParaSala(this.peerCount), active: !this.#camPausada };
   }
 
   /* ---------------------------------------------------------------- *
@@ -316,8 +330,15 @@ export class Peer extends Emitter {
   }
 
   /** Processa uma mensagem de sinalização vinda deste par. */
-  async handleSignal({ description, candidate, roles, rebuild }) {
+  async handleSignal({ description, candidate, roles, rebuild, resync }) {
     if (this.#closed) return;
+
+    // A sinalização do outro lado caiu e voltou (reanimar): a nossa última
+    // oferta pode ter ido para o vazio.
+    if (resync) {
+      await this.reanimar({ avisar: false });
+      return;
+    }
 
     /*
      * O outro lado jogou fora a conexão dele e montou outra. Continuar com a
@@ -624,6 +645,36 @@ export class Peer extends Emitter {
     this.#config = config;
     this.#build(this.#lastLocal);
     this.emit("rebuilt", { relay: viaRelay });
+  }
+
+  /**
+   * A sinalização caiu e voltou, e este par continuou na sala (mesmo id).
+   *
+   * Durante a queda, uma oferta (de um reinício de ICE, de uma câmera ligada)
+   * pode ter ido para o vazio: quem a fez fica em "have-local-offer" esperando
+   * uma resposta que nunca chega, e nenhuma negociação nova acontece mais.
+   * Desfaz a oferta pendente, avisa o outro lado para fazer o mesmo e, se a
+   * mídia também caiu, recomeça o ICE do zero em vez de esperar o vigia.
+   */
+  async reanimar({ avisar = true } = {}) {
+    if (this.#closed || !this.pc) return;
+    let desfez = false;
+    if (this.pc.signalingState === "have-local-offer") {
+      try {
+        await this.pc.setLocalDescription({ type: "rollback" });
+        desfez = true;
+      } catch {
+        /* o estado mudou no meio do caminho */
+      }
+    }
+    this.#makingOffer = false;
+    if (avisar) this.emit("signal", { resync: true });
+    if (this.pc?.connectionState === "connected") {
+      if (desfez) this.#onNegotiationNeeded(); // refaz a negociação que se perdeu
+      return;
+    }
+    this.#restarts = 0;
+    this.#tryRestart();
   }
 
   /** Força uma renegociação completa (usada depois de trocar o perfil de tela). */

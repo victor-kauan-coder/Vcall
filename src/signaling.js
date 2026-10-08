@@ -143,7 +143,13 @@ function allowedOrigin(origin, req) {
   return host === req.headers.host;
 }
 
-export function attachSignaling(httpServer, { registry = new RoomRegistry(), trustCloudflare = config.trustCloudflare } = {}) {
+/** Quanto uma queda sem aviso espera a mesma aba voltar antes de virar saída. */
+const GRACA_MS = 20_000;
+
+export function attachSignaling(
+  httpServer,
+  { registry = new RoomRegistry(), trustCloudflare = config.trustCloudflare, graca = GRACA_MS } = {},
+) {
   const ipDe = (req) => clientIp(req, { trustCloudflare });
   const passGuard = new PassGuard();
   /** Conexões abertas por IP, para um cliente só não esgotar o servidor. */
@@ -189,6 +195,7 @@ export function attachSignaling(httpServer, { registry = new RoomRegistry(), tru
       limiter: new RateLimiter(L.rateBurst, L.rateWindowMs),
       ip,
       passGuard,
+      graca,
     };
 
     const fail = (error, close = false) => {
@@ -291,13 +298,19 @@ export function attachSignaling(httpServer, { registry = new RoomRegistry(), tru
         }
 
         case C2S.LEAVE: {
+          ctx.saiuDeProposito = true;
           socket.close(1000, "leave");
           break;
         }
       }
     });
 
-    socket.on("close", () => teardown(ctx, registry));
+    socket.on("close", (codigo) => {
+      // 1000: saiu pelo botão (Signaling.close); 1001: fechou a aba. Queda de
+      // rede chega como 1006, e o cliente que desiste de um socket mudo usa 4000.
+      if (codigo === 1000 || codigo === 1001) ctx.saiuDeProposito = true;
+      teardown(ctx, registry);
+    });
     socket.on("error", () => teardown(ctx, registry));
   });
 
@@ -391,18 +404,24 @@ function esperar(ctx, socket, room, msg) {
 }
 
 function concluirEntrada(ctx, socket, room, msg, { anterior = null, ehDono = false } = {}) {
-  const me = new Participant(socket, msg);
+  /*
+   * MESMA ABA VOLTANDO (queda curta, túnel oscilando, Wi-Fi trocando): ela
+   * continua com o MESMO id. Antes ganhava um id novo, e os outros recebiam
+   * "saiu" e "entrou": fechavam a conexão direta com ela, e áudio e vídeo
+   * caíam para todos a cada oscilação da sinalização — que nem passa mídia.
+   * Com o id igual, a conexão ponto a ponto continua de pé.
+   */
+  const me = new Participant(socket, msg, { id: anterior?.id });
   ctx.participant = me;
   ctx.room = room;
 
-  // Substitui a conexão anterior desta mesma aba: os outros veem a saída do
-  // id velho ANTES da entrada do novo — nunca os dois ao mesmo tempo.
   let herdaAnfitriao = false;
   if (anterior) {
+    clearTimeout(anterior.graca);
     herdaAnfitriao = anterior.host;
+    me.joinedAt = anterior.joinedAt; // a antiguidade decide quem herda o papel de anfitrião
     room.remove(anterior.id);
     anterior.replaced = true;
-    room.broadcast({ t: S2C.PEER_LEAVE, id: anterior.id, newHost: null, replacedBy: me.id });
     try {
       anterior.socket.terminate();
     } catch {
@@ -431,7 +450,13 @@ function concluirEntrada(ctx, socket, room, msg, { anterior = null, ehDono = fal
     },
   });
 
-  room.broadcast({ t: S2C.PEER_JOIN, peer: me.publicView(), replaces: anterior?.id || null }, me.id);
+  if (anterior) {
+    // Para os outros ela nunca saiu: só o nome, o avatar e o estado podem ter mudado.
+    room.broadcast({ t: S2C.PROFILE, id: me.id, name: me.profile.name, avatar: me.profile.avatar }, me.id);
+    room.broadcast({ t: S2C.STATE, id: me.id, state: me.state }, me.id);
+  } else {
+    room.broadcast({ t: S2C.PEER_JOIN, peer: me.publicView(), replaces: null }, me.id);
+  }
   // O anfitrião mudou (o dono voltou): todos atualizam a marca.
   if (me.host) {
     room.broadcast({ t: S2C.HOST, id: me.id }, me.id);
@@ -556,12 +581,32 @@ function teardown(ctx, registry) {
   const room = ctx.room;
   ctx.participant = null;
 
-  // Substituído por uma reconexão da mesma aba: a saída já foi anunciada.
-  if (me.replaced || !room.has(me.id)) {
+  // Substituído por uma reconexão da mesma aba, ou já removido (moderação).
+  if (me.replaced || room.get(me.id) !== me) {
     registry.dropIfEmpty(room.id);
     return;
   }
 
+  /*
+   * Queda sem "tchau": a pessoa fica na sala por alguns segundos antes de a
+   * saída ser anunciada. Se a mesma aba voltar nesse tempo, ninguém percebe
+   * (concluirEntrada reaproveita o id). Quem saiu de propósito, ou não tem
+   * sessão para voltar, sai na hora.
+   */
+  if (!ctx.saiuDeProposito && me.session) {
+    me.graca = setTimeout(() => anunciarSaida(room, me, registry), ctx.graca);
+    me.graca.unref?.();
+    return;
+  }
+  anunciarSaida(room, me, registry);
+}
+
+/** Tira da sala e avisa os outros (e o novo anfitrião, se for o caso). */
+function anunciarSaida(room, me, registry) {
+  if (me.replaced || room.get(me.id) !== me) {
+    registry.dropIfEmpty(room.id);
+    return;
+  }
   const newHost = room.remove(me.id);
   room.broadcast({ t: S2C.PEER_LEAVE, id: me.id, newHost: newHost?.id || null });
   if (newHost) for (const [id, w] of room.waiting) newHost.send({ t: S2C.KNOCK, id, name: w.name, avatar: w.avatar });

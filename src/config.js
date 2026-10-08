@@ -87,7 +87,7 @@ export const config = Object.freeze({
   ice: Object.freeze({
     stun: (
       process.env.STUN_URLS ||
-      "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302"
+      "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302,stun:stun.cloudflare.com:3478"
     )
       .split(",")
       .map((s) => s.trim())

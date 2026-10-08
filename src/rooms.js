@@ -35,8 +35,9 @@ function sameHash(a, b) {
 }
 
 export class Participant {
-  constructor(socket, { room, profile, state, session = "", device = "" }) {
-    this.id = randomUUID().slice(0, 12);
+  /** `id`: o da conexão anterior desta mesma aba, quando ela volta (signaling.js). */
+  constructor(socket, { room, profile, state, session = "", device = "" }, { id = null } = {}) {
+    this.id = id || randomUUID().slice(0, 12);
     this.socket = socket;
     this.room = room;
     this.profile = profile;

@@ -48,8 +48,8 @@ attachSignaling(server);
 await new Promise((r) => server.listen(PORT, r));
 
 /** Cliente de teste: junta as mensagens recebidas e espera por uma delas. */
-function cliente() {
-  const ws = new WebSocket(`ws://localhost:${PORT}`);
+function cliente(porta = PORT) {
+  const ws = new WebSocket(`ws://localhost:${porta}`);
   const msgs = [];
   const fila = [];
   ws.on("message", (raw) => {
@@ -123,24 +123,53 @@ const TOK = (n) => `token-${n}-abcdefghijklmnop`;
   // continua achando que ele está lá. Ele volta com a mesma sessão.
   b1.ws._socket.pause();
   b1.ws._socket.removeAllListeners("data");
+  const antes = a.msgs.length;
   const b2 = cliente();
-  const w2 = await b2.entrar(id, { nome: "Beto", session: TOK("b") });
-  const saida = await a.esperar((m) => m.t === "peer-leave" && m.id === w1.you.id, 1500);
-  const entrada = await a.esperar((m) => m.t === "peer-join" && m.peer.id === w2.you.id);
-  assert.ok(saida, "o id antigo sai na hora, sem esperar o batimento");
-  assert.equal(entrada.replaces, w1.you.id, "a entrada diz quem ela substitui");
+  const w2 = await b2.entrar(id, { nome: "Beto 2", session: TOK("b") });
+  // Para a Ana ele nunca saiu: mesmo id, nada de saída e entrada (que
+  // derrubariam a conexão direta e o áudio e o vídeo dele).
+  assert.equal(w2.you.id, w1.you.id, "quem volta pela mesma aba mantém o id");
+  const perfil = await a.esperar((m) => m.t === "profile" && m.id === w1.you.id);
+  assert.equal(perfil.name, "Beto 2", "o nome novo chega aos outros");
+  await espera(150);
+  assert.ok(!a.msgs.slice(antes).some((m) => m.t === "peer-leave" || m.t === "peer-join"), "nenhum aviso de saída ou de entrada");
   assert.equal(w2.peers.length, 1, "quem volta vê só a Ana, e não um fantasma de si mesmo");
-  assert.ok(
-    a.msgs.indexOf(saida) < a.msgs.indexOf(entrada),
-    "a saída do antigo chega ANTES da entrada do novo — nunca os dois na tela",
-  );
   // Outra aba (outra sessão) do mesmo Beto não derruba a primeira.
   const b3 = cliente();
   await b3.entrar(id, { nome: "Beto 2", session: TOK("c") });
   await espera(200);
   assert.equal(b2.ws.readyState, WebSocket.OPEN, "sessões diferentes convivem");
-  ok("sincronização: quem cai e volta substitui a conexão antiga (sem duplicata)");
+  ok("sincronização: quem cai e volta mantém o id e a conexão direta (sem duplicata)");
   for (const c of [a, b2, b3]) c.ws.close();
+}
+
+/* -- queda sem aviso: a saída espera a mesma aba voltar; sair pelo botão é na hora -- */
+{
+  const PORTA2 = PORT - 1;
+  const srv = createHttpServer({});
+  attachSignaling(srv, { graca: 400 });
+  await new Promise((r) => srv.listen(PORTA2, r));
+  const id = sala("graca");
+  const a = cliente(PORTA2);
+  await a.entrar(id, { nome: "Ana", session: TOK("a") });
+
+  const b = cliente(PORTA2);
+  const wb = await b.entrar(id, { nome: "Beto", session: TOK("b") });
+  b.ws.terminate(); // queda de rede: sem leave, sem código 1000
+  await espera(150);
+  assert.ok(!a.msgs.some((m) => m.t === "peer-leave"), "não some na primeira oscilação");
+  const saiu = await a.esperar((m) => m.t === "peer-leave" && m.id === wb.you.id, 2000);
+  assert.ok(saiu, "não voltou a tempo: a saída é anunciada");
+
+  const c = cliente(PORTA2);
+  const wc = await c.entrar(id, { nome: "Caio", session: TOK("c") });
+  c.send({ t: "leave" });
+  const t0 = Date.now();
+  await a.esperar((m) => m.t === "peer-leave" && m.id === wc.you.id, 300);
+  assert.ok(Date.now() - t0 < 300, "quem sai pelo botão sai na hora");
+  ok("sincronização: queda espera a volta antes de virar saída; o botão Sair é imediato");
+  a.ws.close();
+  srv.close();
 }
 
 /* -- moderação: só o anfitrião, conferido no servidor -- */

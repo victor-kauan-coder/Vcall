@@ -103,10 +103,6 @@ export class Signaling extends Emitter {
     this.send({ t: "signal", to, d });
   }
 
-  chat(text) {
-    this.send({ t: "chat", text });
-  }
-
   reaction(kind) {
     this.send({ t: "reaction", kind });
   }

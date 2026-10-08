@@ -254,6 +254,22 @@ export function meshBudget(peerCount, { uplink = 8_000_000 } = {}) {
 }
 
 /**
+ * Câmera conforme o tamanho da sala (`outros`: quantas pessoas recebem).
+ *
+ * Numa malha, cada um codifica e envia uma cópia da própria câmera para cada
+ * outro. 720p a 1,2 Mbps para oito pessoas são quase 10 Mbps de subida, que
+ * Wi-Fi de casa e 4G não têm: a fila enche, o áudio atrasa e tudo trava. E
+ * num ladrilho de um nono da tela ninguém vê a diferença de 720p para 240p.
+ */
+export function cameraParaSala(outros) {
+  if (outros <= 1) return { maxBitrate: 1_200_000, scaleResolutionDownBy: 1, maxFramerate: 30 };
+  if (outros <= 3) return { maxBitrate: 600_000, scaleResolutionDownBy: 1.5, maxFramerate: 30 };
+  if (outros <= 5) return { maxBitrate: 350_000, scaleResolutionDownBy: 2, maxFramerate: 24 };
+  if (outros <= 8) return { maxBitrate: 200_000, scaleResolutionDownBy: 3, maxFramerate: 15 };
+  return { maxBitrate: 120_000, scaleResolutionDownBy: 4, maxFramerate: 15 };
+}
+
+/**
  * Teto de codificação sugerido pela CPU: numa malha codificamos N vezes.
  * Máquinas modestas com muitos pares precisam abrir mão de quadros antes de
  * abrir mão de resolução (texto ilegível é pior que texto que anda devagar).

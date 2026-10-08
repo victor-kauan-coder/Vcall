@@ -57,6 +57,17 @@ async function openClient(name) {
     permissions: ["camera", "microphone"],
     viewport: { width: 1280, height: 860 },
   });
+  // Guarda os sockets da sinalização, para o teste poder derrubar um.
+  await ctx.addInitScript(() => {
+    const W = window.WebSocket;
+    window.__sockets = [];
+    window.WebSocket = class extends W {
+      constructor(...a) {
+        super(...a);
+        window.__sockets.push(this);
+      }
+    };
+  });
   const page = await ctx.newPage();
   page.on("console", (m) => {
     if (m.type() === "error") consoleErrors.push(`[${name}] ${m.text()}`);
@@ -365,6 +376,32 @@ try {
     await b.page.screenshot({ path: path.join(root, `.e2e-quadro-${mode}.png`) });
   }
   check("capturas de tela e quadro nos dois temas geradas", true);
+
+  /* -- 10b. queda da sinalização não derruba a mídia -------------- */
+  // Antes, quem reconectava ganhava um id novo e os outros fechavam a conexão
+  // direta com ela: cada oscilação do túnel cortava áudio e vídeo.
+  const idB = await b.page.evaluate(() => window.vcall.mesh.selfId);
+  await a.page.evaluate(() => {
+    window.__parAntes = [...window.vcall.mesh.peers.values()][0];
+    window.__removidos = 0;
+    window.vcall.mesh.on("peer-removed", () => window.__removidos++);
+  });
+  await b.page.evaluate(() => window.__sockets.at(-1).close(4000, "teste")); // o mesmo que o alarme do ping faz
+  await b.page.waitForFunction(() => window.__sockets.length > 1 && window.__sockets.at(-1).readyState === 1, { timeout: 15_000 });
+  await wait(1500);
+  const f1 = await framesFor(a.page);
+  await wait(1500);
+  const f2 = await framesFor(a.page);
+  const depois = await a.page.evaluate(() => {
+    const par = [...window.vcall.mesh.peers.values()][0];
+    return { mesmo: par === window.__parAntes, removidos: window.__removidos, estado: par?.connectionState };
+  });
+  const idB2 = await b.page.evaluate(() => window.vcall.mesh.selfId);
+  check(
+    "queda da sinalização não derruba a mídia (mesmo id, mesma conexão)",
+    idB2 === idB && depois.mesmo && depois.removidos === 0 && depois.estado === "connected" && f2.frames > f1.frames,
+    `id ${idB === idB2 ? "igual" : "mudou"}, conexão ${depois.mesmo ? "mantida" : "refeita"}, ${f2.frames - f1.frames} quadros em 1,5 s`,
+  );
 
   /* -- 11. saída limpa -------------------------------------------- */
   await b.ctx.close();

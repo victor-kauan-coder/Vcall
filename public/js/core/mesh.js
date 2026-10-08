@@ -137,16 +137,21 @@ export class Mesh extends Emitter {
 
     sig.on("welcome", (m) => {
       const first = !this.selfId;
+      // O servidor devolve o mesmo id a quem volta logo depois de uma queda:
+      // para os outros, ninguém saiu, e as conexões diretas continuam valendo.
+      const mesmoId = m.you.id === this.selfId;
       this.selfId = m.you.id;
       this.self = m.you;
       this.hostId = m.you.host ? m.you.id : this.hostId;
       if (first) this.joinedAt = Date.now();
 
-      // Reconexão: pares que sumiram da lista devem ser descartados.
+      // Reconexão: pares que sumiram da lista são descartados. Com id novo,
+      // todos: do outro lado, as conexões com o id antigo já foram fechadas.
       const alive = new Set(m.peers.map((p) => p.id));
       for (const id of [...this.peers.keys()]) {
-        if (!alive.has(id)) this.#dropPeer(id);
+        if (!mesmoId || !alive.has(id)) this.#dropPeer(id);
       }
+      if (mesmoId) for (const peer of this.peers.values()) peer.reanimar();
 
       for (const p of m.peers) this.#addPeer(p);
       this.stats.start();
@@ -291,6 +296,8 @@ export class Mesh extends Emitter {
       this.emit("board-channel", { id: info.id });
       // Quem chegou agora precisa saber que esta janela está escondida.
       if (!this.#vendo) peer.sendBoard({ type: "ver", cam: false });
+      for (const m of this.#chatPendente.get(info.id) || []) peer.sendBoard(m);
+      this.#chatPendente.delete(info.id);
     });
     peer.on("board:message", (raw) => this.#onPeerData(info.id, raw, "board"));
     peer.on("cursor:message", (raw) => this.#onPeerData(info.id, raw, "cursor"));
@@ -299,12 +306,20 @@ export class Mesh extends Emitter {
 
     this.peers.set(info.id, peer);
     this.emit("peer-added", { id: info.id, peer });
+    this.#ajustarCameras();
+  }
+
+  /** Mais ou menos gente na sala: a câmera enviada a cada um muda de degrau (tuning.cameraParaSala). */
+  #ajustarCameras() {
+    const outros = this.peers.size;
+    for (const peer of this.peers.values()) if (peer.peerCount !== outros) peer.ajustarCamera(outros);
   }
 
   #dropPeer(id) {
     const peer = this.peers.get(id);
     if (!peer) return;
     this.#blobFilas.delete(id);
+    this.#chatPendente.delete(id);
     peer.close();
     this.peers.delete(id);
     this.profiles.delete(id);
@@ -312,6 +327,7 @@ export class Mesh extends Emitter {
     this.vad.untrack(id);
     this.stats.forget(id);
     this.emit("peer-removed", { id });
+    this.#ajustarCameras();
   }
 
   #onPeerData(from, raw, channel) {
@@ -330,6 +346,12 @@ export class Mesh extends Emitter {
       // do participante remoto se mexer junto com a voz dele.
       this.vad.levels.set(from, msg.level || 0);
       this.emit("speaking", { id: from, speaking: !!msg.speaking, level: msg.level || 0, via: "p2p" });
+      return;
+    }
+    if (msg?.type === "chat") {
+      // As mesmas regras que o servidor aplicava (src/protocol.js).
+      const text = typeof msg.text === "string" ? msg.text.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, 2000).trim() : "";
+      if (text) this.emit("chat", { id: from, name: this.profiles.get(from)?.name || "Convidado", text, at: Date.now() });
       return;
     }
     // "Não estou vendo o seu vídeo": a câmera para de ser enviada a este par.
@@ -522,8 +544,20 @@ export class Mesh extends Emitter {
   /** peerId -> promessa do último pedaço na fila daquele participante. */
   #blobFilas = new Map();
 
+  /*
+   * O chat vai pelo canal direto (DTLS), nunca pelo servidor. Pelo servidor,
+   * o texto passava aberto pelo computador de quem convidou e pela borda da
+   * Cloudflare, e o selo "criptografada ponta a ponta" não era verdade para
+   * ele. Quem ainda não tem o canal aberto recebe quando ele abrir.
+   */
+  #chatPendente = new Map(); // peerId -> mensagens esperando o canal
+
   sendChat(text) {
-    this.signaling.chat(text);
+    const msg = { type: "chat", text };
+    for (const [id, peer] of this.peers) {
+      if (peer.sendBoard(msg)) continue;
+      this.#chatPendente.set(id, [...(this.#chatPendente.get(id) || []), msg].slice(-50));
+    }
   }
 
   sendReaction(kind) {
@@ -571,7 +605,7 @@ async function fetchIceConfig() {
     iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
     bundlePolicy: "max-bundle",
     rtcpMuxPolicy: "require",
-    iceCandidatePoolSize: 4,
+    iceCandidatePoolSize: 1,
     hasTurn: false,
   };
   try {

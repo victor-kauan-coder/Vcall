@@ -37,7 +37,9 @@ export const turnMode = ice.turnUrls.length && ice.turnSecret
 
 const base = {
   iceTransportPolicy: ice.transportPolicy,
-  iceCandidatePoolSize: 4,
+  // Um basta: com max-bundle só um conjunto de candidatos é usado. Quatro
+  // pré-alocavam quatro relays TURN por pessoa, três jogados fora.
+  iceCandidatePoolSize: 1,
   bundlePolicy: "max-bundle",
   rtcpMuxPolicy: "require",
 };

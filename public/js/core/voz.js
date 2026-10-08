@@ -41,8 +41,18 @@ export async function processarVoz(bruta, opcoes = VOZ_PADRAO) {
     });
     const destino = ctx.createMediaStreamDestination();
     fonte.connect(no).connect(destino);
-    // Um contexto criado fora de um clique pode nascer suspenso.
-    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    /*
+     * Um contexto criado fora de um clique pode nascer suspenso, e suspenso
+     * ele entrega SILÊNCIO: a sala deixava de ouvir a pessoa sem aviso
+     * nenhum. Se não ligar logo, a trilha bruta segue (com o cancelamento de
+     * eco e a supressão de ruído do navegador, que dispensam o contexto).
+     */
+    if (ctx.state !== "running") await Promise.race([ctx.resume().catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
+    if (ctx.state !== "running") throw new Error(`contexto de áudio ${ctx.state}`);
+    // O sistema pode suspendê-lo depois (outro app pegou o áudio): religa.
+    ctx.onstatechange = () => {
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    };
     const track = destino.stream.getAudioTracks()[0];
     let aoNivel = null;
     no.port.onmessage = ({ data }) => aoNivel?.(data);

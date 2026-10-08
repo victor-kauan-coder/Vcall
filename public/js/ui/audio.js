@@ -1,19 +1,23 @@
 /**
  * ui/audio.js — saída de áudio dos participantes.
  *
- * Receber a trilha não faz som: ela precisa chegar a uma saída. Aqui existem
- * dois caminhos, e o segundo é a garantia de que o primeiro nunca deixe a
- * chamada muda:
+ * Receber a trilha não faz som: ela precisa chegar a uma saída. Existem dois
+ * caminhos:
  *
- *   1. WEB AUDIO (origem compartilhada → ganho → saída). Permite volume por
- *      participante e ganho acima de 100%.
- *   2. ELEMENTO <audio> tocando direto. Limitado a 100%, mas é o caminho mais
- *      testado que existe num navegador.
+ *   1. ELEMENTO <audio> tocando direto, até 100%. É O PADRÃO, por causa do
+ *      eco: o cancelamento de eco do Chrome só desconta do microfone o som
+ *      que sai por um elemento. Tocada pelo Web Audio, a voz do outro sai no
+ *      alto-falante, entra no nosso microfone sem ser cancelada e volta para
+ *      ele, que se ouve com atraso (crbug.com/687574). Era o "a outra pessoa
+ *      ouve a própria voz" das versões até a 3.7.6.
+ *   2. WEB AUDIO (origem compartilhada → ganho → saída), só quando alguém é
+ *      posto acima de 100%, que o elemento não alcança. Com fone, sem eco;
+ *      no alto-falante, quem aumenta aceita o risco.
  *
  * O elemento é criado sempre, porque é ele que mantém a trilha "puxando"
  * dados da conexão. Enquanto o Web Audio está no comando, ele fica mudo.
  *
- * VERIFICAÇÃO AUTOMÁTICA: há um medidor na entrada e outro na saída do grafo.
+ * VERIFICAÇÃO AUTOMÁTICA (só no caminho 2): há um medidor na entrada e outro na saída do grafo.
  * Se entra sinal e não sai nada, o Web Audio é abandonado e o elemento assume
  * — para a chamada inteira, porque o problema é da máquina. Silêncio nos dois
  * medidores significa apenas que ninguém falou, e não dispara nada. Isso
@@ -117,57 +121,72 @@ export class RemoteAudio extends Emitter {
     };
     this.#outputs.set(key, out);
 
-    this.#useWebAudio(out);
+    this.#medir(out);
     this.#applySink(el);
     this.#applyVolume(out);
 
     el.play().catch(() => this.#setBlocked(true));
     if (contextState() === "suspended") this.#setBlocked(true);
-
-    if (out.mode === "webaudio") this.#verify(out);
     return out;
   }
 
-  /** Tenta pôr a saída no Web Audio. Silencioso se não der. */
-  #useWebAudio(out) {
-    if (this.webAudioDisabled) return false;
+  /**
+   * Medidor da ENTRADA (o que chega do participante), na origem compartilhada.
+   * Só escuta: não toca nada. Alimenta a barrinha de volume e a verificação.
+   */
+  #medir(out) {
     const ctx = audioContext();
-    if (!ctx) return false;
-
-    const source = sourceFor(out.stream);
-    if (!source) return false;
-
+    const source = ctx && sourceFor(out.stream);
+    if (!source) return;
     try {
-      const gain = ctx.createGain();
-      source.connect(gain).connect(ctx.destination);
-
-      // Dois medidores: um na ENTRADA (o que chega do participante) e outro na
-      // SAÍDA (o que de fato vai para os alto-falantes). Comparar os dois é o
-      // que distingue "ninguém está falando" de "o som está se perdendo no
-      // caminho" — sem essa distinção, qualquer momento de silêncio pareceria
-      // uma falha.
       const inAnalyser = ctx.createAnalyser();
       inAnalyser.fftSize = 512;
       source.connect(inAnalyser);
-
-      const outAnalyser = ctx.createAnalyser();
-      outAnalyser.fftSize = 512;
-      gain.connect(outAnalyser);
-
       out.source = source;
-      out.gain = gain;
       out.inAnalyser = inAnalyser;
-      out.outAnalyser = outAnalyser;
       out.meterData = new Uint8Array(512);
-      out.mode = "webaudio";
-      // O elemento vira só a bomba que mantém a trilha viva.
-      out.el.muted = true;
-      return true;
     } catch {
       releaseSource(out.stream);
-      out.source = null;
-      return false;
     }
+  }
+
+  /** Troca o caminho por onde o som sai (veja o cabeçalho). */
+  #rota(out, modo) {
+    if (out.mode === modo) return;
+    const ctx = audioContext();
+    if (modo === "webaudio") {
+      if (!out.source || !ctx) return; // fica no elemento
+      try {
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        out.source.connect(gain).connect(ctx.destination);
+        // Medidor da SAÍDA: comparado com o da entrada, distingue "ninguém
+        // está falando" de "o som está se perdendo no caminho".
+        const outAnalyser = ctx.createAnalyser();
+        outAnalyser.fftSize = 512;
+        gain.connect(outAnalyser);
+        out.gain = gain;
+        out.outAnalyser = outAnalyser;
+      } catch {
+        return;
+      }
+      out.mode = "webaudio";
+      out.el.muted = true; // o elemento vira só a bomba que mantém a trilha viva
+      this.#verify(out);
+      return;
+    }
+    try {
+      if (out.gain) out.source?.disconnect(out.gain);
+      out.gain?.disconnect();
+      out.outAnalyser?.disconnect();
+    } catch {
+      /* já desconectado */
+    }
+    out.gain = null;
+    out.outAnalyser = null;
+    out.mode = "element";
+    out.el.muted = false;
+    out.el.play().catch(() => this.#setBlocked(true));
   }
 
   /**
@@ -215,22 +234,8 @@ export class RemoteAudio extends Emitter {
     if (this.webAudioDisabled) return;
     this.webAudioDisabled = true;
     console.warn(`[vcall] usando o <audio> para a saída: ${reason}`);
-
-    for (const out of this.#outputs.values()) {
-      try {
-        out.gain?.disconnect();
-        out.outAnalyser?.disconnect();
-      } catch {
-        /* já desconectado */
-      }
-      // A entrada continua: é ela que alimenta o medidor e a detecção de fala.
-      out.gain = null;
-      out.outAnalyser = null;
-      out.mode = "element";
-      out.el.muted = false;
-      this.#applyVolume(out);
-      out.el.play().catch(() => this.#setBlocked(true));
-    }
+    // A entrada continua: é ela que alimenta o medidor e a detecção de fala.
+    for (const out of this.#outputs.values()) this.#applyVolume(out);
     this.emit("fallback", reason);
   }
 
@@ -328,6 +333,7 @@ export class RemoteAudio extends Emitter {
   #applyVolume(out) {
     const level = this.deafened ? 0 : out.volume * this.master;
     out.level = level;
+    this.#rota(out, level > 1 && !this.webAudioDisabled ? "webaudio" : "element");
 
     if (out.mode === "webaudio" && out.gain) {
       const ctx = audioContext();

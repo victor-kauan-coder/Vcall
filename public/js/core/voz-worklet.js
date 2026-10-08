@@ -79,7 +79,11 @@ class Voz extends AudioWorkletProcessor {
 
     let aberto;
     if (this.limiar === "off") aberto = true;
-    else if (this.limiar === "auto") aberto = voz === null ? true : voz > 0.5 && db > -65;
+    // A probabilidade da rede cai em microfone de fone Bluetooth (banda
+    // estreita) e em voz baixa: só ela fechava o portão em cima de gente
+    // falando. Som forte depois da supressão de ruído é voz; passa sempre.
+    // ponytail: -45 dBFS chutado com microfone de notebook; ajuste se cortar.
+    else if (this.limiar === "auto") aberto = voz === null ? true : (voz > 0.5 && db > -65) || db > -45;
     else aberto = db > Number(this.limiar);
 
     this.fila.push({ q, aberto, db });

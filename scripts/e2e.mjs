@@ -303,14 +303,24 @@ try {
   // Volume por participante: o original tinha, e voltou.
   const volOk = await b.page.evaluate(() => {
     const peerId = [...window.vcall.mesh.peers.keys()][0];
+    const mic = () => window.vcall.audio.debug().outputs.find((o) => o.key.endsWith(":mic"));
+    const a100 = mic();
     window.vcall.audio.setVolume(peerId, 1.5);
-    const after = window.vcall.audio.debug().outputs.find((o) => o.key.endsWith(":mic"));
+    const after = mic();
     const at150 = after?.gain;
+    const modos = { a100: `${a100?.mode}${a100?.muted ? " mudo" : ""}`, a150: after?.mode };
     window.vcall.audio.setVolume(peerId, 0);
     const muted = window.vcall.audio.debug().outputs.find((o) => o.key.endsWith(":mic"))?.gain;
     window.vcall.audio.setVolume(peerId, 1);
-    return { at150, muted, hasSlider: !!document.querySelector(".vol__slider") };
+    return { at150, muted, modos, voltou: mic()?.mode, hasSlider: !!document.querySelector(".vol__slider") };
   });
+  // O cancelamento de eco do Chrome só enxerga o som que sai por um elemento
+  // <audio>: tocada pelo Web Audio, a voz voltava pelo microfone de quem ouvia.
+  check(
+    "a voz sai pelo <audio> (o cancelamento de eco enxerga); Web Audio só acima de 100%",
+    volOk.modos.a100 === "element" && volOk.modos.a150 === "webaudio" && volOk.voltou === "element",
+    JSON.stringify(volOk.modos),
+  );
   check(
     "volume por participante funciona de 0 a 150%",
     volOk.at150 > 1.2 && volOk.muted === 0 && volOk.hasSlider,

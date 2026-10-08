@@ -2738,6 +2738,36 @@ function linhasVoz() {
   };
   media.on("voz-nivel", aoNivel);
 
+  /*
+   * Ouvir a si mesmo: toca a trilha que vai para a sala, já com a supressão
+   * de ruído e o portão. É o jeito de saber, sem ninguém do outro lado, se o
+   * microfone certo está aberto e se a voz está passando.
+   */
+  let eco = null;
+  const rotuloOuvir = el("span", { text: "Ouvir minha voz" });
+  const ouvir = el("button.btn.btn--ghost", { type: "button", style: "align-self: flex-start" }, [icon("headphones", { size: "sm" }), rotuloOuvir]);
+  const pararEco = () => {
+    if (!eco) return;
+    clearInterval(eco.vigia);
+    eco.pause();
+    eco.srcObject = null;
+    eco = null;
+    rotuloOuvir.textContent = "Ouvir minha voz";
+  };
+  ouvir.addEventListener("click", () => {
+    if (eco) return pararEco();
+    const trilha = media.micTrack;
+    if (!trilha || trilha.readyState !== "live") return toast("Ligue o microfone para se ouvir.", { tone: "warn", key: "eco" });
+    if (!trilha.enabled) toast("Seu microfone está desligado: ligue-o para se ouvir.", { tone: "warn", key: "eco" });
+    eco = new Audio();
+    eco.srcObject = new MediaStream([trilha]);
+    if (audio.sinkId && eco.setSinkId) eco.setSinkId(audio.sinkId).catch(() => {});
+    eco.play().catch(() => {});
+    // Fechou as configurações: para de tocar.
+    eco.vigia = setInterval(() => !ouvir.isConnected && pararEco(), 500);
+    rotuloOuvir.textContent = "Parar de ouvir";
+  });
+
   return [
     el("label.row", {}, [
       ia,
@@ -2755,6 +2785,11 @@ function linhasVoz() {
       el("div.field__hint", {
         text: "Entre uma frase e outra o microfone fecha sozinho: a sala não ouve o que sobra do ambiente. A barra acende quando a sua voz está passando.",
       }),
+    ]),
+    el("div.field", {}, [
+      el("span.field__label", { text: "Testar o microfone" }),
+      ouvir,
+      el("div.field__hint", { text: "Você ouve exatamente o que a sala ouve. Use fone de ouvido, senão o alto-falante volta para o microfone." }),
     ]),
   ];
 }

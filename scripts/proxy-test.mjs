@@ -204,7 +204,10 @@ try {
 
   await b.page.screenshot({ path: path.join(root, ".tunnel-proof.png") });
 
-  const real = errors.filter((e) => !/favicon|ERR_CERT|NotAllowedError|play\(\)/i.test(e));
+  // O certificado deste teste é autoassinado: o Chrome não instala o service
+  // worker da tela de erro (public/sw.js) com ele. O túnel de verdade tem
+  // certificado válido.
+  const real = errors.filter((e) => !/favicon|ERR_CERT|SSL certificate error|NotAllowedError|play\(\)/i.test(e));
   check("nenhum erro de JavaScript", real.length === 0, real.slice(0, 2).join(" | "));
 
   await a.ctx.close();

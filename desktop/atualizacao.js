@@ -22,7 +22,7 @@ export const REPO = process.env.VCALL_REPO || "victor-kauan-coder/vcall";
  * o número escrito à mão aqui, uma release em que ele não fosse trocado faria
  * o app se achar mais velho do que é — e avisar de "atualização" para sempre.
  */
-export const VERSAO = process.env.VCALL_VERSAO || "3.7.5";
+export const VERSAO = process.env.VCALL_VERSAO || "3.7.6";
 
 const CACHE = path.join(os.homedir(), ".vcall", "atualizacao.json");
 

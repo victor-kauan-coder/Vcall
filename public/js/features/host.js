@@ -149,11 +149,26 @@ export class HostPanel extends Emitter {
    * Liga o túnel e devolve o endereço público. Pode demorar: na primeira vez
    * o cloudflared ainda é baixado.
    */
-  async abrirTunel() {
+  async abrirTunel({ novo = false } = {}) {
     this.estado = "abrindo";
     this.emit("status", { estado: this.estado, url: null });
+    // Enquanto o pedido corre (baixar, abrir, testar o link: pode passar de
+    // meio minuto), o painel acompanha a fase em vez de ficar em "Abrindo…".
+    const fase = setInterval(() => {
+      this.#chamar("status")
+        .then((r) => {
+          // "erro" aqui é só a troca entre a primeira e a segunda tentativa.
+          if (this.estado === "pronto" || ["pronto", "parado", "erro"].includes(r.estado)) return;
+          if (r.estado !== this.estado) {
+            this.estado = r.estado;
+            this.emit("status", { estado: r.estado, url: null });
+          }
+        })
+        .catch(() => {});
+    }, 1500);
     try {
-      const r = await this.#chamar("tunnel/abrir");
+      // "renovar" derruba o túnel atual e sobe outro (link novo, mesma chamada).
+      const r = await this.#chamar(novo ? "tunnel/renovar" : "tunnel/abrir").finally(() => clearInterval(fase));
       this.estado = r.estado;
       this.url = r.url;
       this.emit("status", r);

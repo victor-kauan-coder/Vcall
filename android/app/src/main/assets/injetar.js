@@ -95,12 +95,19 @@
    */
   let naSala = null;
   let cor = null;
+  let temaVisto = null;
   const conferir = () => {
     const dock = document.getElementById("dock");
     const agora = !!dock && !dock.hidden;
     if (agora !== naSala) {
       naSala = agora;
       ponte.chamada(agora);
+    }
+    const raiz = document.documentElement;
+    const tema = `${raiz.getAttribute("data-paleta") || ""}|${raiz.getAttribute("data-theme") || ""}`;
+    if (tema !== temaVisto && ponte.lembrarTema) {
+      temaVisto = tema;
+      ponte.lembrarTema(...tema.split("|"));
     }
     const meta = document.querySelector('meta[name="theme-color"]');
     const nova = meta && meta.content;

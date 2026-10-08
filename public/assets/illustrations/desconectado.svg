@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 34 280 182" fill="none">
+  <!--
+    "Desconectado": as duas pessoas da marca do Vcall, cada uma segurando a
+    ponta de um cabo que não encaixa. As cores são variáveis da paleta
+    escolhida; o valor depois da vírgula é o da paleta padrão, para o arquivo
+    continuar certo aberto sozinho.
+  -->
+  <ellipse cx="180" cy="196" rx="132" ry="10" fill="var(--text, #1b1e22)" fill-opacity="0.08"/>
+
+  <!-- cabos -->
+  <path d="M100 124c22 6 30 40 52 38" stroke="var(--text-muted, #9aa0ab)" stroke-opacity="0.75" stroke-width="5" stroke-linecap="round"/>
+  <path d="M260 124c-22 6-30 40-52 38" stroke="var(--text-muted, #9aa0ab)" stroke-opacity="0.75" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- plugue (esquerda) e tomada (direita), sem encaixar -->
+  <rect x="146" y="151" width="22" height="22" rx="5" fill="var(--text-secondary, #3f3d56)"/>
+  <rect x="167" y="155" width="9" height="4" rx="2" fill="var(--text-secondary, #3f3d56)"/>
+  <rect x="167" y="165" width="9" height="4" rx="2" fill="var(--text-secondary, #3f3d56)"/>
+  <rect x="192" y="151" width="22" height="22" rx="5" fill="var(--text-secondary, #3f3d56)"/>
+  <rect x="196" y="156" width="6" height="3" rx="1.5" fill="var(--surface-2, #fdf5f9)"/>
+  <rect x="196" y="165" width="6" height="3" rx="1.5" fill="var(--surface-2, #fdf5f9)"/>
+
+  <!-- faísca no vão -->
+  <g stroke="var(--ilu-marca, #fd4d87)" stroke-width="3.5" stroke-linecap="round">
+    <path d="M184 141v-11"/>
+    <path d="M176 144l-7-7"/>
+    <path d="M192 144l7-7"/>
+  </g>
+
+  <!-- pessoa da esquerda (rosa da marca) -->
+  <g transform="rotate(8 78 128)">
+    <rect x="61" y="88" width="36" height="84" rx="18" fill="var(--ilu-marca, #fd4d87)"/>
+    <circle cx="76" cy="64" r="16" fill="var(--ilu-marca, #fd4d87)"/>
+  </g>
+  <!-- pessoa da direita (laranja da marca) -->
+  <g transform="rotate(-8 282 128)">
+    <rect x="263" y="88" width="36" height="84" rx="18" fill="var(--accent-2, #fe9c5f)"/>
+    <circle cx="284" cy="64" r="16" fill="var(--accent-2, #fe9c5f)"/>
+  </g>
+</svg>

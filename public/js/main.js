@@ -23,6 +23,7 @@ import { Dock, REACTIONS } from "./ui/dock.js";
 import { toast, chime } from "./ui/toast.js";
 import { avatarEl, colorFor, defaultAvatar } from "./ui/avatars.js";
 import { ilustracao } from "./ui/ilustracao.js";
+import { montarTelaDeErro } from "./ui/tela-erro.js";
 import { RemoteAudio } from "./ui/audio.js";
 import { closeAudio } from "./core/audio-graph.js";
 import { InfiniteCanvas } from "./features/canvas.js";
@@ -2261,6 +2262,7 @@ function wireMesh() {
      * reconhece o que é seu pelo `type` e devolve o resto.
      */
     if (transfer.apply(from, op)) return;
+    if (op?.type === "link-novo") return avisarLinkNovo(from, op.url);
     if (op?.type === "caption") {
       const profile = mesh.profiles.get(from) || {};
       captions.show(from, {
@@ -2380,6 +2382,64 @@ function wireMesh() {
       text.textContent = "Criptografada ponta a ponta";
     }
   });
+
+  /*
+   * A sala caiu de vez: sem sinalização por mais de 15 s E sem ninguém ligado
+   * direto. Enquanto houver alguém conectado ponto a ponto, a chamada continua
+   * (a mídia não passa pelo servidor) e basta o selo "Reconectando…". Sem
+   * ninguém, a pessoa ficava olhando uma sala vazia com um selo pequeno.
+   */
+  let salaCaiu = 0;
+  let telaDaQueda = null;
+  const ninguemConectado = () => ![...mesh.peers.values()].some((p) => p.connectionState === "connected");
+  mesh.on("link", ({ status }) => {
+    const fora = status === "reconnecting" || status === "offline";
+    if (!fora) {
+      clearTimeout(salaCaiu);
+      salaCaiu = 0;
+      telaDaQueda?.remove();
+      telaDaQueda = null;
+      return;
+    }
+    if (salaCaiu || telaDaQueda) return;
+    salaCaiu = setTimeout(() => {
+      salaCaiu = 0;
+      if (app.left || !ninguemConectado()) return;
+      telaDaQueda = montarTelaDeErro({
+        tipo: navigator.onLine === false ? "internet" : "caiu",
+        sondar: () => (app.linkNovo ? Promise.resolve(true) : fetch("/healthz", { cache: "no-store" }).then((r) => r.ok)),
+        // Se o anfitrião trocou de link, é por ele que se volta.
+        aoTentar: () => (app.linkNovo ? location.assign(app.linkNovo) : location.reload()),
+        aoVoltar: () => leaveCall(),
+        rotuloVoltar: "Sair da sala",
+      });
+      telaDaQueda.classList.add("erro--sobre");
+      document.body.append(telaDaQueda);
+    }, 15_000);
+  });
+
+  /*
+   * O anfitrião gerou outro link público. Só vale vindo DELE, em https e para
+   * esta mesma sala: qualquer participante pode mandar mensagens pelo canal
+   * direto, e um link de outro lugar seria um convite para golpe.
+   */
+  function avisarLinkNovo(de, url) {
+    let novo;
+    try {
+      novo = new URL(url);
+    } catch {
+      return;
+    }
+    if (de !== mesh.hostId || novo.protocol !== "https:" || novo.hash !== location.hash) return;
+    if (novo.origin === location.origin) return; // já estamos nele
+    app.linkNovo = novo.href;
+    toast("Quem criou a sala gerou um link novo. A chamada continua; se cair, entre por ele.", {
+      tone: "info",
+      ms: 20_000,
+      key: "link-novo",
+      action: { label: "Usar o link novo", onClick: () => location.assign(novo.href) },
+    });
+  }
 
   mesh.on("ice", (cfg) => {
     if (!cfg.hasTurn) {
@@ -2511,26 +2571,34 @@ function syncTunnelUi() {
   const btn = $("#tunnelBtn");
   const texto = $("#tunnelBtnText");
   const dica = $("#tunnelHint");
-  const ocupado = host.estado === "abrindo" || host.estado === "baixando";
+  const ocupado = host.estado === "abrindo" || host.estado === "baixando" || host.estado === "verificando";
+  const renovar = $("#tunnelRenew");
 
   btn.disabled = ocupado;
   campo.value = host.url ? host.linkPublico(roomLink()) || "" : "";
+  // Link que não abre, ou que deu erro: outro na hora, sem sair da chamada.
+  if (renovar) {
+    renovar.hidden = !(host.estado === "pronto" || host.estado === "erro");
+    renovar.disabled = ocupado;
+  }
 
   if (host.estado === "pronto") {
     texto.textContent = "Copiar";
     dica.textContent =
       "Qualquer pessoa com este link entra na sala, de qualquer rede. Ele deixa de valer quando você fechar o Vcall.";
   } else if (ocupado) {
-    texto.textContent = host.estado === "baixando" ? "Baixando…" : "Abrindo…";
+    texto.textContent = host.estado === "baixando" ? "Baixando…" : host.estado === "verificando" ? "Testando…" : "Abrindo…";
     dica.textContent =
       host.estado === "baixando"
         ? "Baixando o cloudflared do site oficial do Cloudflare. Só acontece na primeira vez."
-        : "Pedindo um endereço ao Cloudflare…";
+        : host.estado === "verificando"
+          ? "Conferindo se o link abre de fora, para você não mandar um link que não funciona…"
+          : "Pedindo um endereço ao Cloudflare…";
   } else {
     texto.textContent = "Gerar link";
     dica.textContent =
       host.estado === "erro"
-        ? "Não consegui abrir o túnel. Veja se há internet e tente de novo."
+        ? "O link não ficou de pé. Veja se há internet e gere outro."
         : "O link acima só funciona nesta rede. Gere um link público para quem está fora dela.";
   }
 }
@@ -2570,6 +2638,23 @@ if ($("#tunnelBtn")) {
       if (link) copy(link, "Link público criado e copiado");
     } catch (err) {
       toast(`Não consegui abrir o túnel: ${err.message}`, { tone: "warn", ms: 8000 });
+    }
+  });
+
+  /*
+   * Outro link, com a chamada no ar. Quem entrou pelo link antigo continua
+   * conversando (a mídia vai direto, não passa pelo túnel) e recebe o novo
+   * pela conexão direta, com um botão para reentrar por ele.
+   */
+  on($("#tunnelRenew"), "click", async () => {
+    try {
+      await host.abrirTunel({ novo: true });
+      const link = host.linkPublico(roomLink());
+      if (!link) return;
+      copy(link, "Link novo criado e copiado");
+      if (mesh.peers.size) mesh.broadcastBoard({ type: "link-novo", url: link }, { fallback: false });
+    } catch (err) {
+      toast(`Não consegui gerar outro link: ${err.message}`, { tone: "warn", ms: 8000 });
     }
   });
 
@@ -3223,7 +3308,7 @@ function leaveCall({ motivo = null, por = "" } = {}) {
       ilustracao("calling", { largura: 320, altura: 275 }),
     ]),
     el("div.leave__body", {}, [
-      el("img.brand__mark", { src: "/assets/logo-mark.png", alt: "", width: 48, height: 48 }),
+      el("img.brand__mark", { src: "/assets/logo-mark.svg", alt: "", width: 48, height: 48 }),
       el("h1.leave__title", {
         id: "leaveTitle",
         text:
@@ -3304,3 +3389,12 @@ console.info(
   "font-weight:700;color:#fd4d87",
   "color:inherit",
 );
+
+/*
+ * Tela de erro própria quando o túnel cai (public/sw.js). Só para quem entra
+ * pelo link público (https); no computador de quem criou a sala a página vem
+ * do servidor local e não passa por túnel nenhum.
+ */
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}

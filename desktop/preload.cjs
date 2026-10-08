@@ -78,6 +78,8 @@ contextBridge.exposeInMainWorld("vcallDesktop", {
    * Atualização automática: estado (fase, versão, progresso), procurar agora,
    * reiniciar e instalar, e avisos de mudança.
    */
+  /** A sala de outra pessoa voltou? (status HTTP, 0 se não respondeu) — public/erro.html */
+  sondar: (url) => ipcRenderer.invoke("vcall:sondar", url),
   atualizacao: {
     estado: () => ipcRenderer.invoke("vcall:atualizacao", "estado"),
     verificar: () => ipcRenderer.invoke("vcall:atualizacao", "verificar"),

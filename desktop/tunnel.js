@@ -57,6 +57,12 @@ const URL_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
 
 /** Tempo máximo esperando o endereço aparecer. */
 const READY_TIMEOUT_MS = 45_000;
+/**
+ * Depois que o cloudflared entrega o endereço, quanto esperar o link
+ * responder de verdade. O endereço sai antes de a Cloudflare registrar o
+ * túnel, e até lá quem abre vê a página de erro dela (530, erro 1033).
+ */
+const VERIFY_TIMEOUT_MS = 45_000;
 
 async function existe(p) {
   try {
@@ -197,6 +203,69 @@ export async function ensureCloudflared(onProgress) {
  *   "status"  {state, url?, error?}  — "baixando" | "abrindo" | "pronto" | "parado" | "erro"
  *   "log"     linha bruta do cloudflared (útil para diagnóstico)
  */
+/**
+ * O link público chega até este servidor? Pergunta pelo próprio túnel.
+ * Devolve true, ou o que viu por último (para o registro).
+ *
+ * NÃO usa o DNS do sistema. O cloudflared mostra o endereço antes de o nome
+ * existir no DNS da Cloudflare; uma consulta nesse intervalo recebe "não
+ * existe", e o Windows guarda essa resposta por vários minutos — o link
+ * funcionava para todo mundo e continuava "quebrado" NESTE computador. Aqui o
+ * nome é resolvido por DNS sobre HTTPS e a conexão vai direto ao IP; o link
+ * só é mostrado quando o nome já existe, e o navegador da pessoa nunca guarda
+ * o "não existe".
+ */
+export async function responde(url, { prazo = VERIFY_TIMEOUT_MS, passo = 1500 } = {}) {
+  const fim = Date.now() + prazo;
+  const host = new URL(url).hostname;
+  let visto = "nada";
+  while (Date.now() < fim) {
+    try {
+      const ip = await resolverDoH(host);
+      if (!ip) {
+        visto = "o nome ainda não está no DNS";
+      } else {
+        const status = await pedirNoIp(`${url}/healthz`, ip);
+        if (status >= 200 && status < 300) return true;
+        visto = `HTTP ${status}`;
+      }
+    } catch (err) {
+      visto = String(err?.code || err?.message || err);
+    }
+    await new Promise((ok) => setTimeout(ok, passo));
+  }
+  return visto;
+}
+
+/** IPv4 de um nome, pelo DNS sobre HTTPS da Cloudflare (sem cache do sistema). */
+async function resolverDoH(host) {
+  const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=A`, {
+    headers: { accept: "application/dns-json" },
+    signal: AbortSignal.timeout(5000),
+  });
+  const j = await r.json();
+  return (j.Answer || []).find((x) => x.type === 1)?.data || null;
+}
+
+/** GET num endereço https, conectando no IP dado (o nome segue no SNI e no Host). */
+function pedirNoIp(url, ip) {
+  return new Promise((ok, falha) => {
+    const req = https.get(
+      url,
+      {
+        timeout: 5000,
+        lookup: (_host, opcoes, cb) => (opcoes?.all ? cb(null, [{ address: ip, family: 4 }]) : cb(null, ip, 4)),
+      },
+      (res) => {
+        res.resume();
+        ok(res.statusCode || 0);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("sem resposta")));
+    req.on("error", falha);
+  });
+}
+
 export class Tunnel extends EventEmitter {
   proc = null;
   url = null;
@@ -256,8 +325,20 @@ export class Tunnel extends EventEmitter {
         resolvido = true;
         clearTimeout(prazo);
         this.url = m[0];
-        this.#set("pronto");
-        resolve(this.url);
+        // "Pronto" só quando o link abre de fora: era o "criei a sala e o
+        // link não funciona" — o endereço existia, o túnel ainda não.
+        this.#set("verificando");
+        responde(this.url).then((ok) => {
+          if (this.proc !== proc) return reject(new Error("o túnel foi fechado"));
+          if (ok !== true) {
+            this.stop();
+            const err = new Error(`o link do Cloudflare não respondeu (${ok})`);
+            this.#set("erro", { error: err.message });
+            return reject(err);
+          }
+          this.#set("pronto");
+          resolve(this.url);
+        });
       };
 
       proc.stdout.on("data", ler);

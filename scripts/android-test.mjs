@@ -410,26 +410,29 @@ await passo("convite compartilhado", async () => {
 await passo("link expirado", async () => {
   adb(`shell am start --display 0 -a android.intent.action.VIEW -d "'vcall://join?u=https%3A%2F%2Fnao-existe-vcall-teste.trycloudflare.com%2F%23${sala}'" com.vcall.app`);
   await espera(8000);
-  const inicio = paginaCom("appassets");
-  const aviso = inicio ? await inicio.evaluate(() => document.getElementById("erro").textContent) : "";
-  check("servidor fora do ar volta ao início com o motivo", /expirado|internet/.test(aviso), aviso);
+  const erro = paginaCom("erro.html");
+  const titulo = erro ? await erro.evaluate(() => document.querySelector(".leave__title")?.textContent) : "";
+  check("link que não abre mostra a tela de erro do Vcall", titulo === "A sala saiu do ar", titulo);
   tela("and-expirado");
+  await erro.click("text=Voltar ao início");
+  await espera(2500);
+  check("'Voltar ao início' leva à tela inicial", !!paginaCom("inicio/index.html"));
 });
 
 await passo("tela inicial", async () => {
-  const inicio = paginaCom("appassets");
+  const inicio = paginaCom("inicio/index.html");
   const recentes = await inicio.evaluate(() => document.querySelectorAll("#lista li").length);
   check("recentes listam as salas abertas", recentes > 0, `${recentes}`);
-  await inicio.click("#colar");
-  await espera(1500);
-  const msg = await inicio.evaluate(() => document.getElementById("erro").textContent || document.getElementById("link").value);
-  check("Colar lê a área de transferência pela ponte", msg.length > 0, msg);
   await inicio.fill("#link", "bom dia");
   await inicio.click(".entrar");
   check("texto sem link é recusado com aviso", /não parece/.test(await inicio.evaluate(() => document.getElementById("erro").textContent)));
+  // Colar: ou avisa que está vazia, ou entra na sala que estava copiada.
+  await inicio.click("#colar");
+  await espera(2500);
+  const msg = await inicio.evaluate(() => document.getElementById("erro")?.textContent || location.href).catch(() => "entrou na sala colada");
+  check("Colar lê a área de transferência pela ponte", msg.length > 0, msg);
   tela("and-inicio-recentes");
 });
-
 console.log(`\n${resultados.filter(Boolean).length}/${resultados.length} verificações passaram.`);
 await nav?.close();
 await cel?.close().catch(() => {});

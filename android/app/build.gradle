@@ -55,6 +55,14 @@ android {
 def copiarMarca = tasks.register("copiarMarca", Copy) {
     from("../../brand/vcall-simbolo.svg") { into "inicio" }
     from("../../public/fonts/bricolage-latin.woff2") { into "inicio" }
+    // A tela de erro é a mesma do app de mesa (public/erro.html), na paleta
+    // da pessoa: vai inteira para dentro do APK, com o que ela usa.
+    from("../../public") {
+        include "erro.html", "js/erro.js", "js/ui/tela-erro.js", "js/ui/ilustracao.js", "js/lib/dom.js",
+                "js/boot-tema.js", "css/tokens.css", "css/paletas.css", "css/base.css", "css/app.css",
+                "css/motion.css", "css/call.css", "assets/illustrations/desconectado.svg",
+                "assets/logo-mark.svg", "assets/favicon-64.png", "vendor/icons.svg", "fonts/*.woff2"
+    }
     into "build/generated/vcall-assets"
 }
 tasks.named("preBuild") { dependsOn copiarMarca }

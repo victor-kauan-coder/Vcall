@@ -24,6 +24,7 @@ import { argsParaX11, executavelParaRegistrar, namespacesDisponiveis, opcoesDeEx
 import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
 import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/assinatura.js";
 import { maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
+import { tipoDoCodigo } from "../public/js/ui/tela-erro.js";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, writeFileSync as gravar } from "node:fs";
 import { tmpdir } from "node:os";
@@ -478,6 +479,21 @@ server.close();
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/opt/Vcall/vcall" }), null, ".deb/.rpm/pacman já têm .desktop");
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/home/ana/vcall/vcall" }), "/home/ana/vcall/vcall", ".tar.gz registra onde está");
   ok("Linux: sandbox e link vcall:// certos no Fedora, Arch, Ubuntu 24.04 e Debian");
+}
+
+/* ------------------------------------------------------------------ *
+ * Tela de erro: o que a Cloudflare responde vira a explicação certa
+ * ------------------------------------------------------------------ */
+{
+  // 530 (erro 1033) e 502: o Vcall de quem convidou fechou ou caiu.
+  assert.equal(tipoDoCodigo(530), "tunel");
+  assert.equal(tipoDoCodigo(502), "tunel");
+  assert.equal(tipoDoCodigo(521), "tunel");
+  assert.equal(tipoDoCodigo(524), "demora", "524 é tempo esgotado na Cloudflare");
+  assert.equal(tipoDoCodigo(504), "demora");
+  assert.equal(tipoDoCodigo(500), "servidor");
+  assert.equal(tipoDoCodigo(530, false), "internet", "sem internet vence qualquer código");
+  ok("tela de erro: código da Cloudflare vira a explicação certa");
 }
 
 /* ------------------------------------------------------------------ *

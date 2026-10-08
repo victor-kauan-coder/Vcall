@@ -333,6 +333,9 @@ textarea {
 }
 .leave__art {
   display: grid;
+  /* Coluna que encolhe: na automática, o desenho largo esticava o cartão
+     e saía dele no celular. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   aspect-ratio: 1;
   max-height: 70vh;
@@ -385,6 +388,52 @@ textarea {
   flex-wrap: wrap;
   gap: var(--sp-2);
   margin-top: var(--sp-2);
+}
+
+/* ===================== A sala não abriu ou caiu ===================== */
+
+/* ui/tela-erro.js: a mesma tela de "Você saiu", com o que está acontecendo
+   agora (a contagem até a próxima tentativa) e o código para quem for pedir
+   ajuda. */
+.erro__estado {
+  margin: 0;
+  min-height: 1.5em;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.erro__codigo {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+/* O desenho é mais largo que alto: menos respiro, para ele ocupar o cartão. */
+.erro .leave__art {
+  padding: 9%;
+}
+.erro .leave__art .ilu {
+  padding: 0;
+}
+/* Quando os botões quebram de linha (celular), cada um ocupa a linha toda. */
+.erro .leave__actions .btn {
+  flex: 1 1 auto;
+}
+/* Por cima da chamada (a sala caiu e ninguém sobrou conectado). */
+.erro--sobre {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  width: auto;
+  margin: 0;
+  padding-inline: max(clamp(var(--sp-4), 5vw, var(--sp-12)), calc((100% - 1100px) / 2));
+  overflow-y: auto;
+  background: var(--bg);
+  animation: erro-entra 260ms var(--ease-out) both;
+}
+@keyframes erro-entra {
+  from {
+    opacity: 0;
+  }
 }
 
 /* ============================ Telas estreitas ============================ */

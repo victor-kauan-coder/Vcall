@@ -93,6 +93,58 @@ final class Ponte {
         return tela.naTelaInicial && Atualizador.instalar(tela);
     }
 
+    /* --- tela de erro (assets/erro.html) --- */
+
+    /** A sala voltou? Responde em window.aoSondar(status HTTP), 0 se não respondeu. */
+    @JavascriptInterface
+    public void sondar(String url) {
+        if (!tela.naTelaInicial) return;
+        String sala = Links.paraSala(url);
+        new Thread(() -> {
+            int status = 0;
+            if (sala != null) {
+                try {
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                            new java.net.URL(android.net.Uri.parse(sala).buildUpon().path("/healthz").fragment(null).build().toString())
+                                    .openConnection();
+                    c.setConnectTimeout(8000);
+                    c.setReadTimeout(8000);
+                    status = c.getResponseCode();
+                    c.disconnect();
+                } catch (Exception ignorado) {
+                    // sem resposta: continua 0
+                }
+            }
+            tela.evaluar("window.aoSondar && window.aoSondar(" + status + ")");
+        }, "vcall-sondar").start();
+    }
+
+    /** Qualquer página pode pedir para voltar ao início do app (é nosso, não leva a lugar nenhum de fora). */
+    @JavascriptInterface
+    public void voltarAoInicio() {
+        tela.runOnUiThread(tela::voltarAoInicio);
+    }
+
+    /** A paleta e o tema escolhidos na sala, para a tela de erro abrir igual. */
+    @JavascriptInterface
+    public void lembrarTema(String paleta, String tema) {
+        String p = paleta == null ? "" : paleta;
+        String t = tema == null ? "" : tema;
+        if (!p.matches("[a-z-]{0,24}") || !t.matches("(dark|light)?")) return;
+        tela.getSharedPreferences("tema", android.content.Context.MODE_PRIVATE).edit()
+                .putString("paleta", p).putString("tema", t).apply();
+    }
+
+    @JavascriptInterface
+    public String tema() {
+        android.content.SharedPreferences sp = tela.getSharedPreferences("tema", android.content.Context.MODE_PRIVATE);
+        try {
+            return new JSONObject().put("paleta", sp.getString("paleta", "")).put("tema", sp.getString("tema", "")).toString();
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
     /* --- página da chamada (injetar.js) --- */
 
     @JavascriptInterface

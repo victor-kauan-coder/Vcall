@@ -148,16 +148,35 @@ async function subirServidor() {
       atualizacao: async (url) => conferir({ forcar: url.searchParams.get("forcar") === "1", atual: app.getVersion() }),
 
       "tunnel/abrir": async () => {
-        if (tunnel?.url) return { estado: "pronto", url: tunnel.url };
-        tunnel = tunnel || new Tunnel(porta);
-        return { estado: "pronto", url: await tunnel.start() };
+        if (tunnel?.url && tunnel.state === "pronto") return { estado: "pronto", url: tunnel.url };
+        return { estado: "pronto", url: await ligarTunel() };
       },
+      // Link novo sem sair da chamada: o túnel atual cai e outro sobe.
+      "tunnel/renovar": async () => ({ estado: "pronto", url: await ligarTunel() }),
       "tunnel/fechar": async () => {
         tunnel?.stop();
         return { estado: "parado", url: null };
       },
     },
   });
+
+  /*
+   * Sobe um túnel novo e confere que o link abre. Se o primeiro endereço não
+   * responder (acontece com o túnel rápido), tenta outro uma vez antes de
+   * desistir — a pessoa via um link morto e só resolvia fechando o app.
+   */
+  async function ligarTunel() {
+    for (let tentativa = 1; ; tentativa += 1) {
+      tunnel?.stop();
+      tunnel = new Tunnel(porta);
+      try {
+        return await tunnel.start();
+      } catch (err) {
+        registrar("tunel-falhou", { tentativa, erro: String(err?.message || err) });
+        if (tentativa >= 2) throw err;
+      }
+    }
+  }
 
   const server = createHttpServer({ registry, control });
   // O link público do app é o cloudflared nesta mesma máquina: o endereço
@@ -232,6 +251,14 @@ function coresDaBarra(escuro) {
     : { color: "#00000000", symbolColor: "#3c4654", height: 40 };
 }
 
+/** Código HTTP (positivo) ou de rede do Chromium (negativo) → tipo da tela de erro. */
+function tipoDoErro(codigo) {
+  if (codigo === -106) return "internet"; // ERR_INTERNET_DISCONNECTED
+  if (codigo === -7 || codigo === -118 || codigo === 504 || codigo === 524) return "demora";
+  if (codigo < 0 || codigo === 502 || codigo === 503 || codigo === 530 || (codigo >= 520 && codigo <= 527)) return "tunel";
+  return "servidor";
+}
+
 function criarJanela() {
   const escuro = nativeTheme.shouldUseDarkColors;
   win = new BrowserWindow({
@@ -263,6 +290,23 @@ function criarJanela() {
   // A página já nasce com a intro animada por cima: mostrar no primeiro
   // quadro pintado evita a janela branca/vazia antes do conteúdo.
   win.once("ready-to-show", () => win.show());
+
+  /*
+   * O link de outra pessoa não abriu (túnel fechado, sem internet): a nossa
+   * tela de erro, na paleta da pessoa, no lugar da página da Cloudflare ou da
+   * tela cinza do Chromium.
+   */
+  const mostrarErro = (url, codigo) => {
+    if (!win || !/^https?:/.test(url) || url.startsWith(baseUrl)) return;
+    const busca = new URLSearchParams({ tipo: tipoDoErro(codigo), codigo: String(codigo), url });
+    win.loadURL(`${baseUrl}/erro.html?${busca}`);
+  };
+  win.webContents.on("did-navigate", (_e, url, codigo) => {
+    if (codigo >= 500) mostrarErro(url, codigo);
+  });
+  win.webContents.on("did-fail-load", (_e, codigo, _descricao, url, principal) => {
+    if (principal && codigo !== -3) mostrarErro(url, codigo); // -3: navegação cancelada
+  });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     // A mini-janela (Document Picture-in-Picture) é aberta pela própria página,
@@ -476,6 +520,35 @@ ipcMain.on("vcall:sobreposicao-estado", (e, estado) => {
  * fala com este canal: uma sala de outra pessoa, aberta por convite, não
  * reinicia o seu Vcall.
  */
+/*
+ * A tela de erro (public/erro.html) pergunta se a sala de outra pessoa voltou
+ * antes de abrir de novo — senão ela piscaria a cada tentativa. Só a página
+ * do próprio app pode perguntar, e só por endereço https: ninguém usa o
+ * processo principal para sondar a rede local.
+ */
+ipcMain.handle("vcall:sondar", async (e, alvo) => {
+  let origem = "";
+  try {
+    origem = new URL(e.senderFrame?.url || "").origin;
+  } catch {
+    /* recusa abaixo */
+  }
+  if (origem !== baseUrl) throw new Error("origem não autorizada");
+  let url;
+  try {
+    url = new URL(String(alvo));
+  } catch {
+    return 0;
+  }
+  if (url.protocol !== "https:") return 0;
+  try {
+    const r = await fetch(url.origin + "/healthz", { cache: "no-store", signal: AbortSignal.timeout(8000) });
+    return r.status;
+  } catch {
+    return 0;
+  }
+});
+
 ipcMain.handle("vcall:atualizacao", (e, acao) => {
   let origem = "";
   try {

@@ -173,16 +173,21 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView v, String url) {
-            if (!url.startsWith(INICIO)) v.evaluateJavascript(injetar, null);
+            // Só nas páginas da sala; as do próprio APK (início, erro) não precisam.
+            if (!HOST_LOCAL.equals(Uri.parse(url).getHost())) v.evaluateJavascript(injetar, null);
+        }
+
+        /** A Cloudflare respondeu com a página de erro dela (túnel fechado: 530, 502…). */
+        @Override
+        public void onReceivedHttpError(WebView v, WebResourceRequest req, WebResourceResponse resp) {
+            if (!req.isForMainFrame() || HOST_LOCAL.equals(req.getUrl().getHost())) return;
+            if (resp.getStatusCode() >= 500) mostrarErro(req.getUrl(), resp.getStatusCode());
         }
 
         @Override
         public void onReceivedError(WebView v, WebResourceRequest req, android.webkit.WebResourceError erro) {
             if (!req.isForMainFrame() || HOST_LOCAL.equals(req.getUrl().getHost())) return;
-            // Túnel fechado, sem internet, link de ontem: volta para o início com o motivo.
-            Uri u = req.getUrl();
-            Recentes.esquecerServidor(MainActivity.this, u.getScheme() + "://" + u.getAuthority() + "/");
-            v.loadUrl(INICIO + "?erro=" + Uri.encode(String.valueOf(erro.getDescription())));
+            mostrarErro(req.getUrl(), erro.getErrorCode());
         }
 
         /** A página caiu (pouca memória, falha do motor): recria e volta para a mesma sala. */
@@ -228,6 +233,30 @@ public class MainActivity extends Activity {
         public Bitmap getDefaultVideoPoster() {
             return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         }
+    }
+
+    /**
+     * A sala não abriu: a tela de erro do Vcall (assets/erro.html, a mesma do
+     * app de mesa) no lugar da página da Cloudflare ou da tela cinza do WebView.
+     * Código HTTP positivo; erro de rede do WebView (ERROR_*) negativo.
+     */
+    private void mostrarErro(Uri sala, int codigo) {
+        String tipo;
+        if (!temInternet()) tipo = "internet";
+        else if (codigo == WebViewClient.ERROR_TIMEOUT || codigo == 504 || codigo == 524) tipo = "demora";
+        else if (codigo < 0 || codigo == 502 || codigo == 503 || codigo == 530 || (codigo >= 520 && codigo <= 527)) tipo = "tunel";
+        else tipo = "servidor";
+        // Túnel que sumiu não volta com o mesmo endereço: sai dos recentes.
+        if (tipo.equals("tunel")) Recentes.esquecerServidor(this, sala.getScheme() + "://" + sala.getAuthority() + "/");
+        web.loadUrl("https://" + HOST_LOCAL + "/erro.html?tipo=" + tipo + "&codigo=" + codigo
+                + "&url=" + Uri.encode(sala.toString()));
+    }
+
+    private boolean temInternet() {
+        android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
+        android.net.Network rede = cm == null ? null : cm.getActiveNetwork();
+        android.net.NetworkCapabilities cap = rede == null ? null : cm.getNetworkCapabilities(rede);
+        return cap != null && cap.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
     }
 
     /* ------------------------------------------------------------------ *
@@ -599,6 +628,7 @@ public class MainActivity extends Activity {
         if (caminho.endsWith(".css")) return "text/css";
         if (caminho.endsWith(".svg")) return "image/svg+xml";
         if (caminho.endsWith(".woff2")) return "font/woff2";
+        if (caminho.endsWith(".png")) return "image/png";
         return "application/octet-stream";
     }
 }

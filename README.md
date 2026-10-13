@@ -29,21 +29,23 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Windows 10/11 | `VcallSetup-3.4.0.exe` |
-| Fedora, openSUSE, RHEL | `Vcall-3.4.0-x86_64.rpm` |
-| Arch, Manjaro, EndeavourOS | `Vcall-3.4.0-x64.pacman` |
-| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.4.0-amd64.deb` |
-| Qualquer Linux | `Vcall-3.4.0-x86_64.AppImage` ou `.tar.gz` |
+| Android 8+ | `Vcall-3.8.0.apk` |
+| Windows 10/11 | `VcallSetup-3.8.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.8.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.8.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.8.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.8.0-x86_64.AppImage` ou `.tar.gz` |
 
 Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
-o que mudou em **[Novidades da 3.3](docs/wiki/Novidades-3.3.md)**.
+o que mudou na **[3.8.0](docs/release/v3.8.0.md)**.
 
 ## Recursos
 
 - Vídeo, voz e tela ponto a ponto, até 16 pessoas, sem conta e sem limite de tempo
 - Compartilhar **uma janela** ou a tela inteira, com nitidez ou fluidez
 - Canvas colaborativo infinito e anotação sobre a tela
+- **Jogos de equipe**: Planning Poker, Retrospectiva e Daily dentro da chamada
 - Chat com arquivos de até 25 MB, entregues inteiros
 - Legendas com **Whisper** no app (no seu computador) e **transcrição ao vivo** com busca e .srt
 - **Supressão de ruído por IA** e sensibilidade de entrada, como no Discord
@@ -294,8 +296,24 @@ para sempre. Todos estão tratados, com o porquê comentado no código.
 - Sincronizado pelo canal de dados P2P; o servidor só entra como plano B
 - Traço transmitido enquanto é desenhado, não só no final
 
+**Jogos de equipe** ([wiki](docs/wiki/Jogos-de-equipe.md))
+
+- Planning Poker com votos escondidos até revelar, média, mediana,
+  concordância, histórias com estimativa, CSV, cronômetro, revelação
+  automática, espectador e cinco baralhos (inclui o voto de confiança)
+- Retrospectiva em três fases (escrever às cegas, votar com 3 pontos,
+  discutir), quatro modelos, plano de ação e exportação em Markdown
+- Daily com ordem sorteada e o mesmo tempo para cada pessoa
+- Estado compartilhado em mapa LWW com relógio de Lamport: converge com
+  mensagens fora de ordem ou repetidas, e quem chega no meio recebe tudo; o
+  voto só sai do computador de quem votou na hora de revelar
+
 **Qualidade**
 
+- A câmera sobe para a resolução que a banda permite: o codificador escolhia
+  a resolução pela estimativa do começo da chamada e nunca a revisava
+- Tela parada não pisca: o vídeo segura o último quadro enquanto a trilha
+  recebida fica "muda" entre um quadro repetido e outro
 - Indicador de rede por participante, no próprio ladrilho
 - Painel com latência, perda, banda, resolução real enviada e recebida, codec,
   custo de codificação, congelamentos e rota (direta ou via TURN)
@@ -318,8 +336,9 @@ para sempre. Todos estão tratados, com o porquê comentado no código.
 - Tema claro e escuro derivados da paleta da marca, além do modo do sistema
 - Ícones SVG do [Lucide](https://lucide.dev) e avatares SVG do
   [DiceBear](https://dicebear.com) — nenhum emoji, nenhum ícone improvisado
-- Atalhos: `M` microfone · `V` câmera · `S` tela · `Q` quadro · `H` mão ·
-  `C` conversa · `P` pessoas · `L` layout · `Espaço` falar enquanto pressiona
+- Atalhos: `M` microfone · `V` câmera · `S` tela · `Q` quadro · `K` jogos ·
+  `H` mão · `C` conversa · `P` pessoas · `L` layout · `Espaço` falar enquanto
+  pressiona
 - Responsivo de verdade: em telas estreitas o essencial fica na barra e o resto
   vai para o menu "mais"
 
@@ -349,7 +368,7 @@ Ele não vê o conteúdo de nada.
 npm run check                 # estático + servidor + correções da 3.1 (segundos)
 node scripts/fixes-test.mjs   # servidor real: senha, reconexão, moderação, sala de espera…
 node scripts/e2e.mjs          # dois navegadores de verdade
-node scripts/ui-test.mjs      # 49 verificações clicando na interface
+node scripts/ui-test.mjs      # 58 verificações clicando na interface
 node scripts/proxy-test.mjs   # atrás de um túnel HTTPS
 xvfb-run -a sh -c 'openbox & node scripts/desktop-test.mjs'   # app de mesa (Linux)
 CHROMIUM_PATH=/caminho/do/chrome node scripts/e2e.mjs

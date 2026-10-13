@@ -208,7 +208,7 @@
   }
 }
 .carta--mao {
-  --w: 58px;
+  --w: 50px;
   cursor: pointer;
   color: var(--accent);
   border-color: var(--accent);
@@ -228,19 +228,27 @@
 
 /* ---- Poker ---- */
 
+/*
+ * A mesa e a lista rolam cada uma por si: com muita gente, rolar a mesa não
+ * leva junto a lista de histórias. `safe center` centraliza enquanto cabe e,
+ * quando não cabe, começa do topo (com `center` puro o título da história
+ * ficava acima da área de rolagem, inalcançável).
+ */
 .poker {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
-  min-height: 100%;
+  height: 100%;
 }
 .poker__palco {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--sp-4);
-  padding: var(--sp-4);
+  justify-content: safe center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 .poker__historia {
   align-self: stretch;
@@ -259,14 +267,14 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--sp-4);
+  gap: var(--sp-3) var(--sp-4);
   min-height: 92px;
 }
 .poker__mesa {
   display: grid;
   place-items: center;
   width: min(520px, 100%);
-  min-height: 130px;
+  min-height: 112px;
   padding: var(--sp-4);
   border-radius: 999px;
   background:
@@ -363,22 +371,23 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--sp-2);
+  gap: 6px;
   padding-top: var(--sp-3);
-  min-height: 96px;
+  min-height: 86px;
   align-items: flex-end;
 }
+/* Revelado: o gráfico e a estimativa a salvar lado a lado (cabe sem rolar). */
 .poker__resultado {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-3);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-3) var(--sp-6);
 }
 .poker__barras {
   display: flex;
   gap: var(--sp-3);
   align-items: flex-end;
-  height: 120px;
 }
 .poker__barra {
   display: flex;
@@ -386,7 +395,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  height: 100%;
 }
 .poker__barraN {
   font-size: var(--text-2xs);
@@ -414,7 +422,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  max-width: 100%;
+  max-width: min(100%, 360px);
 }
 .poker__lado {
   display: flex;
@@ -879,6 +887,13 @@
   .poker,
   .daily {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* No celular a mesa e as histórias ficam uma sobre a outra e rolam juntas. */
+  .poker {
+    height: auto;
+  }
+  .poker__palco {
+    overflow: visible;
   }
   .poker__lado,
   .daily__lista {

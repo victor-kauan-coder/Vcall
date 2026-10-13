@@ -22,12 +22,13 @@ em qualquer distribuição Linux e no navegador.
 | Mostrar uma janela ou a tela inteira | [Compartilhar a tela](Compartilhar-a-tela) |
 | Desenhar junto e mandar arquivos | [Canvas e arquivos](Canvas-e-arquivos) |
 | Ligar legendas e baixar a transcrição | [Legendas](Legendas) |
+| Planning Poker, Retrospectiva e Daily na chamada | [Jogos de equipe](Jogos-de-equipe) |
 | Jogar junto: foco na voz, volume, sobreposição | [Jogos e voz](Jogos-e-voz) |
 | Silenciar, remover, trancar a sala | [Moderação e sala de espera](Moderacao-e-sala-de-espera) |
 | Algo não funciona | [Solução de problemas](Solucao-de-problemas) |
 | Entender o que é privado | [Segurança e privacidade](Seguranca-e-privacidade) |
 | Mexer no código, rodar os testes | [Para desenvolvedores](Para-desenvolvedores) |
-| Ver o que mudou | [Novidades da 3.3](Novidades-3.3) |
+| Ver o que mudou | [Novidades da 3.8](Novidades-3.8) |
 
 ## O que o Vcall faz
 
@@ -39,6 +40,8 @@ em qualquer distribuição Linux e no navegador.
   escolhida para texto (nitidez) ou vídeo (fluidez).
 - **Canvas colaborativo infinito** com caneta, formas, notas, imagens e
   anotação por cima da tela compartilhada.
+- **Jogos de equipe**: Planning Poker, Retrospectiva e Daily com cronômetro,
+  dentro da chamada, sem outro site.
 - **Chat com arquivos** de até 25 MB, entregues inteiros e na ordem.
 - **Legendas ao vivo** da própria fala — no aplicativo, reconhecidas no seu
   computador, sem enviar áudio a ninguém.

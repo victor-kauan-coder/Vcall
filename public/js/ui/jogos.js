@@ -469,7 +469,7 @@ export class PainelJogos {
       r.distribuicao.map((d) =>
         el("div.poker__barra", { class: d.carta === r.maioria ? "is-maioria" : "" }, [
           el("span.poker__barraN", { text: `${d.n} ${d.n === 1 ? "voto" : "votos"}` }),
-          el("div.poker__barraCol", { style: { "--h": `${Math.round((d.n / maximo) * 100)}%` } }),
+          el("div.poker__barraCol", { style: { "--h": `${Math.max(4, Math.round((d.n / maximo) * 56))}px` } }),
           el("div.carta.carta--mini", {}, [el("span", { text: d.carta })]),
         ]),
       ),
@@ -481,7 +481,7 @@ export class PainelJogos {
       const opcoes = [...new Set([r.sugestao, r.maioria, ...r.distribuicao.map((d) => d.carta)].filter((c) => c && c !== "?" && c !== "☕"))];
       for (const c of opcoes) {
         chips.append(
-          el("button.btn.jogos__chip", { type: "button", class: c === r.sugestao ? "is-sugestao" : "", "aria-label": `Salvar ${c} como estimativa`, dataset: { tip: c === r.sugestao ? "Sugestão: a carta mais perto da média" : "" }, onClick: () => this.o.poker.salvarEstimativa(atual.id, c) }, [el("span", { text: c })]),
+          el("button.btn.jogos__chip", { type: "button", class: c === r.sugestao ? "is-sugestao" : "", "aria-label": `Salvar ${c} como estimativa`, dataset: c === r.sugestao ? { tip: "Sugestão: a carta mais perto da média" } : {}, onClick: () => this.o.poker.salvarEstimativa(atual.id, c) }, [el("span", { text: c })]),
         );
       }
       filhos.push(chips);

@@ -541,13 +541,24 @@ try {
     await noDock(b);
     await conectados(b, 1);
     await a.evaluate(() => window.vcall.screen.start({ withAudio: false }));
-    await espera(12_000);
+    // Olha a imagem a cada meio segundo, não só no fim: a trilha recebida de
+    // uma tela parada fica "muda" entre um quadro repetido e outro, e o
+    // ladrilho trocava a imagem pelo avatar e voltava. Uma amostra só pegava
+    // isso por sorte.
+    let viu = false;
+    let sumiu = 0;
+    for (let i = 0; i < 24; i++) {
+      await espera(500);
+      const w = await b.evaluate(() => document.querySelector('.tile[data-kind="screen"] video')?.videoWidth || 0);
+      if (w === 1280) viu = true;
+      else if (viu) sumiu += 1;
+    }
     const r = await b.evaluate(() => {
       const v = document.querySelector('.tile[data-kind="screen"] video');
       return { ...window.__tela, largura: v?.videoWidth || 0 };
     });
     check("tela parada por 12 s continua no ar (antes sumia e voltava)", r.entrou === 1 && r.saiu === 0, JSON.stringify(r));
-    check("a imagem da tela parada chega (quadros repetidos mantêm o fluxo)", r.largura === 1280, `${r.largura}px`);
+    check("a imagem da tela parada chega e não pisca (o <video> segura o último quadro)", viu && sumiu === 0 && r.largura === 1280, `${r.largura}px, sumiu ${sumiu}× em 12 s`);
 
     await a.evaluate(() => {
       window.__largura = 960;

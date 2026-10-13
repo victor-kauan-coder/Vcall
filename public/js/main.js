@@ -1072,6 +1072,7 @@ const SHORTCUTS = [
     ["Ctrl+Shift+M", "Microfone, mesmo dentro de um jogo (app, modo jogo)"],
     ["Ctrl+Shift+O", "Mostrar/esconder a sobreposição (app, modo jogo)"],
     ["Q", "Abrir e fechar o canvas"],
+    ["K", "Jogos de equipe: Planning Poker, Retrospectiva, Daily"],
     ["?", "Esta lista"],
     ["Esc", "Fechar o que estiver aberto"],
   ]],

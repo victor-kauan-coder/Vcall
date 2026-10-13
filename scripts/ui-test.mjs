@@ -397,6 +397,37 @@ try {
   /* ================================================================ *
    * 5c. Tela parada, troca de fonte e economia de banda
    * ================================================================ */
+  console.log("\nQualidade da câmera");
+  {
+    // A causa da "chamada ruim": o encoder escolhia a resolução com a
+    // estimativa de banda do começo (~300 kbps) e ficava nela a chamada
+    // inteira — 480×270 a 640×360 com banda de sobra. O monitor destrava.
+    const sala = novaSala("qualidade");
+    const a = await participante("Ana", sala);
+    await noDock(a);
+    const b = await participante("Bia", sala);
+    await noDock(b);
+    await conectados(a, 1);
+    for (const p of [a, b]) await p.evaluate(async () => { if (!window.vcall.media.camEnabled) await window.vcall.media.setCam(true); });
+    const ler = () =>
+      a.evaluate(async () => {
+        const peer = [...window.vcall.mesh.peers.values()][0];
+        let o = null;
+        (await peer.getStats()).forEach((x) => {
+          if (x.type === "outbound-rtp" && x.kind === "video" && x.mid === "1") o = { w: x.frameWidth, fps: x.framesPerSecond, lim: x.qualityLimitationReason };
+        });
+        return o;
+      });
+    let r = null;
+    for (let i = 0; i < 15 && !(r?.w >= 1152); i++) {
+      await espera(2000);
+      r = await ler();
+    }
+    check("câmera chega a 720p com banda sobrando (antes ficava presa em 360p)", r?.w >= 1152, JSON.stringify(r));
+    await a.context().close();
+    await b.context().close();
+  }
+
   console.log("\nTransmissão estável");
   {
     const sala = novaSala("estavel");

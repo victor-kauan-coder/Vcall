@@ -69,6 +69,7 @@ export class StatsMonitor extends Emitter {
 
   forget(peerId) {
     this.#prev.delete(peerId);
+    for (const k of this.#destravadoEm.keys()) if (k.startsWith(`${peerId}:`)) this.#destravadoEm.delete(k);
     this.#budget.delete(peerId);
     this.#ema.delete(peerId);
     this.#history.delete(peerId);
@@ -148,7 +149,68 @@ export class StatsMonitor extends Emitter {
     if (hist.length > HISTORY) hist.shift();
     this.#history.set(peer.id, hist);
 
+    await this.#destravar(peer, sample);
     if (this.adaptive) await this.#adapt(peer, sample, budgets, cpu);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Encoder preso no começo da chamada
+   * ---------------------------------------------------------------- */
+
+  /**
+   * A causa da imagem borrada e travando com internet boa.
+   *
+   * Toda conexão nasce com uma estimativa de banda baixa (~300 kbps). O
+   * encoder escolhe a resolução e a cadência com base nela — 480×270 a 10
+   * quadros por segundo, por exemplo — e marca a trilha como "limitada por
+   * banda". Segundos depois a estimativa sobe e o encoder passa a ter 1,2
+   * Mbps à disposição… e continua em 480×270: no Chrome, essa limitação
+   * inicial não é revista sozinha (medido: 0 mudanças de resolução em 20 s,
+   * com a meta de bitrate cheia). A chamada inteira ficava assim.
+   *
+   * Reconfigurar o encoder (trocar a preferência de degradação e voltar)
+   * desfaz a limitação: medido, 480×270 a 10 qps → 1280×720 a 20 qps em
+   * menos de 6 s. Só é feito quando o próprio navegador diz que a banda
+   * sobra (meta ≥ 75% do teto e a estimativa de envio acima dela), para não
+   * brigar com uma limitação de verdade; e no máximo a cada 15 s por trilha.
+   */
+  #destravadoEm = new Map(); // `${peer}:${papel}` -> hora
+  destravadas = 0;
+
+  async #destravar(peer, sample) {
+    for (const papel of ["cam", "screen"]) {
+      const out = sample.outbound[papel];
+      const sender = peer.tx[papel]?.sender;
+      const track = sender?.track;
+      if (!out || !track || track.readyState !== "live") continue;
+      if (out.bwShare < 0.8 || !out.targetBitrate) continue;
+      let enc;
+      try {
+        enc = sender.getParameters().encodings?.[0];
+      } catch {
+        continue;
+      }
+      if (!enc || enc.active === false || !enc.maxBitrate) continue;
+      if (out.targetBitrate < enc.maxBitrate * 0.75) continue; // a banda é que falta: não mexe
+      const disponivel = sample.transport.availableOutgoing;
+      if (disponivel != null && disponivel < out.targetBitrate) continue;
+      if ((sample.lossSmoothed ?? 0) > 2) continue;
+      const cfg = track.getSettings?.() || {};
+      const escala = enc.scaleResolutionDownBy || 1;
+      const larguraEsperada = cfg.width ? cfg.width / escala : null;
+      const qpsEsperado = Math.min(enc.maxFramerate || 30, cfg.frameRate || 30);
+      const encolhida = larguraEsperada && out.width && out.width < larguraEsperada * 0.9;
+      const lenta = out.fps != null && out.fps < qpsEsperado * 0.6;
+      if (!encolhida && !lenta) continue;
+      const chave = `${peer.id}:${papel}`;
+      const agora = performance.now();
+      if (agora - (this.#destravadoEm.get(chave) || 0) < 15_000) continue;
+      this.#destravadoEm.set(chave, agora);
+      if (await peer.reconfigurarEncoder(papel)) {
+        this.destravadas += 1;
+        this.emit("destravado", { peerId: peer.id, papel, de: `${out.width}x${out.height}@${out.fps}` });
+      }
+    }
   }
 
   /* ---------------------------------------------------------------- *

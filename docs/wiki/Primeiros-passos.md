@@ -28,6 +28,7 @@ microfone. A câmera e o microfone podem começar desligados.
 | Alto-falante | Silencia todo mundo para você | `D` |
 | Compartilhar tela | Janela ou tela inteira | `S` |
 | Lápis | Canvas colaborativo / anotar a tela | `Q` |
+| Dados | Planning Poker, Retrospectiva e Daily ([Jogos de equipe](Jogos-de-equipe)) | `K` |
 | Mão | Levantar a mão (entra na fila) | `H` |
 | Legenda | Legenda da sua fala | `T` |
 | Conversa | Chat e arquivos | `C` |

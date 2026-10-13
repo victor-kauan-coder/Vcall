@@ -385,6 +385,17 @@ a {
   top: calc(100% + 10px);
 }
 
+/* Botões no canto direito: a dica cresce para a esquerda, sem vazar da borda. */
+[data-tip-align="end"]::after {
+  left: auto;
+  right: 0;
+  translate: 0 4px;
+}
+[data-tip-align="end"]:hover::after,
+[data-tip-align="end"]:focus-visible::after {
+  translate: 0 0;
+}
+
 @media (pointer: coarse) {
   [data-tip]::after {
     display: none;

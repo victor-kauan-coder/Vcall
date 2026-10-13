@@ -177,9 +177,19 @@ class Tile {
    *
    * O que decide é a TRILHA: viva, habilitada e não silenciada pela outra
    * ponta. Fora disso, avatar.
+   *
+   * MAS NA TELA, `muted` NÃO É "DESLIGADA".
+   *
+   * Tela parada manda pouco quadro (só o repetido, ~1 por segundo), e o
+   * navegador de quem recebe marca a trilha como muda entre um quadro e
+   * outro. Tratado como câmera fechada, o ladrilho trocava a tela pelo avatar
+   * e voltava a cada 1–3 s: era a "tela que cai e volta". Na tela, o <video>
+   * segura o último quadro; quem diz que a pessoa parou é o estado anunciado
+   * por ela (o ladrilho inteiro sai), não o silêncio da trilha.
    */
   setStream(stream) {
-    const faixa = stream?.getVideoTracks?.().find((t) => t.readyState === "live" && t.enabled && !t.muted);
+    const tela = this.kind === "screen";
+    const faixa = stream?.getVideoTracks?.().find((t) => t.readyState === "live" && t.enabled && (tela || !t.muted));
 
     if (!stream || !faixa) {
       this.node.classList.remove("is-waiting");

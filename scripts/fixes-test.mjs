@@ -30,6 +30,7 @@ import { mkdtempSync, writeFileSync as gravar } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
+import { BARALHOS, Daily, EstadoJogos, Poker, Retro, daily, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
 
 let passou = 0;
 const ok = (nome) => {
@@ -573,6 +574,125 @@ server.close();
   const cheio = await rodar(curto, 1500);
   assert.equal(cheio.y.length, 3000, "os 30 s inteiros continuam funcionando");
   ok("legendas: palavras confirmadas, limpeza de alucinações e encoder curto (saída idêntica)");
+}
+
+/* ------------------------------------------------------------------ *
+ * Jogos de equipe: o estado converge, e ninguém vê o voto antes da hora
+ * ------------------------------------------------------------------ */
+{
+  // Três pessoas; as mensagens chegam fora de ordem e às vezes repetidas.
+  let semente = 7;
+  const sorte = () => ((semente = (semente * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  const ids = ["aaa", "bbb", "ccc"];
+  const nos = ids.map((id) => new EstadoJogos({ eu: id }));
+  const fila = [];
+  for (const n of nos) n.on("enviar", (lote) => nos.forEach((m) => m !== n && fila.push([m, lote])));
+  const entregar = () => {
+    while (fila.length) {
+      const [m, lote] = fila.splice(Math.floor(sorte() * fila.length), 1)[0];
+      m.aplicar(lote);
+      if (sorte() < 0.3) m.aplicar(lote);
+    }
+  };
+  const pessoas = ids.map((id) => ({ id, nome: id.toUpperCase() }));
+  const igual = () => {
+    const s0 = JSON.stringify([...nos[0].mapa].sort());
+    for (const n of nos) assert.equal(JSON.stringify([...n.mapa].sort()), s0, "os três estados são idênticos");
+  };
+
+  // Planning Poker: o voto fica em casa até alguém revelar.
+  const pk = nos.map((n) => new Poker(n, { nome: () => n.eu }));
+  pk[0].adicionarHistorias(["Login com Google", "Tela de perfil"]);
+  entregar();
+  pk[0].votar("5");
+  pk[1].votar("8");
+  pk[2].votar("5");
+  entregar();
+  for (const n of nos) {
+    const m = mesaPoker(n, { pessoas });
+    assert.ok(m.todosVotaram && m.jogadores.every((j) => j.votou && j.valor == null), "todos votaram, nenhum valor à vista");
+    assert.ok(!JSON.stringify(n.instantaneo()).includes('"8"'), "o 8 não saiu do aparelho de quem votou");
+  }
+  pk[1].revelar({ ms: 0 });
+  entregar();
+  entregar();
+  for (const [i, n] of nos.entries()) {
+    const v = mesaPoker(n, { pessoas, meuVoto: pk[i].meuVoto(), agora: Date.now() + 10 });
+    assert.ok(v.revelado);
+    assert.deepEqual(v.jogadores.map((j) => j.valor), ["5", "8", "5"]);
+    assert.deepEqual([v.resultado.media, v.resultado.mediana, v.resultado.maioria, v.resultado.concordancia], [6, 5, "5", 67]);
+  }
+  igual();
+  pk[0].salvarEstimativa(historias(nos[0])[0].id, "5");
+  entregar();
+  assert.equal(historias(nos[2])[0].estimativa, "5");
+  const seguinte = mesaPoker(nos[2], { pessoas });
+  assert.equal(seguinte.historia, historias(nos[2])[1].id, "salvar a estimativa passa para a próxima história");
+  assert.ok(!seguinte.jogadores.some((j) => j.votou), "e a votação recomeça limpa");
+
+  // Quem chega depois recebe tudo de uma vez e fica igual.
+  const novo = new EstadoJogos({ eu: "ddd" });
+  novo.aplicar(nos[1].instantaneo());
+  assert.equal(JSON.stringify([...novo.mapa].sort()), JSON.stringify([...nos[1].mapa].sort()));
+
+  // Resultado: consenso, "?" não conta, camisetas e ½.
+  assert.equal(resultado(["8", "8", "8"]).consenso, true);
+  assert.equal(resultado(["8"]).consenso, false, "uma pessoa sozinha não é consenso");
+  assert.equal(resultado(["3", "5", "?"]).validos, 2);
+  assert.equal(resultado(["M", "G", "M"], BARALHOS.camisetas).maioria, "M");
+  assert.equal(resultado(["½", "1"], BARALHOS.modificado).media, 0.8);
+
+  // Retrospectiva: notas escondidas enquanto se escreve, 3 pontos por pessoa.
+  const rt = nos.map((n) => new Retro(n, { nome: () => n.eu }));
+  rt[0].adicionarNota(0, "Pareamento ajudou muito");
+  rt[1].adicionarNota(2, "Daily mais curta");
+  entregar();
+  let vista = retro(nos[2], { pessoas });
+  assert.ok(vista.colunas.flatMap((c) => c.notas).every((n) => n.texto == null), "texto dos outros escondido na escrita");
+  assert.deepEqual(vista.escreveram.map((x) => x.notas), [1, 1, 0], "mas dá para ver quem já escreveu");
+  rt[2].fase("votar");
+  entregar();
+  entregar();
+  vista = retro(nos[2], { pessoas });
+  assert.deepEqual(vista.colunas.flatMap((c) => c.notas).map((n) => n.texto).sort(), ["Daily mais curta", "Pareamento ajudou muito"]);
+  const nota = vista.colunas[0].notas[0].id;
+  for (let k = 0; k < 3; k += 1) assert.ok(rt[2].votar(nota, +1));
+  assert.equal(rt[2].votar(nota, +1), false, "o quarto ponto é recusado");
+  entregar();
+  assert.equal(retro(nos[0]).colunas[0].notas[0].votos, 3);
+
+  // Daily: ordem sorteada e tempo de cada um, igual para todos.
+  const dl = nos.map((n) => new Daily(n));
+  dl[0].sortear(pessoas);
+  entregar();
+  const t0 = Date.now();
+  dl[1].proximo(t0);
+  entregar();
+  assert.equal(Math.round(daily(nos[2], { agora: t0 + 30_000 }).decorrido), 30);
+  // Duas pessoas apertam "Próximo" ao mesmo tempo: avança uma vez só.
+  dl[2].proximo(t0 + 100_000);
+  dl[0].proximo(t0 + 100_000);
+  entregar();
+  assert.equal(daily(nos[1], { agora: t0 + 100_000 }).i, 1, "dois cliques juntos não pulam ninguém");
+  dl[0].proximo(t0 + 160_000);
+  entregar();
+  dl[1].proximo(t0 + 200_000);
+  entregar();
+  const fim = daily(nos[2], { agora: t0 + 300_000 });
+  assert.ok(fim.fim);
+  assert.deepEqual(fim.ordem.map((o) => o.segundos), [100, 60, 40]);
+  igual();
+
+  // O que chega de fora e não presta é descartado.
+  const e = new EstadoJogos({ eu: "x" });
+  const aceitos = e.aplicar([
+    ["../etc", 1, 1, "a"],
+    ["p/h/x", "x".repeat(9999), 2, "a"],
+    ["p/atual", "ok", 1e300, "a"],
+    ["jogo", "poker", 3, "a"],
+  ]);
+  assert.deepEqual(aceitos, ["jogo"], "chave estranha, valor enorme e relógio absurdo recusados");
+  ok("jogos: Poker, Retro e Daily convergem fora de ordem; voto e nota só aparecem na hora certa");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

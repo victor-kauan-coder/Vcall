@@ -277,6 +277,28 @@ export class Peer extends Emitter {
     });
   }
 
+  /**
+   * Força o encoder de uma trilha a se reconfigurar, desfazendo a limitação
+   * de resolução/cadência que ele decidiu no começo da chamada (veja
+   * StatsMonitor.#destravar). Troca a preferência de degradação e volta.
+   */
+  async reconfigurarEncoder(papel) {
+    const sender = this.tx[papel]?.sender;
+    if (!sender?.track) return false;
+    try {
+      const p = sender.getParameters();
+      const original = p.degradationPreference || "balanced";
+      p.degradationPreference = original === "maintain-framerate" ? "balanced" : "maintain-framerate";
+      await sender.setParameters(p);
+      const q = sender.getParameters();
+      q.degradationPreference = original;
+      await sender.setParameters(q);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** A sala mudou de tamanho (mesh.js): a câmera enviada a este par acompanha. */
   async ajustarCamera(outros) {
     this.peerCount = outros;

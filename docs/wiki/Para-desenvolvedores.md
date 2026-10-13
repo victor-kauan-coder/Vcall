@@ -33,7 +33,7 @@ que dá para testar sem Electron ficam em funções puras
 | `npm run check` | Estática, canvas, arquivos, segurança, **correções 3.1** | segundos |
 | `npm run test:fixes` | Servidor real + clientes: senha, reconexão sem duplicata, moderação, sala de espera, captura, legendas, convite, Linux | segundos |
 | `npm run test:e2e` | Dois Chromium numa chamada: P2P, vídeo, tela, áudio, chat | ~40 s |
-| `npm run test:ui` | 33 verificações clicando na interface | ~2 min |
+| `npm run test:ui` | 58 verificações clicando na interface | ~3 min |
 | `npm run test:desktop` | App de mesa real: seletor de janelas, tela, legenda offline | ~1 min |
 | `npm test` | Tudo acima menos o desktop | ~4 min |
 

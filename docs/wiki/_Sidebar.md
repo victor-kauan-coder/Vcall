@@ -9,6 +9,7 @@
 - [Compartilhar a tela](Compartilhar-a-tela)
 - [Canvas e arquivos](Canvas-e-arquivos)
 - [Legendas](Legendas)
+- [Jogos de equipe (Scrum)](Jogos-de-equipe)
 - [Jogos e voz](Jogos-e-voz)
 - [Moderação e sala de espera](Moderacao-e-sala-de-espera)
 
@@ -17,6 +18,7 @@
 - [Segurança e privacidade](Seguranca-e-privacidade)
 
 **Projeto**
+- [Novidades da 3.8](Novidades-3.8)
 - [Novidades da 3.3](Novidades-3.3)
 - [Novidades da 3.1](Novidades-3.1)
 - [Para desenvolvedores](Para-desenvolvedores)

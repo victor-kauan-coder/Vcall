@@ -32,6 +32,14 @@ const ICONS = [
   // Moderação e anexos (3.1)
   "user-x",
   "user-check",
+  // Jogos de equipe
+  "spade",
+  "sticky-note",
+  "timer",
+  "party-popper",
+  "list-checks",
+  "play",
+  "skip-forward",
   "captions",
   "search",
   "lock-open",

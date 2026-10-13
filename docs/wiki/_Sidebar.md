@@ -6,6 +6,7 @@
 - [Instalação](Instalacao)
 - [Primeiros passos](Primeiros-passos)
 - [Convidar e WhatsApp](Convidar-e-WhatsApp)
+- [Tailscale](Tailscale)
 - [Compartilhar a tela](Compartilhar-a-tela)
 - [Canvas e arquivos](Canvas-e-arquivos)
 - [Legendas](Legendas)
@@ -18,6 +19,7 @@
 - [Segurança e privacidade](Seguranca-e-privacidade)
 
 **Projeto**
+- [Novidades da 3.9](Novidades-3.9)
 - [Novidades da 3.8](Novidades-3.8)
 - [Novidades da 3.3](Novidades-3.3)
 - [Novidades da 3.1](Novidades-3.1)

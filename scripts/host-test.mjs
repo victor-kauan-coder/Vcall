@@ -43,6 +43,30 @@ assert.equal(
   "x-forwarded-for idem",
 );
 
+/* -- quem veio pelo Tailscale --
+ * O `tailscale serve` também entrega de 127.0.0.1. Os cabeçalhos abaixo são os
+ * que ele põe (tailscale.com/ipn/ipnlocal/serve.go, v1.104): o Host original,
+ * X-Forwarded-* e a identidade de quem está na tailnet. */
+const doTailscale = {
+  host: "maquina.tail1234.ts.net",
+  "x-forwarded-host": "maquina.tail1234.ts.net",
+  "x-forwarded-proto": "https",
+  "x-forwarded-for": "100.101.102.103",
+  "tailscale-user-login": "ana@example.com",
+  "tailscale-user-name": "Ana",
+};
+assert.equal(isLocalRequest(req(doTailscale)), false, "quem entra pelo link do Tailscale NÃO é a própria máquina");
+assert.equal(
+  isLocalRequest(req({ host: "127.0.0.1:3000", "tailscale-user-login": "ana@example.com" })),
+  false,
+  "mesmo se o Host viesse local, a identidade do Tailscale desqualifica",
+);
+assert.equal(
+  isLocalRequest(req({ host: "127.0.0.1:3000", "x-forwarded-proto": "https" })),
+  false,
+  "x-forwarded-proto também é marca de proxy",
+);
+
 /* -- quem está fora da máquina -- */
 assert.equal(isLocalRequest(req({ host: "127.0.0.1:3000" }, "192.168.1.50")), false, "outro computador da rede não entra");
 
@@ -77,6 +101,11 @@ assert.equal(
   "vindo de proxy, some — nem confirma que o painel existe",
 );
 assert.equal((await pegar(`/__host/coisa?t=${TOKEN}`)).status, 404, "ação desconhecida");
+assert.equal(
+  (await pegar(`/__host/status?t=${TOKEN}`, { "x-forwarded-for": "100.101.102.103", "tailscale-user-login": "ana@example.com" })).status,
+  404,
+  "vindo pelo tailscale serve, com o token que fosse, o painel some",
+);
 
 server.close();
 console.log("✓ executável: painel de controle só responde à própria máquina");

@@ -11,14 +11,23 @@
  * Isso não é teoria: aconteceu, e foi pego testando com o túnel no ar.
  */
 
-/** Cabeçalhos que só existem quando alguém passou por um proxy. */
+/**
+ * Cabeçalhos que só existem quando alguém passou por um proxy: o túnel do
+ * Cloudflare e o `tailscale serve` (que, além do X-Forwarded-*, identifica a
+ * pessoa da tailnet com os Tailscale-User-*). O Host já barra os dois — eles
+ * pedem pelo próprio domínio —, mas o painel que entrega o token não pode
+ * depender de uma checagem só.
+ */
 const MARCAS_DE_PROXY = [
   "cf-connecting-ip",
   "cf-ray",
   "cf-ipcountry",
   "x-forwarded-for",
   "x-forwarded-host",
+  "x-forwarded-proto",
   "x-real-ip",
+  "tailscale-user-login",
+  "tailscale-user-name",
 ];
 
 const NOMES_LOCAIS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);

@@ -138,6 +138,8 @@ export const config = Object.freeze({
    * sozinho (o túnel dele é o cloudflared).
    */
   trustCloudflare: process.env.TRUST_CLOUDFLARE === "1",
+  /** Atrás de `tailscale serve` na mesma máquina: o IP da tailnet vem no X-Forwarded-For. */
+  trustTailscale: process.env.TRUST_TAILSCALE === "1",
 
   dev: process.env.NODE_ENV !== "production",
 });

@@ -40,6 +40,10 @@ export class HostPanel extends Emitter {
   token = capturarToken();
   estado = "parado";
   url = null;
+  /** Link pela rede Tailscale: {estado, url, habilitar, erro} e o que o app sabe dela. */
+  ts = { estado: "parado", url: null, habilitar: null, erro: null };
+  /** Resultado de "tailscale/conferir": instalado? conectado? por que não? */
+  tsConferido = null;
 
   /** Período entre batimentos; o servidor informa no aperto de mão. */
   batimentoMs = 4000;
@@ -141,8 +145,66 @@ export class HostPanel extends Emitter {
     const r = await this.#chamar("status");
     this.estado = r.estado;
     this.url = r.url;
+    if (r.tailscale) this.ts = r.tailscale;
     this.emit("status", r);
     return r;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Tailscale
+   * ---------------------------------------------------------------- */
+
+  /** O Tailscale está instalado e conectado aqui? Só olha, não muda nada. */
+  async conferirTailscale() {
+    try {
+      this.tsConferido = await this.#chamar("tailscale/conferir");
+    } catch {
+      this.tsConferido = { instalado: false, pronto: false };
+    }
+    this.emit("tailscale", this.ts);
+    return this.tsConferido;
+  }
+
+  /**
+   * Publica a sala na rede Tailscale e devolve o link. Pode esperar a pessoa
+   * ligar o HTTPS na página do Tailscale: enquanto isso o estado é
+   * "habilitar", com o endereço da página em `ts.habilitar`.
+   */
+  async abrirTailscale() {
+    this.ts = { ...this.ts, estado: "conferindo", erro: null };
+    this.emit("tailscale", this.ts);
+    const acompanhar = setInterval(() => {
+      this.#chamar("status")
+        .then((r) => {
+          if (!r.tailscale || this.ts.estado === "pronto") return;
+          if (r.tailscale.estado !== this.ts.estado || r.tailscale.habilitar !== this.ts.habilitar) {
+            this.ts = r.tailscale;
+            this.emit("tailscale", this.ts);
+          }
+        })
+        .catch(() => {});
+    }, 1500);
+    try {
+      const r = await this.#chamar("tailscale/abrir").finally(() => clearInterval(acompanhar));
+      this.ts = { estado: r.estado, url: r.url, habilitar: r.habilitar || null, erro: null };
+      this.emit("tailscale", this.ts);
+      return r.url;
+    } catch (err) {
+      this.ts = { estado: "erro", url: null, habilitar: null, erro: err.message };
+      this.emit("tailscale", this.ts);
+      throw err;
+    }
+  }
+
+  async fecharTailscale() {
+    await this.#chamar("tailscale/fechar").catch(() => {});
+    this.ts = { estado: "parado", url: null, habilitar: null, erro: null };
+    this.emit("tailscale", this.ts);
+  }
+
+  /** O endereço da sala pelo Tailscale (mesma ideia do `linkPublico`). */
+  linkTailscale(linkLocal) {
+    return this.ts.url ? trocarOrigem(linkLocal, this.ts.url) : null;
   }
 
   /**
@@ -214,7 +276,7 @@ export class HostPanel extends Emitter {
    * interface mostra os dois lado a lado.
    */
   linkDoApp(linkDaSala) {
-    const base = this.linkPublico(linkDaSala) || linkDaSala;
+    const base = this.linkPublico(linkDaSala) || this.linkTailscale(linkDaSala) || linkDaSala;
     if (!base) return null;
     return `vcall://join?u=${encodeURIComponent(base)}`;
   }
@@ -224,15 +286,19 @@ export class HostPanel extends Emitter {
    * O id da sala vive no fragmento, que o túnel não toca — só a origem muda.
    */
   linkPublico(linkLocal) {
-    if (!this.url) return null;
-    try {
-      const local = new URL(linkLocal);
-      const publico = new URL(this.url);
-      publico.pathname = local.pathname;
-      publico.hash = local.hash;
-      return publico.toString();
-    } catch {
-      return null;
-    }
+    return this.url ? trocarOrigem(linkLocal, this.url) : null;
+  }
+}
+
+/** O mesmo caminho e o mesmo fragmento (a sala), noutra origem. */
+function trocarOrigem(linkLocal, origem) {
+  try {
+    const local = new URL(linkLocal);
+    const novo = new URL(origem);
+    novo.pathname = local.pathname;
+    novo.hash = local.hash;
+    return novo.toString();
+  } catch {
+    return null;
   }
 }

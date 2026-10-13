@@ -1,0 +1,894 @@
+/* ------------------------------------------------------------------ *
+ * jogos.css — Planning Poker, Retrospectiva e Daily.
+ *
+ * Ocupa o destaque, como o quadro branco. Tudo em CSS simples: cartas que
+ * viram, barras que crescem, um anel que esvazia. Nada repinta sem motivo
+ * (sem desfoque, sem sombra animada), para não pesar junto com o vídeo.
+ * ------------------------------------------------------------------ */
+
+.jogos {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-board);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  color: var(--text);
+}
+
+.jogos__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.jogos__abas {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+}
+.jogos__aba {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+.jogos__aba:hover {
+  color: var(--text);
+}
+.jogos__aba[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.jogos__extra {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  position: relative;
+}
+.jogos__select {
+  min-height: 32px;
+  width: auto;
+  padding-block: 0;
+  font-size: var(--text-sm);
+}
+.jogos__chip {
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  font-size: var(--text-sm);
+  gap: 6px;
+}
+.jogos__chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.jogos__chip.is-acabou {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.jogos__chip.is-sugestao {
+  background: var(--brand-gradient);
+  color: #fff;
+  border-color: transparent;
+}
+.jogos__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated, var(--surface));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+.jogos__menu > button {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: var(--text-sm);
+}
+.jogos__menu > button:hover {
+  background: var(--surface-hover);
+}
+.jogos__menu--emoji {
+  flex-direction: row;
+  right: auto;
+  left: 50%;
+  translate: -50% 0;
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.jogos__menu--emoji > button {
+  font-size: 1.3rem;
+  padding: 6px;
+}
+.jogos__corpo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.jogos__titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.jogos__rotulo {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: var(--weight-semibold);
+}
+.jogos__rodape {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-2);
+}
+
+/* ---- Cartas ---- */
+
+.carta {
+  --w: 52px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--w);
+  aspect-ratio: 5 / 7;
+  border-radius: 10px;
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+  font-weight: var(--weight-bold);
+  font-size: 1.15rem;
+  color: var(--text);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    background var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+.carta--vazia {
+  border-style: dashed;
+  background: transparent;
+}
+.carta--virada {
+  border-color: transparent;
+  background:
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.14) 0 6px, transparent 6px 12px),
+    var(--brand-gradient);
+}
+.carta--revelada {
+  border-color: var(--accent);
+  animation: cartaVira 420ms var(--ease-out);
+}
+.carta--revelada.is-extremo {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-soft);
+}
+.carta.is-atingida {
+  animation: cartaTreme 400ms var(--ease-out);
+}
+@keyframes cartaVira {
+  from {
+    transform: rotateY(90deg);
+  }
+}
+@keyframes cartaTreme {
+  30% {
+    transform: rotate(-8deg) scale(1.08);
+  }
+  60% {
+    transform: rotate(6deg);
+  }
+}
+.carta--mao {
+  --w: 58px;
+  cursor: pointer;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.carta--mao:hover {
+  transform: translateY(-6px);
+}
+.carta--mao[aria-checked="true"] {
+  transform: translateY(-12px);
+  background: var(--accent);
+  color: #fff;
+}
+.carta--mini {
+  --w: 36px;
+  font-size: 0.9rem;
+}
+
+/* ---- Poker ---- */
+
+.poker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  min-height: 100%;
+}
+.poker__palco {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  min-width: 0;
+}
+.poker__historia {
+  align-self: stretch;
+  text-align: center;
+}
+.poker__historiaTxt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+.poker__historiaTxt strong {
+  font-size: var(--text-lg);
+}
+.poker__fila {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-4);
+  min-height: 92px;
+}
+.poker__mesa {
+  display: grid;
+  place-items: center;
+  width: min(520px, 100%);
+  min-height: 130px;
+  padding: var(--sp-4);
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at center, color-mix(in oklab, var(--accent) 10%, var(--surface-2)), var(--surface-2));
+  border: 2px solid color-mix(in oklab, var(--accent) 30%, var(--border));
+}
+.poker__centro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: center;
+}
+.poker__aviso {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.poker__contagem {
+  font-size: 3rem;
+  font-weight: var(--weight-bold);
+  color: var(--accent);
+  animation: contagem 1s var(--ease-out) infinite;
+}
+@keyframes contagem {
+  from {
+    transform: scale(1.4);
+    opacity: 0.4;
+  }
+}
+.poker__resumo {
+  display: flex;
+  gap: var(--sp-5);
+}
+.poker__resumo > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.poker__resumo strong {
+  font-size: var(--text-2xl);
+}
+.assento {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 92px;
+}
+.assento.is-saiu {
+  opacity: 0.5;
+}
+.assento.is-espectador .carta {
+  opacity: 0.35;
+}
+.assento__quem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  font-size: var(--text-xs);
+}
+.assento__quem .avatar,
+.assento__quem > :first-child:not(span) {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.assento__emoji {
+  position: absolute;
+  top: -6px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+.assento:hover .assento__emoji,
+.assento__emoji:focus-visible {
+  opacity: 1;
+}
+.poker__mao {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  min-height: 96px;
+  align-items: flex-end;
+}
+.poker__resultado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.poker__barras {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-end;
+  height: 120px;
+}
+.poker__barra {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+}
+.poker__barraN {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.poker__barraCol {
+  width: 10px;
+  height: var(--h);
+  min-height: 4px;
+  border-radius: 6px;
+  background: var(--border-strong);
+  animation: barraCresce 500ms var(--ease-out);
+}
+.poker__barra.is-maioria .poker__barraCol {
+  background: var(--brand-gradient);
+}
+@keyframes barraCresce {
+  from {
+    height: 0;
+  }
+}
+.poker__salvar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  max-width: 100%;
+}
+.poker__lado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-left: 1px solid var(--border);
+  min-height: 0;
+}
+.poker__historias {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  min-height: 0;
+}
+.poker__item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+}
+.poker__item.is-atual {
+  background: var(--accent-soft);
+}
+.poker__itemBtn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 8px 10px;
+  text-align: left;
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+}
+.poker__itemBtn:hover {
+  background: var(--surface-hover);
+}
+.poker__estimativa {
+  flex: none;
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: #fff;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+.poker__vazio {
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  padding: var(--sp-2);
+}
+.poker__add {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-end;
+}
+.poker__nova,
+.poker__add > .input {
+  flex: 1;
+  resize: vertical;
+  font-size: var(--text-sm);
+}
+
+/* Emoji jogado: sai de um assento e cai no outro */
+.emoji-voo {
+  position: fixed;
+  z-index: var(--z-toast);
+  font-size: 1.8rem;
+  pointer-events: none;
+  translate: -50% -50%;
+  animation: emojiVoa 900ms var(--ease-in-out) forwards;
+}
+@keyframes emojiVoa {
+  45% {
+    transform: translate(calc(var(--dx) / 2), calc(var(--dy) / 2 - 60px)) scale(1.3) rotate(-20deg);
+  }
+  to {
+    transform: translate(var(--dx), var(--dy)) scale(0.8) rotate(20deg);
+    opacity: 0.2;
+  }
+}
+
+/* Confete do consenso */
+.confete {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.confete > i {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  animation: confeteCai 1.8s var(--ease-out) var(--atraso) forwards;
+}
+@keyframes confeteCai {
+  to {
+    transform: translate(var(--x), 110vh) rotate(var(--giro));
+  }
+}
+
+/* ---- Retrospectiva ---- */
+
+.retro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  min-height: 100%;
+}
+.retro__fases {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+}
+.retro__fase {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.retro__fase b {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--border);
+  font-size: var(--text-2xs);
+}
+.retro__fase[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.retro__fase[aria-selected="true"] b,
+.retro__fase.is-feita b {
+  background: var(--accent);
+  color: #fff;
+}
+.retro__pontos {
+  font-size: var(--text-sm);
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+.retro__quem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.retro__pessoa {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  font-size: var(--text-xs);
+}
+.retro__pessoa b {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--border);
+  text-align: center;
+}
+.retro__pessoa.is-escreveu b {
+  background: var(--accent);
+  color: #fff;
+}
+.retro__colunas {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: var(--sp-3);
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+}
+.coluna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  min-height: 220px;
+}
+.coluna__titulo {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.coluna__notas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+}
+.coluna__add {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-end;
+}
+.coluna__txt {
+  flex: 1;
+  resize: vertical;
+  font-size: var(--text-sm);
+}
+.nota {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand-orange);
+  animation: notaEntra 220ms var(--ease-out);
+}
+.coluna[data-col="0"] .nota {
+  border-left-color: var(--ok);
+}
+.coluna[data-col="1"] .nota {
+  border-left-color: var(--warn);
+}
+.coluna[data-col="2"] .nota {
+  border-left-color: var(--accent-2);
+}
+.coluna[data-col="3"] .nota {
+  border-left-color: var(--brand-pink);
+}
+.nota.is-minha {
+  background: color-mix(in oklab, var(--accent) 5%, var(--surface));
+}
+@keyframes notaEntra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.nota__texto {
+  margin: 0;
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.nota__texto.is-oculta {
+  color: transparent;
+  text-shadow: 0 0 8px color-mix(in oklab, var(--text) 40%, transparent);
+  user-select: none;
+}
+.nota__pe {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+  min-height: 24px;
+}
+.nota__pe > .jogos__rotulo {
+  margin-right: auto;
+}
+.nota__votos {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.nota__meus {
+  min-width: 34px;
+  text-align: center;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+.nota__total {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+.retro__plano {
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+.retro__acoes {
+  list-style: none;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.retro__acao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.retro__acao label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-sm);
+}
+.retro__acao.is-feita span {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* ---- Daily ---- */
+
+.daily {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100%;
+}
+.daily__lista {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-right: 1px solid var(--border);
+}
+.daily__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+.daily__item.is-atual {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+.daily__item.is-feito {
+  color: var(--text-muted);
+}
+.daily__n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: var(--text-2xs);
+}
+.daily__item.is-feito .daily__n {
+  background: var(--ok);
+  color: #fff;
+}
+.daily__seg {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+}
+.daily__seg.is-estourou {
+  color: var(--danger);
+}
+.daily__palco {
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+}
+.daily__vazio,
+.daily__fala {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+  max-width: 420px;
+}
+.daily__vazio p {
+  margin: 0;
+  color: var(--text-muted);
+}
+.daily__fala h3 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+.daily__anel {
+  --p: 1;
+  --cor: var(--accent);
+  display: grid;
+  place-items: center;
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  background: conic-gradient(var(--cor) calc(var(--p) * 360deg), var(--surface-2) 0);
+  transition: background 250ms linear;
+}
+.daily__anel > * {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 6px solid var(--surface);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.daily__anel.is-acabando {
+  --cor: var(--warn);
+}
+.daily__anel.is-estourou {
+  --cor: var(--danger);
+  background: var(--danger);
+  animation: anelPulsa 1s ease-in-out infinite;
+}
+@keyframes anelPulsa {
+  50% {
+    box-shadow: 0 0 0 10px var(--danger-soft);
+  }
+}
+.daily__inicial {
+  display: grid !important;
+  place-items: center;
+  font-size: 3rem;
+  font-weight: var(--weight-bold);
+}
+.daily__tempo {
+  font-size: 2.6rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.daily__anel.is-estourou + h3 + .daily__tempo {
+  color: var(--danger);
+  font-size: 1.6rem;
+}
+
+/* ---- Telas estreitas ---- */
+
+@media (max-width: 760px) {
+  .poker,
+  .daily {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .poker__lado,
+  .daily__lista {
+    border-left: 0;
+    border-right: 0;
+    border-top: 1px solid var(--border);
+  }
+  .daily__lista {
+    order: 2;
+  }
+  .carta--mao {
+    --w: 46px;
+  }
+  .jogos__aba span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carta,
+  .carta--revelada,
+  .poker__contagem,
+  .poker__barraCol,
+  .nota,
+  .emoji-voo,
+  .daily__anel {
+    animation: none !important;
+    transition: none !important;
+  }
+}

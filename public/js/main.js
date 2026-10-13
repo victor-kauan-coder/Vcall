@@ -40,6 +40,8 @@ import { linkAbrir, linkWhatsApp } from "./lib/invite.js";
 import { installMotion, magnifyDock, playIntro, signal, swap, stagger } from "./ui/motion.js";
 import { MiniCall } from "./ui/minicall.js";
 import { watchHandsFree } from "./ui/handsfree.js";
+import { Daily, EstadoJogos, JOGOS, Poker, Retro } from "./features/jogos.js";
+import { PainelJogos } from "./ui/jogos.js";
 
 // Antes de qualquer tela ser montada: é ele que anima o que aparece.
 installMotion();
@@ -858,6 +860,13 @@ function buildDock() {
     shortcut: "Q",
     onClick: () => openBoardMenu(),
   });
+  dock.add(g2, {
+    id: "jogos",
+    icon: "dices",
+    label: "Jogos de equipe",
+    shortcut: "K",
+    onClick: () => abrirMenuJogos(),
+  });
 
   const g3 = dock.group();
   dock.add(g3, {
@@ -1000,6 +1009,7 @@ function openMoreMenu() {
     item("hand", app.hand ? "Baixar a mão" : "Levantar a mão", toggleHand, app.hand);
     item("eye", "Foco na voz · G", () => setFocoVoz(!app.focoVoz), !!app.focoVoz);
     item("captions", "Transcrição ao vivo", () => panel.setOpen(true, "transcript"));
+    item("dices", jogos?.aberto ? "Fechar os jogos · K" : "Jogos de equipe · K", () => (jogos?.aberto ? fecharJogos() : abrirJogos()), !!jogos?.aberto);
     if (window.vcallDesktop?.modoJogo) item("zap", "Modo jogo (sobreposição)", () => setModoJogo(!app.modoJogo), !!app.modoJogo);
     item("smile", "Reagir", () => {
       // Reabre como menu de reações, ancorado no mesmo botão.
@@ -1667,6 +1677,126 @@ function buildBoard() {
   });
 }
 
+/* ================================================================== *
+ * Jogos de equipe: Planning Poker, Retrospectiva e Daily
+ * ================================================================== */
+
+/*
+ * O estado dos jogos vive desde o começo da chamada, mesmo com a mesa
+ * fechada: assim quem abre depois já encontra os votos, as notas e a ordem
+ * da daily de todo mundo. Ele vai e vem pelo canal do quadro (features/jogos.js).
+ */
+const jogosEstado = new EstadoJogos({ eu: "?" });
+const jogosPoker = new Poker(jogosEstado, { nome: () => app.profile?.name || "" });
+const jogosRetro = new Retro(jogosEstado, { nome: () => app.profile?.name || "" });
+const jogosDaily = new Daily(jogosEstado);
+let jogos = null;
+
+function pessoasDosJogos() {
+  return mesh.roster().map((p) => ({ id: p.id, nome: p.name || "Convidado", avatar: p.avatar, eu: !!p.self }));
+}
+
+function baixarTexto(texto, nome, tipo = "text/plain") {
+  const url = URL.createObjectURL(new Blob([texto], { type: `${tipo};charset=utf-8` }));
+  const a = el("a", { href: url, download: nome });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function wireJogos() {
+  const definirEu = () => {
+    if (mesh.selfId) jogosEstado.eu = mesh.selfId;
+  };
+  mesh.on("joined", definirEu);
+  definirEu();
+  jogos = new PainelJogos({
+    estado: jogosEstado,
+    poker: jogosPoker,
+    retro: jogosRetro,
+    daily: jogosDaily,
+    pessoas: pessoasDosJogos,
+    aoEmoji: (para, e) => {
+      mesh.broadcastBoard({ type: "jogo-emoji", para, e }, { fallback: false });
+      jogos.voarEmoji(mesh.selfId, para, e);
+    },
+    aoFechar: () => fecharJogos(),
+    baixar: baixarTexto,
+    copiar: (texto, aviso) => copy(texto, aviso),
+    avisar: (texto, tom = "info") => toast(texto, { tone: tom, ms: 2600, key: "jogos" }),
+  });
+  // Cada jogada sai para todos; com o canal direto fechado, pelo servidor.
+  jogosEstado.on("enviar", (lote) => mesh.broadcastBoard({ type: "jogo", o: lote }));
+  jogosEstado.on("mudou", (chaves) => {
+    if (chaves.includes("jogo")) avisarJogo();
+  });
+  // Quem chega (ou volta) recebe tudo, em pedaços que cabem no canal.
+  mesh.on("board-channel", ({ id }) => {
+    if (jogosEstado.vazio) return;
+    const tudo = jogosEstado.instantaneo();
+    for (let i = 0; i < tudo.length; i += 300) mesh.peers.get(id)?.sendBoard({ type: "jogo", o: tudo.slice(i, i + 300) });
+  });
+  mesh.on("roster", () => jogos?.atualizar());
+}
+
+/** Alguém abriu um jogo: um aviso com "Participar" — ninguém é arrastado. */
+function avisarJogo() {
+  const qual = jogosEstado.ler("jogo");
+  const autor = jogosEstado.mapa.get("jogo")?.a;
+  if (!qual || !JOGOS[qual] || autor === mesh.selfId || jogos?.aberto) return;
+  const nome = mesh.profiles.get(autor)?.name || "Alguém";
+  dock?.update("jogos", { badge: 1 });
+  toast(`${nome} abriu ${JOGOS[qual].nome === "Daily" ? "a Daily" : JOGOS[qual].nome === "Retrospectiva" ? "a Retrospectiva" : "o " + JOGOS[qual].nome}`, {
+    tone: "info",
+    ms: 9000,
+    key: "jogo-aberto",
+    action: { label: "Participar", onClick: () => abrirJogos(qual) },
+  });
+}
+
+function abrirJogos(jogo = jogosEstado.ler("jogo") || jogos?.jogo || "poker") {
+  if (!jogos) return;
+  closeBoard();
+  if (!jogos.aberto) {
+    stage.setBoard(true);
+    jogos.montar($("#spotlight"), jogo);
+  } else {
+    jogos.mostrar(jogo);
+  }
+  dock.update("jogos", { active: true, badge: 0, label: "Fechar os jogos" });
+  // Avisa a sala (uma chave só; quem já está no mesmo jogo não é avisado de novo).
+  if (jogosEstado.ler("jogo") !== jogo) jogosEstado.definir([["jogo", jogo]]);
+}
+
+function fecharJogos() {
+  if (!jogos?.aberto) return;
+  jogos.desmontar();
+  stage?.setBoard(false);
+  dock?.update("jogos", { active: false, label: "Jogos de equipe" });
+}
+
+function abrirMenuJogos() {
+  if (jogos?.aberto) {
+    fecharJogos();
+    return;
+  }
+  dock.openPopover("jogos", (pop, close) => {
+    pop.append(el("div.popover__label", { text: "Jogos de equipe" }));
+    const atual = jogosEstado.ler("jogo");
+    for (const [id, j] of Object.entries(JOGOS)) {
+      pop.append(
+        Dock.item({
+          iconName: j.icone,
+          label: atual === id ? `${j.nome} · em andamento` : j.nome,
+          checked: atual === id,
+          onClick: () => (close(), abrirJogos(id)),
+        }),
+      );
+    }
+  });
+}
+
 function openBoardMenu() {
   dock.openPopover("board", (pop, close) => {
     pop.append(
@@ -1713,6 +1843,7 @@ function openBoardMenu() {
 
 function openBoard(mode) {
   closeBoard();
+  fecharJogos();
   app.boardMode = mode;
   boardNotice.seen();
 
@@ -2080,6 +2211,7 @@ function wireMesh() {
   wireModeration();
   wireModoJogo();
   wireEconomia();
+  wireJogos();
 
   /**
    * As trilhas recebidas e o estado anunciado chegam em ordens diferentes, e o
@@ -2263,6 +2395,14 @@ function wireMesh() {
      */
     if (transfer.apply(from, op)) return;
     if (op?.type === "link-novo") return avisarLinkNovo(from, op.url);
+    if (op?.type === "jogo") {
+      jogosEstado.aplicar(op.o);
+      return;
+    }
+    if (op?.type === "jogo-emoji") {
+      jogos?.voarEmoji(from, String(op.para || ""), String(op.e || ""));
+      return;
+    }
     if (op?.type === "caption") {
       const profile = mesh.profiles.get(from) || {};
       captions.show(from, {
@@ -3242,6 +3382,9 @@ function bindShortcuts() {
         break;
       case "q":
         app.boardMode ? closeBoard() : openBoard(screen.active ? "annotate" : "board");
+        break;
+      case "k":
+        jogos?.aberto ? fecharJogos() : abrirJogos();
         break;
       case "d":
         toggleDeafen();

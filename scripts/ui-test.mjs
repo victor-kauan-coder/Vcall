@@ -552,8 +552,15 @@ try {
     check("na rede, criar oferece 'Na minha rede', já marcada", opcoes.includes("Na minha rede:true"), opcoes.join(" · "));
     await pg.fill("dialog[open] input[type=text]", "Do time");
     await pg.click("text=Criar e entrar");
-    await pg.waitForSelector("#joinBtn", { timeout: 10_000 });
-    await pg.fill("#nameInput", "Bia");
+    // A antessala entra com uma transição e, ao montar, preenche o nome com o
+    // guardado: um nome digitado antes disso se perde. Escreve de novo até o
+    // botão acender.
+    await pg.waitForSelector("#lobby:not([hidden]) #joinBtn", { timeout: 10_000 });
+    for (let i = 0; i < 20; i++) {
+      await pg.fill("#nameInput", "Bia");
+      if (await pg.evaluate(() => !document.querySelector("#joinBtn").disabled)) break;
+      await espera(250);
+    }
     await pg.click("#joinBtn");
     await noDock(pg);
     const outra = await (await browser.newContext()).newPage();
@@ -578,7 +585,7 @@ try {
     check("?criar=1 abre o Criar nova call (em vez da antessala de convidado)", dialogo);
     await c.fill("dialog[open] input[type=text]", "Do celular");
     await c.click("text=Criar e entrar");
-    await c.waitForSelector("#joinBtn", { timeout: 10_000 });
+    await c.waitForSelector("#lobby:not([hidden]) #joinBtn", { timeout: 10_000 });
     check("a chamada criada usa o id que veio do outro computador", (await c.evaluate(() => location.hash)) === `#${ID_NOVA}`);
     await c.goto(`${BASE}/`, { waitUntil: "networkidle" });
     await c.waitForSelector(".dashPc");

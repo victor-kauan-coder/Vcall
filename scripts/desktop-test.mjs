@@ -17,8 +17,8 @@
  *
  *   xvfb-run -a sh -c 'openbox & node scripts/desktop-test.mjs'
  */
-import { execFileSync } from "node:child_process";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -390,6 +390,41 @@ try {
 } finally {
   await browser?.close().catch(() => {});
   await app.close().catch(() => {});
+}
+
+/*
+ * Sessão Wayland com XWayland, como no Fedora/Ubuntu GNOME, abrindo como o
+ * AppImage abre: um processo pai que espera o app e desmonta a pasta quando
+ * ele sai. Antes o app saía para se reabrir com --ozone-platform=x11, a pasta
+ * sumia e a cópia nova não subia. Agora o mesmo processo (mesmo PID) vira o
+ * novo, com a opção, e abre a janela.
+ */
+if (process.platform === "linux" && process.env.DISPLAY) {
+  console.log("\nLinux: sessão Wayland, aberto como AppImage");
+  const perfil = mkdtempSync(path.join(os.tmpdir(), "vcall-wayland-"));
+  const binario = path.join(root, "node_modules", "electron", "dist", "electron");
+  const env = { ...process.env, XDG_SESSION_TYPE: "wayland", XDG_CONFIG_HOME: perfil, APPIMAGE: "/tmp/Vcall-teste.AppImage", APPDIR: root };
+  delete env.WAYLAND_DISPLAY;
+  const filho = spawn(binario, ["--no-sandbox", "desktop/main.js"], { cwd: root, env, stdio: "ignore" });
+  let saiu = false;
+  filho.on("exit", () => (saiu = true));
+  await espera(9000);
+  let linha = "";
+  try {
+    linha = readFileSync(`/proc/${filho.pid}/cmdline`, "utf8").split("\0").join(" ");
+  } catch {
+    /* já saiu */
+  }
+  let tipos = "";
+  try {
+    tipos = execFileSync("ps", ["-eo", "args"]).toString().split("\n").filter((l) => l.startsWith(binario)).join("\n");
+  } catch {
+    /* sem ps */
+  }
+  check("o processo não sai para se reabrir (a pasta do AppImage continua montada)", !saiu);
+  check("o mesmo processo segue pelo XWayland (--ozone-platform=x11)", linha.includes("--ozone-platform=x11"), linha.slice(0, 120));
+  check("e abre a janela (renderizador no ar)", tipos.includes("--type=renderer"));
+  filho.kill();
 }
 
 const falhas = resultados.filter((r) => !r.ok).length;

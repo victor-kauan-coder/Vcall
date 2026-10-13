@@ -61,6 +61,17 @@ async function participante(nome, sala, { antes = null, viewport = { width: 1280
   return page;
 }
 const noDock = (p) => p.waitForSelector("#dock:not([hidden])", { timeout: 15_000 });
+/** Abre um jogo pelo menu de jogos (K, e o cartão do jogo). */
+const irPara = async (p, jogo) => {
+  if (await p.evaluate(() => !document.querySelector(".jogos"))) await p.keyboard.press("k");
+  await p.waitForSelector(".jogos");
+  if (await p.evaluate(() => !!document.querySelector(".jogos__voltar:not([hidden])"))) await p.click(".jogos__voltar");
+  await p.click(`.hub__jogo[data-id="${jogo}"]`);
+};
+const sim = (promessa) => promessa.then(
+  () => true,
+  () => false,
+);
 const conectados = (p, n) =>
   p.waitForFunction(
     (n) => [...window.vcall.mesh.peers.values()].filter((x) => x.connectionState === "connected").length === n,
@@ -428,7 +439,7 @@ try {
     await b.context().close();
   }
 
-  console.log("\nJogos de equipe");
+  console.log("\nJogos de equipe (pelo menu de jogos)");
   {
     const sala = novaSala("jogos");
     const a = await participante("Ana", sala);
@@ -438,7 +449,11 @@ try {
     await conectados(a, 1);
     await espera(800);
     await a.keyboard.press("k");
-    await a.waitForSelector(".jogos");
+    await a.waitForSelector(".hub");
+    const noMenu = await a.evaluate(() => ({ jogos: document.querySelectorAll(".hub__jogo").length, prateleiras: [...document.querySelectorAll(".hub__prateleira h3")].map((h) => h.textContent) }));
+    check("K abre o menu de jogos, com as prateleiras", noMenu.jogos >= 16 && noMenu.prateleiras.includes("Festa") && noMenu.prateleiras.includes("Equipe ágil"), `${noMenu.jogos} jogos · ${noMenu.prateleiras.join(", ")}`);
+    await a.click('.hub__jogo[data-id="poker"]');
+    await a.waitForSelector(".poker");
     const aviso = await b
       .waitForFunction(() => [...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("abriu o Planning Poker")), null, { timeout: 5000 })
       .then(() => true, () => false);
@@ -464,8 +479,8 @@ try {
     check("salvar a estimativa grava na história e passa para a próxima", await b.evaluate(() => document.querySelector(".poker__item.is-atual")?.textContent.includes("Tela de perfil")));
 
     // Retrospectiva: o texto dos outros fica escondido até a votação.
-    await a.click('.jogos__aba[aria-label="Retrospectiva"]');
-    await b.click('.jogos__aba[aria-label="Retrospectiva"]');
+    await irPara(a, "retro");
+    await irPara(b, "retro");
     await b.fill('.coluna[data-col="1"] textarea', "Reuniões longas demais");
     await b.press('.coluna[data-col="1"] textarea', "Enter");
     await a.waitForFunction(() => document.querySelectorAll(".nota").length === 1, null, { timeout: 5000 });
@@ -485,10 +500,9 @@ try {
     check("quem entra depois recebe o jogo em andamento", recebeu);
 
     // Daily: a mesma ordem para todo mundo.
-    await a.click('.jogos__aba[aria-label="Daily"]');
+    await irPara(a, "daily");
     await a.click(".daily__vazio >> text=Sortear ordem");
-    await c.keyboard.press("k");
-    await c.click('.jogos__aba[aria-label="Daily"]');
+    await irPara(c, "daily");
     const ordem = (p) => p.evaluate(() => [...document.querySelectorAll(".daily__item")].map((x) => x.textContent.replace(/\d+:\d+$/, "")).join("|"));
     await c.waitForFunction(() => document.querySelectorAll(".daily__item").length === 3, null, { timeout: 5000 });
     check("Daily: ordem sorteada igual para todos", (await ordem(a)) === (await ordem(c)), await ordem(c));
@@ -498,10 +512,207 @@ try {
     const m = await participante("Duda", novaSala("jogos-cel"), { viewport: { width: 390, height: 820 } });
     await noDock(m);
     await m.keyboard.press("k");
-    await m.waitForSelector(".jogos");
+    await m.waitForSelector(".jogos .hub");
     const largura = await m.evaluate(() => document.querySelector(".jogos").getBoundingClientRect().width);
     check("no celular, sozinho, os jogos ocupam a tela (antes 0 px)", largura > 300, `${Math.round(largura)} px`);
     await m.context().close();
+  }
+
+  console.log("\nJogos de festa e de tabuleiro");
+  {
+    const sala = novaSala("festa");
+    const a = await participante("Ana", sala);
+    await noDock(a);
+    const b = await participante("Bia", sala);
+    await noDock(b);
+    const c = await participante("Caio", sala);
+    await noDock(c);
+    await conectados(a, 2);
+    await conectados(c, 2);
+    await espera(800);
+    const todos = [a, b, c];
+    const ids = await Promise.all(todos.map((p) => p.evaluate(() => window.vcall.mesh.selfId)));
+
+    // Desenha e Adivinha
+    for (const p of todos) await irPara(p, "desenho");
+    await a.click(".jg-abertura__acoes .btn--primary");
+    await a.waitForFunction(() => window.vcall.jogos.desenho.r?.fase === "escolhendo", null, { timeout: 5000 });
+    const dz = todos[ids.indexOf(await a.evaluate(() => window.vcall.jogos.desenho.r.de))];
+    const adivinham = todos.filter((p) => p !== dz);
+    await dz.waitForSelector(".desenho__escolha input");
+    await dz.fill(".desenho__escolha input", "guarda-chuva");
+    await dz.press(".desenho__escolha input", "Enter");
+    await adivinham[0].waitForFunction(() => window.vcall.jogos.desenho.fase() === "jogando", null, { timeout: 5000 });
+    const vazou = await adivinham[0].evaluate(() => JSON.stringify(window.vcall.jogosEstado.instantaneo()).toLowerCase().includes("chuva"));
+    check("Desenho: a palavra não sai do computador de quem desenha", !vazou);
+    const tela = await dz.locator(".desenho__tela").boundingBox();
+    await dz.mouse.move(tela.x + 60, tela.y + 60);
+    await dz.mouse.down();
+    await dz.mouse.move(tela.x + 260, tela.y + 180, { steps: 10 });
+    await dz.mouse.up();
+    const traco = await sim(adivinham[1].waitForFunction(() => window.vcall.jogos.desenho.tracos.size === 1 && [...window.vcall.jogos.desenho.tracos.values()][0].p.length >= 8, null, { timeout: 5000 }));
+    check("Desenho: o traço chega aos outros pelo canal direto", traco);
+    await adivinham[0].fill(".desenho__palpite", "guarda chuvo");
+    await adivinham[0].press(".desenho__palpite", "Enter");
+    const quase = await sim(adivinham[0].waitForSelector(".desenho__conversa .is-quase", { timeout: 4000 }));
+    check("Desenho: quem chega perto vê 'está quase'", quase);
+    await adivinham[0].fill(".desenho__palpite", "Guarda Chuva");
+    await adivinham[0].press(".desenho__palpite", "Enter");
+    const acerto = await sim(adivinham[1].waitForSelector(".desenho__conversa .is-acertou", { timeout: 4000 }));
+    const semPalavra = !(await adivinham[1].evaluate(() => document.querySelector(".desenho__conversa").textContent.toLowerCase().includes("chuva")));
+    check("Desenho: o acerto aparece para todos, sem revelar a palavra", acerto && semPalavra);
+    const d = await participante("Duda", sala);
+    await noDock(d);
+    await conectados(d, 3);
+    const recebeu = await sim(d.waitForFunction(() => window.vcall.jogos.desenho.tracos.size === 1, null, { timeout: 8000 }));
+    check("Desenho: quem entra no meio recebe o desenho até ali", recebeu);
+    await d.context().close();
+    await espera(500);
+
+    // Stop
+    for (const p of todos) await irPara(p, "stop");
+    await b.click(".jg-abertura__acoes .btn--primary");
+    await a.waitForSelector(".stop__grade input");
+    const letra = await a.evaluate(() => window.vcall.jogos.stop.r.letra);
+    const campos = a.locator(".stop__grade input");
+    const n = await campos.count();
+    for (let i = 0; i < n; i += 1) await campos.nth(i).fill(`${letra}abc${i}`);
+    await b.waitForSelector(".stop__grade input");
+    await b.locator(".stop__grade input").first().fill(`${letra}abc0`);
+    await c.waitForSelector(".stop__grade input");
+    await c.locator(".stop__grade input").nth(1).fill(`${letra}xyz`);
+    const antes = await c.evaluate(() => [...window.vcall.jogosEstado.com("st/a/")].length);
+    check("Stop: ninguém vê as respostas dos outros antes do STOP", antes === 0);
+    await a.click(".stop__botao");
+    const tabela = await sim(c.waitForFunction(() => document.querySelectorAll(".stop__tabela tbody tr").length === 3, null, { timeout: 6000 }));
+    check("Stop: o STOP para todo mundo e as respostas aparecem", tabela);
+    for (const p of [b, c]) await p.locator(".stop__tabela button.stop__celula").filter({ hasText: `${letra}abc1` }).first().click();
+    const anulada = await sim(a.waitForFunction((t) => [...document.querySelectorAll(".stop__tabela td.is-invalida")].some((td) => td.textContent.includes(t)), `${letra}abc1`, { timeout: 5000 }));
+    check("Stop: a maioria anula uma resposta inventada", anulada);
+
+    // Roda de perguntas: votos escondidos até todo mundo votar
+    for (const p of todos) await irPara(p, "roda");
+    await a.click(".jg-abertura__acoes .btn--primary");
+    for (const p of todos) await p.waitForSelector(".roda__lado");
+    await a.click(".roda__lado--a");
+    await b.click(".roda__lado--b");
+    await espera(400);
+    const escondido = await c.evaluate(() => [...window.vcall.jogosEstado.com("rp/val/")].length === 0);
+    await c.click(".roda__lado--a");
+    const revelou = await sim(a.waitForSelector(".roda__pct", { timeout: 6000 }));
+    check("Roda: votos escondidos até todos votarem, e revela sozinha", escondido && revelou);
+
+    // Quiz
+    for (const p of todos) await irPara(p, "quiz");
+    await a.click(".jg-abertura__acoes .btn--primary");
+    for (const p of todos) await p.waitForSelector(".quiz__opcao", { timeout: 9000 });
+    const certa = await a.evaluate(() => window.vcall.jogos.quiz.pergunta().certa);
+    await a.locator(".quiz__opcao").nth(certa).click();
+    await b.locator(".quiz__opcao").nth((certa + 1) % 4).click();
+    await c.locator(".quiz__opcao").nth(certa).click();
+    const certaVisivel = await sim(b.waitForSelector(".quiz__opcao.is-certa", { timeout: 5000 }));
+    const placarQuiz = await b.evaluate(() => [...document.querySelectorAll(".quiz__lado .jg-placar__item")].map((x) => x.textContent.replace(/\s+/g, " ")));
+    check("Quiz: todos responderam, a certa aparece e o placar soma", certaVisivel && placarQuiz.length === 3, placarQuiz.join(" | "));
+
+    // Velha contra o computador
+    await irPara(a, "velha");
+    await a.click('button:has-text("Jogar contra o computador")');
+    await a.locator(".velha__casa").nth(4).click();
+    const respondeu = await sim(a.waitForFunction(() => [...window.vcall.jogos.velha.partida().t].filter((x) => x !== " ").length === 2, null, { timeout: 4000 }));
+    check("Velha: o computador responde a jogada", respondeu);
+
+    // Roleta: o mesmo resultado para todo mundo
+    for (const p of todos) await irPara(p, "sorteios");
+    await b.click('button:has-text("Girar")');
+    await espera(5200);
+    const sorteados = await Promise.all(todos.map((p) => p.evaluate(() => document.querySelector(".roleta__vencedor strong")?.textContent || "")));
+    check("Roleta: o mesmo sorteado na tela de todos", !!sorteados[0] && sorteados.every((x) => x === sorteados[0]), sorteados.join(", "));
+    for (const p of todos) await p.context().close();
+  }
+
+  console.log("\nReações e sinais");
+  {
+    const sala = novaSala("reacoes");
+    const a = await participante("Ana", sala);
+    await noDock(a);
+    const b = await participante("Bia", sala);
+    await noDock(b);
+    const c = await participante("Caio", sala);
+    await noDock(c);
+    await conectados(a, 2);
+    await conectados(c, 2);
+    await espera(1000);
+
+    // Combo: cinco cliques rápidos viram ×5 nos dois lados, em poucas mensagens.
+    await b.evaluate(() => {
+      window.__combos = [];
+      new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => n.classList?.contains("reacaoCombo") && window.__combos.push(n.textContent)))).observe(document.body, { subtree: true, childList: true });
+    });
+    await a.keyboard.press("r");
+    await a.waitForSelector(".popover--reactions .reagirBotao");
+    const botoes = await a.locator(".reagirBotao").count();
+    check("o menu de reagir tem a grade de reações e os sinais", botoes >= 18 && (await a.locator(".reagirSinal").count()) >= 7, `${botoes} reações`);
+    for (let i = 0; i < 5; i += 1) await a.click('.reagirBotao[aria-label="Amei"]');
+    await b.waitForFunction(() => window.__combos.includes("×5"), null, { timeout: 4000 }).catch(() => {});
+    const combos = await b.evaluate(() => window.__combos);
+    check("cinco cliques chegam como ×5 do outro lado (antes ×2)", combos.includes("×5"), combos.join(" "));
+    const selo = await b.evaluate(() => !!document.querySelector(".tile .tile__reacao.is-on"));
+    check("a reação marca o quadrinho de quem reagiu", selo);
+
+    // Chuva: a mesma reação de três pessoas.
+    await espera(1600);
+    for (const p of [a, b, c]) {
+      await p.keyboard.press("Escape");
+      await p.keyboard.press("r");
+      await p.click('.reagirBotao[aria-label="Festa"]');
+    }
+    await espera(700);
+    const noAr = await a.evaluate(() => document.querySelectorAll(".reacaoVoo").length);
+    check("três pessoas com a mesma reação fazem chover na chamada", noAr >= 15, `${noAr} no ar`);
+
+    // Teclado: com o menu aberto, 1 a 9 reagem direto.
+    await espera(2500);
+    await c.keyboard.press("2");
+    const doTeclado = await a
+      .waitForFunction(() => document.querySelectorAll(".reacaoVoo").length > 0, null, { timeout: 3000 })
+      .then(() => true, () => false);
+    check("com o menu aberto, um número reage direto", doTeclado);
+
+    // Sinais: votação rápida com placar e etiquetas no quadrinho.
+    const sinal = async (p, nome) => {
+      await p.keyboard.press("Escape");
+      await p.keyboard.press("r");
+      await p.click(`.reagirSinal:has-text("${nome}")`);
+      await p.keyboard.press("Escape");
+    };
+    await sinal(a, "Sim");
+    await sinal(b, "Sim");
+    await sinal(c, "Não");
+    await c.waitForFunction(() => document.querySelectorAll(".placarItem").length === 2, null, { timeout: 4000 }).catch(() => {});
+    const placar = await c.evaluate(() => [...document.querySelectorAll(".placarItem")].map((x) => x.getAttribute("aria-label")));
+    check("Sim e Não viram um placar para todos", placar.some((x) => x.startsWith("Sim: 2")) && placar.some((x) => x.startsWith("Não: 1")), placar.join(" · "));
+    const etiquetas = await c.evaluate(() => document.querySelectorAll(".tile__sinais .sinal").length);
+    check("os sinais ficam como etiqueta no quadrinho", etiquetas === 3, `${etiquetas} etiquetas`);
+    await sinal(b, "Já volto");
+    await sinal(c, "Não estou ouvindo");
+    const ausente = await a
+      .waitForFunction(() => document.querySelectorAll(".tile.is-ausente").length === 1, null, { timeout: 4000 })
+      .then(() => true, () => false);
+    check("\"Já volto\" esmaece o quadrinho", ausente);
+    const aviso = await a
+      .waitForFunction(() => [...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("Caio não está ouvindo")), null, { timeout: 4000 })
+      .then(() => true, () => false);
+    check("\"Não estou ouvindo\" avisa a chamada", aviso);
+
+    // Quem chega depois vê os sinais de quem já estava.
+    const d = await participante("Duda", sala);
+    await noDock(d);
+    await conectados(d, 3);
+    const viu = await d
+      .waitForFunction(() => document.querySelectorAll(".tile__sinais .sinal").length >= 4, null, { timeout: 8000 })
+      .then(() => true, () => false);
+    check("quem entra depois recebe os sinais que já estavam ligados", viu);
+    for (const p of [a, b, c, d]) await p.context().close();
   }
 
   console.log("\nRede Tailscale no painel");

@@ -97,6 +97,24 @@ export function argsParaX11({ plataforma = process.platform, env = process.env, 
 }
 
 /**
+ * Como reabrir com a opção do X11, sem perder o AppImage.
+ *
+ * ANTES: `app.relaunch()` + `app.exit(0)`. No AppImage isso não abria nunca:
+ * o programa roda de dentro de /tmp/.mount_*, que o AppImage desmonta assim
+ * que o processo sai; a cópia reaberta nascia junto com o desmonte e caía em
+ * "Cannot mount AppImage". Abrir pelo menu, sem a opção no .desktop, não
+ * subia o app.
+ *
+ * AGORA: "execve" — o mesmo processo vira o novo (mesmo PID). O AppImage nem
+ * percebe, a pasta continua montada, e não sobra processo nenhum. Existe no
+ * Node 22.15+/24 (o Electron 44 traz o Node 24). Sem ele (Electron antigo),
+ * "reabrir" à moda antiga, pelo próprio arquivo do AppImage.
+ */
+export function modoDeReabrir({ temExecve = typeof process.execve === "function" } = {}) {
+  return temExecve ? "execve" : "reabrir";
+}
+
+/**
  * Qual executável o .desktop do usuário deve chamar — ou `null` quando o
  * sistema já cuida disso (pacote instalado em /opt ou /usr).
  */

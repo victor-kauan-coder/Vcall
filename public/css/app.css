@@ -7,7 +7,13 @@
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  overflow: hidden;
+  /*
+   * `clip`, não `hidden`: um contêiner `hidden` ainda rola por código. Uma
+   * dica de botão (pseudo-elemento) que passava da borda direita bastava
+   * para o navegador deslizar a chamada inteira uns 27 px para o lado — o
+   * topo e os vídeos ficavam cortados à esquerda até recarregar.
+   */
+  overflow: clip;
   position: relative;
   isolation: isolate;
 }
@@ -797,7 +803,6 @@ body.na-chamada .ambient {
 }
 
 .popover--reactions {
-  flex-direction: row;
   min-width: 0;
 }
 
@@ -823,13 +828,6 @@ body.na-chamada .ambient {
 }
 .popover__item[aria-checked="true"] .icon {
   color: var(--accent);
-}
-
-.popover--reactions .popover__item {
-  width: 44px;
-  height: 44px;
-  justify-content: center;
-  padding: 0;
 }
 
 .popover__sep {

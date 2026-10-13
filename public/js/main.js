@@ -19,7 +19,9 @@ import { PALETAS } from "./ui/paletas.js";
 import { Lobby } from "./ui/lobby.js";
 import { Stage } from "./ui/stage.js";
 import { Panel } from "./ui/panel.js";
-import { Dock, REACTIONS } from "./ui/dock.js";
+import { Dock } from "./ui/dock.js";
+import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, Sinais, validar as validarReacao } from "./features/reacoes.js";
+import { CamadaReacoes, montarMenu as montarMenuDeReacoes } from "./ui/reacoes.js";
 import { toast, chime } from "./ui/toast.js";
 import { avatarEl, colorFor, defaultAvatar } from "./ui/avatars.js";
 import { ilustracao } from "./ui/ilustracao.js";
@@ -40,7 +42,9 @@ import { linkAbrir, linkWhatsApp } from "./lib/invite.js";
 import { installMotion, magnifyDock, playIntro, signal, swap, stagger } from "./ui/motion.js";
 import { MiniCall } from "./ui/minicall.js";
 import { watchHandsFree } from "./ui/handsfree.js";
-import { Daily, EstadoJogos, JOGOS, Poker, Retro } from "./features/jogos.js";
+import { Daily, EstadoJogos, JOGOS, Poker, Retro, comArtigo } from "./features/jogos.js";
+import { Codigo, Desenho, DuasVerdades, Mimica, QuemSouEu, Quiz, Roda, Stop } from "./features/festa.js";
+import { Forca, Lig4, Memoria, Sorteios, Velha } from "./features/tabuleiro.js";
 import { PainelJogos } from "./ui/jogos.js";
 
 // Antes de qualquer tela ser montada: é ele que anima o que aparece.
@@ -896,7 +900,7 @@ function buildDock() {
   dock.add(g2, {
     id: "jogos",
     icon: "dices",
-    label: "Jogos de equipe",
+    label: "Jogos",
     shortcut: "K",
     onClick: () => abrirMenuJogos(),
   });
@@ -1042,25 +1046,11 @@ function openMoreMenu() {
     item("hand", app.hand ? "Baixar a mão" : "Levantar a mão", toggleHand, app.hand);
     item("eye", "Foco na voz · G", () => setFocoVoz(!app.focoVoz), !!app.focoVoz);
     item("captions", "Transcrição ao vivo", () => panel.setOpen(true, "transcript"));
-    item("dices", jogos?.aberto ? "Fechar os jogos · K" : "Jogos de equipe · K", () => (jogos?.aberto ? fecharJogos() : abrirJogos()), !!jogos?.aberto);
+    item("dices", jogos?.aberto ? "Fechar os jogos · K" : "Jogos · K", () => (jogos?.aberto ? fecharJogos() : abrirJogos()), !!jogos?.aberto);
     if (window.vcallDesktop?.modoJogo) item("zap", "Modo jogo (sobreposição)", () => setModoJogo(!app.modoJogo), !!app.modoJogo);
     item("smile", "Reagir", () => {
       // Reabre como menu de reações, ancorado no mesmo botão.
-      setTimeout(() => dock.openPopover("more", (p2, c2) => {
-        for (const r of REACTIONS) {
-          p2.append(
-            Dock.item({
-              iconName: r.icon,
-              label: r.label,
-              onClick: () => {
-                mesh.sendReaction(r.kind);
-                showReaction(mesh.selfId || "self", r.kind);
-                c2();
-              },
-            }),
-          );
-        }
-      }), 0);
+      setTimeout(() => openReactionMenu("more"), 0);
     });
     item("eye", captions.enabled ? "Parar de legendar" : "Legendar minha fala", toggleCaptions, captions.enabled);
     if (canRecord) {
@@ -1093,7 +1083,7 @@ const SHORTCUTS = [
     ["S", "Compartilhar a tela"],
     ["D", "Silenciar todo mundo para você"],
     ["H", "Levantar e baixar a mão"],
-    ["R", "Reagir"],
+    ["R", "Reagir (com o menu aberto, 1 a 9 reagem direto)"],
     ["T", "Legendar sua fala"],
   ]],
   ["Tela e painéis", [
@@ -1105,7 +1095,7 @@ const SHORTCUTS = [
     ["Ctrl+Shift+M", "Microfone, mesmo dentro de um jogo (app, modo jogo)"],
     ["Ctrl+Shift+O", "Mostrar/esconder a sobreposição (app, modo jogo)"],
     ["Q", "Abrir e fechar o canvas"],
-    ["K", "Jogos de equipe: Planning Poker, Retrospectiva, Daily"],
+    ["K", "Jogos: festa, tabuleiro, sorteios e os de equipe (Planning Poker, Retro, Daily)"],
     ["?", "Esta lista"],
     ["Esc", "Fechar o que estiver aberto"],
   ]],
@@ -1779,7 +1769,7 @@ function buildBoard() {
 }
 
 /* ================================================================== *
- * Jogos de equipe: Planning Poker, Retrospectiva e Daily
+ * Jogos: festa, tabuleiro, sorteios e os de equipe (Poker, Retro, Daily)
  * ================================================================== */
 
 /*
@@ -1788,9 +1778,26 @@ function buildBoard() {
  * da daily de todo mundo. Ele vai e vem pelo canal do quadro (features/jogos.js).
  */
 const jogosEstado = new EstadoJogos({ eu: "?" });
-const jogosPoker = new Poker(jogosEstado, { nome: () => app.profile?.name || "" });
-const jogosRetro = new Retro(jogosEstado, { nome: () => app.profile?.name || "" });
+const meuNome = () => app.profile?.name || "";
+const jogosPoker = new Poker(jogosEstado, { nome: meuNome });
+const jogosRetro = new Retro(jogosEstado, { nome: meuNome });
 const jogosDaily = new Daily(jogosEstado);
+/** A lógica de cada jogo de festa e de tabuleiro (features/festa.js e features/tabuleiro.js). */
+const jogosLogicas = {
+  desenho: new Desenho(jogosEstado, { nome: meuNome }),
+  stop: new Stop(jogosEstado, { nome: meuNome }),
+  quiz: new Quiz(jogosEstado, { nome: meuNome }),
+  mimica: new Mimica(jogosEstado, { nome: meuNome }),
+  quemsoueu: new QuemSouEu(jogosEstado, { nome: meuNome }),
+  roda: new Roda(jogosEstado, { nome: meuNome }),
+  verdades: new DuasVerdades(jogosEstado, { nome: meuNome }),
+  codigo: new Codigo(jogosEstado, { nome: meuNome }),
+  velha: new Velha(jogosEstado, { nome: meuNome }),
+  lig4: new Lig4(jogosEstado, { nome: meuNome }),
+  forca: new Forca(jogosEstado, { nome: meuNome }),
+  memoria: new Memoria(jogosEstado, { nome: meuNome }),
+  sorteios: new Sorteios(jogosEstado, { nome: meuNome }),
+};
 let jogos = null;
 
 function pessoasDosJogos() {
@@ -1823,6 +1830,10 @@ function wireJogos() {
       jogos.voarEmoji(mesh.selfId, para, e);
     },
     aoFechar: () => fecharJogos(),
+    logicas: jogosLogicas,
+    aoEscolher: (id) => abrirJogos(id),
+    // A câmera de alguém, do mesmo fluxo que já chega no quadrinho (Mímica, Quem sou eu?).
+    videoDe: (id) => stage?.get(id === mesh.selfId ? "self" : id, "cam")?.video?.srcObject || null,
     baixar: baixarTexto,
     copiar: (texto, aviso) => copy(texto, aviso),
     avisar: (texto, tom = "info") => toast(texto, { tone: tom, ms: 2600, key: "jogos" }),
@@ -1832,14 +1843,38 @@ function wireJogos() {
   jogosEstado.on("mudou", (chaves) => {
     if (chaves.includes("jogo")) avisarJogo();
   });
+  // Quem chega vê os meus sinais (Já volto, Sim…) sem eu precisar repetir.
+  mesh.on("board-channel", ({ id }) => {
+    const meus = sinaisChamada.de(mesh.selfId);
+    if (meus.length) mesh.peers.get(id)?.sendBoard({ type: "sinal", s: meus });
+  });
   // Quem chega (ou volta) recebe tudo, em pedaços que cabem no canal.
   mesh.on("board-channel", ({ id }) => {
     if (jogosEstado.vazio) return;
     const tudo = jogosEstado.instantaneo();
     for (let i = 0; i < tudo.length; i += 300) mesh.peers.get(id)?.sendBoard({ type: "jogo", o: tudo.slice(i, i + 300) });
+    // E, se eu estou desenhando, o desenho até agora (depois do estado: o canal entrega em ordem).
+    for (const d of jogosLogicas.desenho.paraQuemChegou()) mesh.peers.get(id)?.sendBoard({ type: "jogo-ev", j: "dz", d });
   });
+  /*
+   * Traços e palpites do Desenha e Adivinha não entram no estado (seriam
+   * milhares de chaves): vão direto pelo canal. Os pedaços de traço vão só
+   * pelo canal direto; o traço inteiro, no fim, tem a volta pelo servidor.
+   */
+  jogosLogicas.desenho.on("evento", (d) => {
+    const { rapido, ...resto } = d;
+    mesh.broadcastBoard({ type: "jogo-ev", j: "dz", d: resto }, { fallback: !rapido });
+  });
+  // As tarefas automáticas do jogo da sala (acabar o tempo, revelar, passar
+  // a vez) rodam mesmo com a mesa fechada: quem cuida delas pode não estar olhando.
+  setInterval(() => {
+    if (!mesh.selfId) return;
+    jogosLogicas[jogosEstado.ler("jogo")]?.manter?.(pessoasDosJogos());
+  }, 1000);
   mesh.on("roster", () => jogos?.atualizar());
 }
+
+let fecharAvisoDeJogo = null;
 
 /** Alguém abriu um jogo: um aviso com "Participar" — ninguém é arrastado. */
 function avisarJogo() {
@@ -1848,7 +1883,7 @@ function avisarJogo() {
   if (!qual || !JOGOS[qual] || autor === mesh.selfId || jogos?.aberto) return;
   const nome = mesh.profiles.get(autor)?.name || "Alguém";
   dock?.update("jogos", { badge: 1 });
-  toast(`${nome} abriu ${JOGOS[qual].nome === "Daily" ? "a Daily" : JOGOS[qual].nome === "Retrospectiva" ? "a Retrospectiva" : "o " + JOGOS[qual].nome}`, {
+  fecharAvisoDeJogo = toast(`${nome} abriu ${comArtigo(qual)}`, {
     tone: "info",
     ms: 9000,
     key: "jogo-aberto",
@@ -1856,7 +1891,11 @@ function avisarJogo() {
   });
 }
 
-function abrirJogos(jogo = jogosEstado.ler("jogo") || jogos?.jogo || "poker") {
+/**
+ * Abre a mesa de jogos. Sem jogo dado, volta ao que esta pessoa via por
+ * último (ou ao menu de jogos). Escolher um jogo avisa a sala.
+ */
+function abrirJogos(jogo = jogos?.jogo || "hub") {
   if (!jogos) return;
   closeBoard();
   if (!jogos.aberto) {
@@ -1866,36 +1905,23 @@ function abrirJogos(jogo = jogosEstado.ler("jogo") || jogos?.jogo || "poker") {
     jogos.mostrar(jogo);
   }
   dock.update("jogos", { active: true, badge: 0, label: "Fechar os jogos" });
+  // Quem já abriu a mesa não precisa mais do convite para participar.
+  fecharAvisoDeJogo?.();
+  fecharAvisoDeJogo = null;
   // Avisa a sala (uma chave só; quem já está no mesmo jogo não é avisado de novo).
-  if (jogosEstado.ler("jogo") !== jogo) jogosEstado.definir([["jogo", jogo]]);
+  if (JOGOS[jogo] && jogosEstado.ler("jogo") !== jogo) jogosEstado.definir([["jogo", jogo]]);
 }
 
 function fecharJogos() {
   if (!jogos?.aberto) return;
   jogos.desmontar();
   stage?.setBoard(false);
-  dock?.update("jogos", { active: false, label: "Jogos de equipe" });
+  dock?.update("jogos", { active: false, label: "Jogos" });
 }
 
 function abrirMenuJogos() {
-  if (jogos?.aberto) {
-    fecharJogos();
-    return;
-  }
-  dock.openPopover("jogos", (pop, close) => {
-    pop.append(el("div.popover__label", { text: "Jogos de equipe" }));
-    const atual = jogosEstado.ler("jogo");
-    for (const [id, j] of Object.entries(JOGOS)) {
-      pop.append(
-        Dock.item({
-          iconName: j.icone,
-          label: atual === id ? `${j.nome} · em andamento` : j.nome,
-          checked: atual === id,
-          onClick: () => (close(), abrirJogos(id)),
-        }),
-      );
-    }
-  });
+  if (jogos?.aberto) fecharJogos();
+  else abrirJogos();
 }
 
 function openBoardMenu() {
@@ -2221,35 +2247,88 @@ function toggleHand() {
   if (app.hand) toast("Você levantou a mão", { tone: "info", ms: 2000 });
 }
 
-function openReactionMenu() {
+/*
+ * Reações e sinais (features/reacoes.js, ui/reacoes.js). Vão pelo canal
+ * direto da chamada; cliques repetidos viram combo, e a mesma reação de três
+ * pessoas vira chuva. Sinais (Sim, Não, Mais devagar…) ficam no quadrinho.
+ */
+const sinaisChamada = new Sinais();
+const chuvaDeReacoes = new Chuva();
+const comboDeReacoes = new Combo((id, n) => mesh.broadcastBoard({ type: "reacao", r: id, n }, { fallback: true }));
+const combosDosOutros = new ComboRemoto();
+const camadaReacoes = new CamadaReacoes({
+  quadro: (p) => stage?.get(p === mesh.selfId ? "self" : p, "cam")?.node || null,
+  nome: (p) => (p === mesh.selfId ? "Você" : mesh.profiles.get(p)?.name || "Alguém"),
+  palco: () => $("#stage"),
+});
+let menuDeReacoes = null;
+
+function openReactionMenu(dono = "react") {
   dock.openPopover(
-    "react",
-    (pop, close) => {
-      for (const r of REACTIONS) {
-        const b = Dock.item({
-          iconName: r.icon,
-          label: "",
-          onClick: () => {
-            mesh.sendReaction(r.kind);
-            showReaction(mesh.selfId || "self", r.kind);
-            close();
-          },
-        });
-        b.setAttribute("aria-label", r.label);
-        b.dataset.tip = r.label;
-        b.dataset.tipPlacement = "bottom";
-        pop.append(b);
-      }
+    dono,
+    (pop) => {
+      menuDeReacoes = montarMenuDeReacoes(pop, {
+        aoReagir: (id) => reagir(id),
+        aoSinal: (id) => alternarSinal(id),
+        meusSinais: () => sinaisChamada.de(mesh.selfId),
+      });
     },
     { className: "popover--reactions" },
   );
 }
 
-function showReaction(peerId, kind) {
-  const r = REACTIONS.find((x) => x.kind === kind);
-  if (!r) return;
-  const tileId = peerId === mesh.selfId ? "self" : peerId;
-  stage.get(tileId, "cam")?.react(r.icon);
+function reagir(id) {
+  if (!mesh.selfId) return;
+  const combo = comboDeReacoes.soltar(id);
+  mostrarReacao(mesh.selfId, id, { combo });
+}
+
+function mostrarReacao(pessoa, id, { n = 1, combo = 1 } = {}) {
+  camadaReacoes.voar(pessoa, id, { n, combo });
+  if (chuvaDeReacoes.registrar(id, pessoa)) camadaReacoes.chover(id);
+}
+
+function alternarSinal(id) {
+  if (!mesh.selfId) return;
+  const ids = sinaisChamada.alternar(mesh.selfId, id);
+  mesh.broadcastBoard({ type: "sinal", s: ids }, { fallback: true });
+  menuDeReacoes?.pintar(ids);
+}
+
+function pintarSinais(pessoa, ids) {
+  camadaReacoes.sinais(pessoa, ids);
+  camadaReacoes.placar(sinaisChamada.porSinal());
+  if (pessoa === mesh.selfId) menuDeReacoes?.pintar(ids);
+}
+sinaisChamada.on("mudou", ({ pessoa, ids }) => pintarSinais(pessoa, ids));
+// Os sinais vencem (Sim e Não depois de 90 s…), e um quadrinho refeito
+// (troca de layout, reconexão) recebe as etiquetas de novo.
+setInterval(() => {
+  if (!mesh.selfId) return;
+  sinaisChamada.vencer();
+  for (const [pessoa, ids] of Object.entries(sinaisPorPessoa())) camadaReacoes.sinais(pessoa, ids);
+}, 5000);
+
+function sinaisPorPessoa() {
+  const out = {};
+  for (const [id, pessoas] of Object.entries(sinaisChamada.porSinal())) for (const p of pessoas) (out[p] ||= []).push(id);
+  return out;
+}
+
+/** Reação ou sinal que chegou pelo canal direto (dado de fora: validado). */
+function receberReacao(from, op) {
+  const v = validarReacao(op);
+  if (!v) return false;
+  if (v.tipo === "reacao") {
+    mostrarReacao(from, v.id, { n: v.n, combo: combosDosOutros.somar(from, v.id, v.n) });
+    return true;
+  }
+  const antes = sinaisChamada.de(from);
+  sinaisChamada.definir(from, v.ids);
+  if (v.ids.includes("semaudio") && !antes.includes("semaudio")) {
+    toast(`${mesh.profiles.get(from)?.name || "Alguém"} não está ouvindo`, { tone: "warn", ms: 5000, key: `semaudio-${from}` });
+  }
+  return true;
 }
 
 /* ================================================================== *
@@ -2303,6 +2382,7 @@ function wireMesh() {
 
   mesh.on("peer-leave", ({ id, profile, replaced }) => {
     stage.removePeer(id);
+    if (!replaced) sinaisChamada.esquecer(id);
     updateHeader();
     if (replaced) return; // a mesma pessoa está voltando com outra conexão
     panel.addSystem(`${profile?.name || "Alguém"} saiu`);
@@ -2484,7 +2564,8 @@ function wireMesh() {
     }
   });
 
-  mesh.on("reaction", ({ id, kind }) => showReaction(id, kind));
+  // Reação pelo caminho antigo (servidor): quem ainda manda assim.
+  mesh.on("reaction", ({ id, kind }) => DO_ANTIGO[kind] && mostrarReacao(id, DO_ANTIGO[kind]));
 
   mesh.on("board", ({ from, op }) => {
     /*
@@ -2500,6 +2581,11 @@ function wireMesh() {
       jogosEstado.aplicar(op.o);
       return;
     }
+    if (op?.type === "jogo-ev") {
+      if (op.j === "dz") jogosLogicas.desenho.receber(from, op.d);
+      return;
+    }
+    if ((op?.type === "reacao" || op?.type === "sinal") && receberReacao(from, op)) return;
     if (op?.type === "jogo-emoji") {
       jogos?.voarEmoji(from, String(op.para || ""), String(op.e || ""));
       return;
@@ -3551,7 +3637,17 @@ function bindShortcuts() {
     // procurada, e a maioria deles é dele.
     if (app.boardMode && e.key !== "Escape" && e.key !== "?") return;
 
+    // Com o menu de reagir aberto, 1 a 9 reagem direto (dá para fazer combo no teclado).
+    if (/^[1-9]$/.test(e.key) && document.querySelector(".popover--reactions")) {
+      const r = REACOES[Number(e.key) - 1];
+      if (r) reagir(r.id);
+      return;
+    }
+
     switch (e.key.toLowerCase()) {
+      case "r":
+        openReactionMenu();
+        break;
       case "m":
         media.toggleMic();
         syncDockMedia();
@@ -3650,6 +3746,7 @@ function leaveCall({ motivo = null, por = "" } = {}) {
   app.mini?.close();
   closeBoard();
   fecharJogos();
+  camadaReacoes.destruir();
   captions.stop();
   captions.unmount();
   if (recorder.recording) recorder.stop();
@@ -3744,6 +3841,7 @@ window.vcall = {
   setFocoVoz,
   setModoJogo,
   jogosEstado,
+  jogos: jogosLogicas,
 };
 console.info(
   "%cVcall%c — mídia ponto a ponto, criptografada. `window.vcall` expõe o estado para depuração." +

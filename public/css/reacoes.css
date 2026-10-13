@@ -1,0 +1,321 @@
+/* ------------------------------------------------------------------ *
+ * reacoes.css — reações que sobem, combos, chuva, selos e sinais.
+ *
+ * Só transform e opacity animam (a placa de vídeo faz sozinha, sem repintar
+ * a chamada). Os emoji vêm do sprite colorido (Fluent Emoji, MIT).
+ * ------------------------------------------------------------------ */
+
+.emoji {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+}
+
+/* A camada por cima de tudo, que não pega clique. */
+.reacoes {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-toast);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.reacaoVoo {
+  position: absolute;
+  translate: -50% -50%;
+  will-change: transform, opacity;
+  animation: reacaoSobe var(--dur, 2000ms) cubic-bezier(0.22, 0.61, 0.36, 1) var(--atraso, 0ms) both;
+  filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.25));
+}
+@keyframes reacaoSobe {
+  0% {
+    transform: translate(0, 0) scale(0.2) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    transform: translate(calc(var(--dx) * 0.15), calc(var(--sobe) * 0.12)) scale(1.18) rotate(calc(var(--giro) * -0.5));
+    opacity: 1;
+  }
+  22% {
+    transform: translate(calc(var(--dx) * 0.25), calc(var(--sobe) * 0.22)) scale(0.96);
+  }
+  50% {
+    transform: translate(calc(var(--dx) * -0.35), calc(var(--sobe) * 0.55)) scale(1) rotate(var(--giro));
+    opacity: 1;
+  }
+  80% {
+    transform: translate(calc(var(--dx) * 0.6), calc(var(--sobe) * 0.85)) scale(0.92) rotate(calc(var(--giro) * -0.6));
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(var(--dx), var(--sobe)) scale(0.8) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+/* "×3": o combo pula ao lado de quem está clicando sem parar. */
+.reacaoCombo {
+  position: absolute;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--brand-gradient);
+  color: #fff;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.45);
+  animation: comboPula 900ms var(--ease-out) both;
+}
+@keyframes comboPula {
+  0% {
+    transform: scale(0.3) translateY(10px);
+    opacity: 0;
+  }
+  25% {
+    transform: scale(calc(var(--forca, 1) * 1.25)) translateY(-4px);
+    opacity: 1;
+  }
+  45% {
+    transform: scale(var(--forca, 1));
+  }
+  100% {
+    transform: scale(var(--forca, 1)) translateY(-26px);
+    opacity: 0;
+  }
+}
+
+/* O selo da última reação, no canto do quadrinho de quem reagiu. */
+.tile__reacao {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: var(--z-tile-overlay);
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--surface) 85%, transparent);
+  box-shadow: 0 4px 14px -4px rgb(0 0 0 / 0.4);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 260ms var(--ease-out);
+  pointer-events: none;
+}
+.tile__reacao.is-on {
+  opacity: 1;
+  transform: scale(1);
+  animation: seloPulo 420ms var(--ease-out);
+}
+@keyframes seloPulo {
+  40% {
+    transform: scale(1.25) rotate(-8deg);
+  }
+}
+
+/* Sinais: etiquetas que ficam no quadrinho até a pessoa tirar. */
+.tile__sinais {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: var(--z-tile-overlay);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: calc(100% - 70px);
+  pointer-events: none;
+}
+.sinal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 10px 4px 6px;
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--surface) 90%, transparent);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.45);
+  animation: sinalEntra 320ms var(--ease-out);
+}
+.sinal .icon {
+  color: var(--accent);
+}
+.sinal--sim .icon {
+  color: var(--ok);
+}
+.sinal--nao .icon,
+.sinal--semaudio .icon {
+  color: var(--danger);
+}
+.placarItem .icon {
+  color: var(--text-muted);
+}
+.placarItem--sim .icon {
+  color: var(--ok);
+}
+.placarItem--nao .icon,
+.placarItem--semaudio .icon {
+  color: var(--danger);
+}
+.sinal span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sinal--sim {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--ok) 70%, transparent),
+    0 4px 14px -6px rgb(0 0 0 / 0.45);
+}
+.sinal--nao,
+.sinal--semaudio {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--danger) 70%, transparent),
+    0 4px 14px -6px rgb(0 0 0 / 0.45);
+}
+@keyframes sinalEntra {
+  from {
+    transform: translateY(-6px) scale(0.85);
+    opacity: 0;
+  }
+}
+/* Em quadrinho pequeno (faixa lateral, balão), só o emoji. */
+.tile__sinais.is-compacta .sinal .icon {
+  color: var(--accent);
+}
+.sinal--sim .icon {
+  color: var(--ok);
+}
+.sinal--nao .icon,
+.sinal--semaudio .icon {
+  color: var(--danger);
+}
+.placarItem .icon {
+  color: var(--text-muted);
+}
+.placarItem--sim .icon {
+  color: var(--ok);
+}
+.placarItem--nao .icon,
+.placarItem--semaudio .icon {
+  color: var(--danger);
+}
+.sinal span {
+  display: none;
+}
+.tile__sinais.is-compacta .sinal {
+  padding: 4px;
+}
+.tile.is-ausente video,
+.tile.is-ausente .tile__avatar {
+  filter: grayscale(0.7) brightness(0.7);
+  transition: filter 400ms var(--ease-out);
+}
+
+/* Placar da votação rápida, no alto da chamada. */
+.sinaisPlacar {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  translate: -50% 0;
+  z-index: var(--z-toast);
+  display: flex;
+  gap: var(--sp-2);
+  padding: 6px;
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  animation: sinalEntra 320ms var(--ease-out);
+}
+.placarItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  font-size: var(--text-sm);
+}
+.placarItem b {
+  font-variant-numeric: tabular-nums;
+}
+
+/* O menu de reagir. */
+.popover--reactions {
+  width: min(360px, calc(100vw - 24px));
+}
+.reagirGrade {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  padding: 2px 4px 6px;
+}
+.reagirBotao {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 140ms var(--ease-out);
+}
+.reagirBotao:hover,
+.reagirBotao:focus-visible {
+  background: var(--surface-hover);
+  transform: scale(1.18);
+}
+.reagirBotao:active {
+  transform: scale(0.9);
+}
+.reagirBotao.is-pulo .emoji {
+  animation: botaoPulo 380ms var(--ease-out);
+}
+@keyframes botaoPulo {
+  40% {
+    transform: scale(1.35) rotate(-10deg);
+  }
+}
+.reagirSinais {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 2px 4px 4px;
+}
+.reagirSinal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  text-align: left;
+  border: 1px solid transparent;
+}
+.reagirSinal:hover {
+  background: var(--surface-hover);
+}
+.reagirSinal[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reacaoVoo,
+  .reacaoCombo {
+    display: none;
+  }
+  .tile__reacao.is-on,
+  .sinal,
+  .sinaisPlacar,
+  .reagirBotao.is-pulo .emoji {
+    animation: none;
+  }
+}

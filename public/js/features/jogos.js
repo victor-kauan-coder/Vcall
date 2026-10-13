@@ -121,6 +121,104 @@ export function novoId() {
   return [...b].map((x) => x.toString(36).padStart(2, "0")).join("").slice(0, 10);
 }
 
+/** Inteiro aleatório em [0, n), do sorteio criptográfico do navegador. */
+export function aleatorio(n) {
+  if (!(n > 0)) return 0;
+  const r = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(r);
+  return r[0] % n;
+}
+
+/** `n` itens diferentes de `lista`, sorteados. */
+export function sortear(lista, n = 1) {
+  return embaralhar(lista).slice(0, n);
+}
+
+/**
+ * Texto para comparar respostas: sem acento, minúsculo, sem pontuação, com
+ * espaço simples. "Guarda-Chuva!" e "guarda chuva" ficam iguais.
+ */
+export function normalizar(s) {
+  return String(s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** Como `normalizar`, mas sem espaço nenhum ("guardachuva"). */
+export const compacto = (s) => normalizar(s).replace(/ /g, "");
+
+/**
+ * Impressão digital curta de um texto (FNV-1a em duas passadas, 64 bits em
+ * hexadecimal). Serve para conferir um palpite sem mandar a resposta pela
+ * rede; não é criptografia (quem tiver o banco de palavras e paciência
+ * descobre), é só para ninguém ver a resposta sem querer.
+ */
+export function resumo(texto, sal = "") {
+  const t = `${sal}|${texto}`;
+  let a = 0x811c9dc5;
+  let b = 0x01000193 ^ 0x5bd1e995;
+  for (let i = 0; i < t.length; i += 1) {
+    const c = t.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c, 0x0100019d) >>> 0;
+  }
+  return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
+}
+
+/** Embaralha um texto com uma chave (XOR + base64): fora da vista, não secreto. */
+export function ofuscar(texto, chave = "vcall") {
+  const b = new TextEncoder().encode(String(texto));
+  const k = new TextEncoder().encode(String(chave) || "vcall");
+  let s = "";
+  for (let i = 0; i < b.length; i += 1) s += String.fromCharCode(b[i] ^ k[i % k.length]);
+  return btoa(s);
+}
+
+export function desofuscar(codigo, chave = "vcall") {
+  try {
+    const s = atob(String(codigo));
+    const k = new TextEncoder().encode(String(chave) || "vcall");
+    return new TextDecoder().decode(Uint8Array.from(s, (c, i) => c.charCodeAt(0) ^ k[i % k.length]));
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Soma os pontos de uma rodada ao placar, uma vez só: o placar lembra a
+ * última rodada somada, e somar a mesma rodada de novo não muda nada.
+ */
+export function somarPlacar(placar, rodada, pontos, nomes = {}) {
+  const p = placar && typeof placar === "object" ? placar : { n: 0, pts: {}, nomes: {} };
+  if ((Number(p.n) || 0) >= rodada) return p;
+  const pts = { ...(p.pts || {}) };
+  const ns = { ...(p.nomes || {}) };
+  for (const [id, v] of Object.entries(pontos || {})) {
+    pts[id] = (Number(pts[id]) || 0) + (Number(v) || 0);
+    if (nomes[id]) ns[id] = String(nomes[id]).slice(0, 40);
+  }
+  return { n: rodada, pts, nomes: ns };
+}
+
+/** O placar em ordem, com quem está na chamada mesmo sem ponto ainda. */
+export function ranking(placar, pessoas = [], eu = "") {
+  const pts = placar?.pts || {};
+  const nomes = placar?.nomes || {};
+  const ids = new Set([...Object.keys(pts), ...pessoas.map((p) => p.id)]);
+  return [...ids]
+    .map((id) => ({ id, nome: pessoas.find((p) => p.id === id)?.nome || nomes[id] || "Saiu", pontos: Number(pts[id]) || 0, eu: id === eu, presente: pessoas.some((p) => p.id === id) }))
+    .filter((r) => r.presente || r.pontos > 0)
+    .sort((a, b) => b.pontos - a.pontos || a.nome.localeCompare(b.nome));
+}
+
+/** Quem cuida das tarefas automáticas (o menor id presente): só um faz. */
+export function lider(pessoas) {
+  return pessoas.map((p) => p.id).sort()[0] || null;
+}
+
 /* ------------------------------------------------------------------ *
  * Planning Poker
  * ------------------------------------------------------------------ */
@@ -383,7 +481,7 @@ export const MODELOS_RETRO = {
   ccp: { nome: "Começar · Parar · Continuar", colunas: ["Começar", "Parar", "Continuar"] },
   bmi: { nome: "Bom · Melhorar · Ideias", colunas: ["Foi bom", "Pode melhorar", "Ideias"] },
   "4l": { nome: "4Ls", colunas: ["Gostei", "Aprendi", "Faltou", "Desejei"] },
-  fts: { nome: "Feliz · Triste · Bravo", colunas: ["😀 Feliz", "😢 Triste", "😠 Bravo"] },
+  fts: { nome: "Feliz · Triste · Bravo", colunas: ["Feliz", "Triste", "Bravo"] },
 };
 export const FASES_RETRO = ["escrever", "votar", "discutir"];
 
@@ -613,8 +711,40 @@ export class Daily {
 
 /* ------------------------------------------------------------------ */
 
-export const JOGOS = {
-  poker: { nome: "Planning Poker", icone: "spade", desc: "Estimem histórias com cartas escondidas até revelar." },
-  retro: { nome: "Retrospectiva", icone: "sticky-note", desc: "Notas em colunas, votação com pontos e plano de ação." },
-  daily: { nome: "Daily", icone: "timer", desc: "Ordem sorteada e tempo de fala para cada um." },
+/** As prateleiras do menu de jogos, na ordem em que aparecem. */
+export const CATEGORIAS = {
+  festa: { nome: "Festa", desc: "Para rir com a turma toda" },
+  tabuleiro: { nome: "Tabuleiro e palavras", desc: "Duelos e desafios rápidos" },
+  sorteio: { nome: "Sorteios", desc: "Para decidir quem vai primeiro (ou quem paga o café)" },
+  equipe: { nome: "Equipe ágil", desc: "Para o trabalho do time" },
 };
+
+/** Todos os jogos. `icone` é o nome no sprite de ícones (Lucide, /vendor/icons.svg). */
+export const JOGOS = {
+  desenho: { nome: "Desenha e Adivinha", cat: "festa", icone: "palette", pessoas: "3+", desc: "Um desenha, o resto adivinha. Quem acerta antes ganha mais." },
+  stop: { nome: "Stop!", cat: "festa", icone: "hand", pessoas: "2+", desc: "A adedonha: uma letra, várias categorias. Terminou? Grite STOP!" },
+  quiz: { nome: "Quiz", cat: "festa", icone: "lightbulb", pessoas: "1+", desc: "Perguntas de conhecimentos gerais contra o relógio." },
+  mimica: { nome: "Mímica", cat: "festa", icone: "drama", pessoas: "3+", desc: "Imite sem falar, com a sua câmera em destaque." },
+  quemsoueu: { nome: "Quem sou eu?", cat: "festa", icone: "scan-face", pessoas: "3+", desc: "Todo mundo vê o seu personagem, menos você." },
+  roda: { nome: "Roda de perguntas", cat: "festa", icone: "messages-square", pessoas: "2+", desc: "O que você prefere?, Eu nunca…, Quem da call… e quebra-gelo." },
+  verdades: { nome: "Duas verdades e uma mentira", cat: "festa", icone: "badge-question-mark", pessoas: "3+", desc: "Conte três coisas sobre você. Qual delas é mentira?" },
+  codigo: { nome: "Palavras-código", cat: "festa", icone: "swords", pessoas: "4+", desc: "Dois times, um mestre de cada e uma dica por vez." },
+  velha: { nome: "Jogo da velha", cat: "tabuleiro", icone: "hash", pessoas: "1–2", desc: "O clássico. Sozinho? Jogue contra o computador." },
+  lig4: { nome: "Lig 4", cat: "tabuleiro", icone: "grid-3x3", pessoas: "1–2", desc: "Quatro em linha antes do outro. Tem computador também." },
+  forca: { nome: "Forca", cat: "tabuleiro", icone: "type", pessoas: "2+", desc: "Todo mundo chuta letras para salvar o boneco." },
+  memoria: { nome: "Jogo da memória", cat: "tabuleiro", icone: "brain", pessoas: "1+", desc: "Ache os pares, um de cada vez." },
+  sorteios: { nome: "Roleta e dados", cat: "sorteio", icone: "dices", pessoas: "1+", desc: "Roleta com os nomes da chamada, dados e cara ou coroa." },
+  poker: { nome: "Planning Poker", cat: "equipe", icone: "spade", pessoas: "2+", desc: "Estimem histórias com cartas escondidas até revelar." },
+  retro: { nome: "Retrospectiva", cat: "equipe", icone: "sticky-note", pessoas: "2+", desc: "Notas em colunas, votação com pontos e plano de ação." },
+  daily: { nome: "Daily", cat: "equipe", icone: "timer", pessoas: "2+", desc: "Ordem sorteada e tempo de fala para cada um." },
+};
+
+/** "o Planning Poker", "a Daily", "o Stop!"… para os avisos. */
+export function comArtigo(id) {
+  const j = JOGOS[id];
+  if (!j) return "um jogo";
+  if (id === "verdades" || id === "codigo") return j.nome;
+  if (id === "sorteios") return "a Roleta";
+  const feminino = ["retro", "daily", "mimica", "roda", "forca"].includes(id);
+  return `${feminino ? "a" : "o"} ${j.nome}`;
+}

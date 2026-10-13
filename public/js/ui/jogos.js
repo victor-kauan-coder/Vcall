@@ -1,5 +1,8 @@
 /**
- * ui/jogos.js — a mesa de jogos: Planning Poker, Retrospectiva e Daily.
+ * ui/jogos.js — a mesa de jogos: o menu com todos os jogos (por prateleira)
+ * e os jogos de equipe (Planning Poker, Retrospectiva e Daily). Os de festa
+ * e de tabuleiro têm a tela deles em ui/festa.js e ui/tabuleiro.js; esta
+ * classe é a moldura que os mostra.
  *
  * Ocupa o lugar do destaque (como o quadro branco): os vídeos continuam na
  * faixa ao lado. A lógica e o estado compartilhado ficam em
@@ -21,6 +24,7 @@ import { el, icon } from "../lib/dom.js";
 import { avatarEl } from "./avatars.js";
 import {
   BARALHOS,
+  CATEGORIAS,
   FASES_RETRO,
   JOGOS,
   MODELOS_RETRO,
@@ -30,51 +34,30 @@ import {
   mesaPoker,
   retro,
 } from "../features/jogos.js";
+import { confete, mmss, porChave, selo, sincronizar } from "./jogos-comum.js";
+import { VISTAS_FESTA } from "./festa.js";
+import { VISTAS_TABULEIRO } from "./tabuleiro.js";
 
-const EMOJIS = ["👏", "🎉", "😂", "🤔", "☕", "🔥"];
+/** Telas dos jogos que não são de equipe: id -> classe (ui/festa.js, ui/tabuleiro.js). */
+const VISTAS = { ...VISTAS_FESTA, ...VISTAS_TABULEIRO };
+/** O selo de quantas pessoas, no menu. */
+const QUANTOS = { "1+": "dá para jogar sozinho", "1–2": "sozinho ou em dupla" };
+
+/** O que dá para jogar num colega na mesa do Poker (ícones do app). */
+const JOGAVEIS = { "thumbs-up": "Joinha", heart: "Coração", "party-popper": "Festa", laugh: "Risada", coffee: "Café", flame: "Fogo" };
+
+/** A carta como aparece: o café é ícone; o resto, o número ou o tamanho. */
+const rotuloCarta = (c) => (c === "☕" ? icon("coffee", { label: "Café (pausa)" }) : el("span", { text: c ?? "" }));
 const FASE_NOME = { escrever: "Escrever", votar: "Votar", discutir: "Discutir" };
-
-/** Os nós com `data-chave` de um ou mais contêineres, por chave. */
-function porChave(...pais) {
-  const m = new Map();
-  for (const pai of pais) for (const n of pai.children) if (n.dataset.chave) m.set(n.dataset.chave, n);
-  return m;
-}
-
-/**
- * Põe em `pai` os itens na ordem dada, reaproveitando todo nó cuja chave e
- * assinatura não mudaram. `criar()` só roda para o que é novo ou mudou; o
- * que é novo de verdade (chave que não existia) ganha `is-nova`, que é
- * quem anima a entrada.
- */
-function sincronizar(pai, itens, antigos = porChave(pai)) {
-  const nos = itens.map(({ chave, sig, criar }) => {
-    const velho = antigos.get(chave);
-    if (velho && velho.dataset.sig === sig) return velho;
-    const novo = criar();
-    novo.dataset.chave = chave;
-    novo.dataset.sig = sig;
-    if (!velho) novo.classList.add("is-nova");
-    return novo;
-  });
-  nos.forEach((n, i) => {
-    if (pai.children[i] !== n) pai.insertBefore(n, pai.children[i] || null);
-  });
-  while (pai.children.length > nos.length) pai.lastElementChild.remove();
-}
-
-const mmss = (s) => {
-  const neg = s < 0;
-  const t = Math.abs(Math.round(s));
-  return `${neg ? "+" : ""}${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
-};
 
 export class PainelJogos {
   aberto = false;
-  jogo = "poker";
+  jogo = "hub";
   #raiz = null;
   #corpo = null;
   #partes = {};
+  /** A tela do jogo de festa ou de tabuleiro aberto (ui/festa.js, ui/tabuleiro.js). */
+  #vista = null;
   #pedido = 0;
   #relogio = 0;
   #festejado = "";
@@ -92,6 +75,9 @@ export class PainelJogos {
    * @param {(texto:string, nome:string, tipo:string) => void} o.baixar
    * @param {(texto:string, aviso:string) => void} o.copiar
    * @param {(texto:string, tom?:string) => void} o.avisar
+   * @param {Record<string, object>} o.logicas a lógica de cada jogo (features/festa.js, features/tabuleiro.js)
+   * @param {(id:string) => void} o.aoEscolher alguém escolheu um jogo no menu
+   * @param {(pessoa:string) => MediaStream|null} o.videoDe a câmera de alguém (Mímica, Quem sou eu?)
    */
   constructor(o) {
     this.o = o;
@@ -109,19 +95,48 @@ export class PainelJogos {
 
   desmontar() {
     this.aberto = false;
+    this.#vista?.destruir?.();
+    this.#vista = null;
     this.#raiz?.remove();
     clearInterval(this.#relogio);
     this.#relogio = 0;
   }
 
+  /** Mostra um jogo (ou "hub", o menu de jogos). Só aqui: não avisa ninguém. */
   mostrar(jogo) {
-    this.jogo = JOGOS[jogo] ? jogo : "poker";
-    for (const [id, b] of Object.entries(this.#partes.abas)) b.setAttribute("aria-selected", String(id === this.jogo));
+    this.jogo = JOGOS[jogo] ? jogo : "hub";
+    this.#vista?.destruir?.();
+    this.#vista = null;
     this.#corpo.replaceChildren();
     this.#partes.extra.replaceChildren();
-    if (this.jogo === "poker") this.#montarPoker();
+    // As partes de cada jogo de equipe começam do zero a cada troca.
+    this.#partes = { voltar: this.#partes.voltar, titulo: this.#partes.titulo, extra: this.#partes.extra };
+    const j = JOGOS[this.jogo];
+    this.#partes.voltar.hidden = this.jogo === "hub";
+    this.#partes.titulo.replaceChildren(
+      ...(j ? [icon(j.icone), el("span.truncate", { text: j.nome })] : [icon("dices"), el("span", { text: "Jogos" })]),
+    );
+    this.#raiz.dataset.jogo = this.jogo;
+    if (this.jogo === "hub") this.#montarHub();
+    else if (this.jogo === "poker") this.#montarPoker();
     else if (this.jogo === "retro") this.#montarRetro();
-    else this.#montarDaily();
+    else if (this.jogo === "daily") this.#montarDaily();
+    else {
+      const Vista = VISTAS[this.jogo];
+      this.#vista = new Vista({
+        logica: this.o.logicas?.[this.jogo],
+        estado: this.o.estado,
+        corpo: this.#corpo,
+        extra: this.#partes.extra,
+        raiz: this.#raiz,
+        pessoas: () => this.#pessoas(),
+        avisar: (texto, tom) => this.o.avisar(texto, tom),
+        confete: () => confete(this.#raiz),
+        videoDe: (id) => this.o.videoDe?.(id) || null,
+        pedir: () => this.atualizar(),
+      });
+      this.#vista.montar();
+    }
     this.atualizar();
   }
 
@@ -130,20 +145,23 @@ export class PainelJogos {
     this.#pedido = requestAnimationFrame(() => {
       this.#pedido = 0;
       if (!this.aberto) return;
-      if (this.jogo === "poker") this.#desenharPoker();
+      if (this.jogo === "hub") this.#desenharHub();
+      else if (this.jogo === "poker") this.#desenharPoker();
       else if (this.jogo === "retro") this.#desenharRetro();
-      else this.#desenharDaily();
+      else if (this.jogo === "daily") this.#desenharDaily();
+      else this.#vista?.desenhar();
       this.#ajustarRelogio();
     });
   }
 
-  /** Relógio só quando há o que contar: contagem, cronômetro ou Daily. */
+  /** Relógio só quando há o que contar: contagem, cronômetro, Daily, ou o jogo pede. */
   #ajustarRelogio() {
     const e = this.o.estado;
     const timer = e.ler("p/timer");
     const precisa =
       (this.jogo === "poker" && (this.#partes.contando || (timer && timer.fim > Date.now() - 2000))) ||
-      (this.jogo === "daily" && daily(e).atual);
+      (this.jogo === "daily" && daily(e).atual) ||
+      !!this.#vista?.relogio?.();
     if (precisa && !this.#relogio) this.#relogio = setInterval(() => this.#tique(), 250);
     else if (!precisa && this.#relogio) {
       clearInterval(this.#relogio);
@@ -153,7 +171,11 @@ export class PainelJogos {
 
   #tique() {
     if (this.jogo === "daily") this.#desenharDaily();
-    else this.#desenharPoker({ soTempo: true });
+    else if (this.jogo === "poker") this.#desenharPoker({ soTempo: true });
+    else if (this.#vista) {
+      this.#vista.tique?.();
+      this.#ajustarRelogio();
+    }
   }
 
   /* ---------------------------------------------------------------- *
@@ -161,20 +183,43 @@ export class PainelJogos {
    * ---------------------------------------------------------------- */
 
   #esqueleto() {
-    const abas = {};
-    const lista = el("div.jogos__abas", { role: "tablist", "aria-label": "Jogos" });
-    for (const [id, j] of Object.entries(JOGOS)) {
-      abas[id] = el("button.jogos__aba", { type: "button", role: "tab", "aria-label": j.nome, dataset: { tip: j.desc, "tip-placement": "bottom" }, onClick: () => this.mostrar(id) }, [
-        icon(j.icone, { size: "sm" }),
-        el("span", { text: j.nome }),
-      ]);
-      lista.append(abas[id]);
-    }
+    const voltar = el("button.btn.btn--ghost.jogos__voltar", { type: "button", "aria-label": "Todos os jogos", dataset: { tip: "Todos os jogos", "tip-placement": "bottom" }, onClick: () => this.mostrar("hub") }, [
+      icon("layout-grid", { size: "sm" }),
+      el("span", { text: "Jogos" }),
+    ]);
+    const titulo = el("h2.jogos__nome");
     const extra = el("div.jogos__extra");
     const fechar = el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": "Fechar os jogos", dataset: { tip: "Fechar (os outros continuam)", "tip-placement": "bottom", "tip-align": "end" }, onClick: () => this.o.aoFechar() }, [icon("x", { size: "sm" })]);
     this.#corpo = el("div.jogos__corpo");
-    this.#partes = { abas, extra };
-    return el("section.jogos", { "aria-label": "Jogos de equipe" }, [el("header.jogos__topo", {}, [lista, extra, fechar]), this.#corpo]);
+    this.#partes = { voltar, titulo, extra };
+    return el("section.jogos", { "aria-label": "Jogos" }, [el("header.jogos__topo", {}, [voltar, titulo, extra, fechar]), this.#corpo]);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * O menu de jogos: uma prateleira por categoria
+   * ---------------------------------------------------------------- */
+
+  #montarHub() {
+    const prateleiras = Object.entries(CATEGORIAS).map(([cat, c]) => {
+      const grade = el("div.hub__grade");
+      for (const [id, j] of Object.entries(JOGOS)) {
+        if (j.cat !== cat) continue;
+        const cartao = el("button.hub__jogo", { type: "button", dataset: { id }, "aria-label": `${j.nome}: ${j.desc}` }, [
+          selo(j.icone, "hub__selo"),
+          el("span.hub__texto", {}, [el("strong", { text: j.nome }), el("span.hub__desc", { text: j.desc })]),
+          el("span.hub__chips", {}, [el("span.hub__chip", { text: QUANTOS[j.pessoas] || `${j.pessoas} pessoas` }), el("span.hub__agora", { text: "em andamento" })]),
+        ]);
+        cartao.addEventListener("click", () => (this.o.aoEscolher ? this.o.aoEscolher(id) : this.mostrar(id)));
+        grade.append(cartao);
+      }
+      return el("section.hub__prateleira", { "aria-label": c.nome, dataset: { cat } }, [el("header.hub__cabeca", {}, [el("h3", { text: c.nome }), el("span.muted", { text: c.desc })]), grade]);
+    });
+    this.#corpo.append(el("div.hub", {}, [el("p.hub__intro", { text: "Escolha um jogo: todo mundo na chamada recebe o convite para participar." }), ...prateleiras]));
+  }
+
+  #desenharHub() {
+    const atual = this.o.estado.ler("jogo");
+    for (const b of this.#corpo.querySelectorAll(".hub__jogo")) b.classList.toggle("is-agora", b.dataset.id === atual);
   }
 
   #pessoas() {
@@ -348,7 +393,7 @@ export class PainelJogos {
                 "aria-label": `Carta ${c}`,
                 onClick: () => poker.votar(c),
               },
-              [el("span", { text: c })],
+              [rotuloCarta(c)],
             ),
           ),
         );
@@ -388,7 +433,7 @@ export class PainelJogos {
         el("button.btn.btn--primary", { type: "button", onClick: () => poker.novaRodada() }, [icon("rotate-ccw", { size: "sm" }), el("span", { text: "Nova votação" })]),
       ];
     }
-    if (!votos) return [el("p.poker__aviso", { text: souEspectador ? "Assistindo. Esperando os votos…" : "Escolham suas cartas 👇" })];
+    if (!votos) return [el("p.poker__aviso", { text: souEspectador ? "Assistindo. Esperando os votos…" : "Escolham suas cartas abaixo" })];
     return [
       el("button.btn.btn--primary.btn--lg.poker__revelar", { type: "button", onClick: () => poker.revelar() }, [el("span", { text: "Revelar cartas" })]),
       el("p.poker__aviso", { text: v.faltam ? `${votos} votaram · faltam ${v.faltam}` : "Todo mundo votou" }),
@@ -412,7 +457,7 @@ export class PainelJogos {
   }
 
   #criarAssento(j, pessoa, estadoCarta, extremo, v) {
-    const carta = el(`div.carta.carta--${estadoCarta}`, { "aria-hidden": "true" }, [el("span", { text: estadoCarta === "revelada" ? j.valor : "" })]);
+    const carta = el(`div.carta.carta--${estadoCarta}`, { "aria-hidden": "true" }, [estadoCarta === "revelada" ? rotuloCarta(j.valor) : el("span")]);
     if (extremo) carta.classList.add("is-extremo");
     const filhos = [
       carta,
@@ -425,7 +470,7 @@ export class PainelJogos {
     if (j.eu) filhos.push(el("span.assento__voce", { text: "você" }));
     if (!j.eu && j.presente) {
       filhos.push(
-        el("button.assento__emoji", { type: "button", "aria-label": `Jogar um emoji em ${j.nome}`, dataset: { tip: "Jogar emoji" }, onClick: (e) => this.#menuEmoji(e.currentTarget, j.id) }, [el("span", { text: "😄" })]),
+        el("button.assento__emoji", { type: "button", "aria-label": `Jogar algo em ${j.nome}`, dataset: { tip: "Jogar algo" }, onClick: (e) => this.#menuEmoji(e.currentTarget, j.id) }, [icon("smile", { size: "sm" })]),
       );
     }
     const label = j.espectador ? `${j.nome}: assistindo` : v.revelado ? `${j.nome}: ${j.valor ?? "sem voto"}` : `${j.nome}: ${j.votou ? "votou" : "ainda não votou"}`;
@@ -434,20 +479,20 @@ export class PainelJogos {
 
   #menuEmoji(ancora, para) {
     const menu = el("div.jogos__menu.jogos__menu--emoji", { role: "menu" });
-    for (const e of EMOJIS) menu.append(el("button", { type: "button", role: "menuitem", text: e, "aria-label": e, onClick: () => (this.o.aoEmoji(para, e), menu.remove()) }));
+    for (const [e, nome] of Object.entries(JOGAVEIS)) menu.append(el("button", { type: "button", role: "menuitem", "aria-label": nome, onClick: () => (this.o.aoEmoji(para, e), menu.remove()) }, [icon(e)]));
     ancora.after(menu);
     setTimeout(() => document.addEventListener("pointerdown", (ev) => !menu.contains(ev.target) && menu.remove(), { once: true }), 0);
   }
 
   /** Um emoji atravessa a mesa de quem jogou até o alvo. */
   voarEmoji(de, para, emoji) {
-    if (!this.aberto || this.jogo !== "poker" || !EMOJIS.includes(emoji)) return;
+    if (!this.aberto || this.jogo !== "poker" || !Object.hasOwn(JOGAVEIS, emoji)) return;
     const alvo = this.#raiz.querySelector(`.assento[data-id="${CSS.escape(para)}"] .carta`);
     if (!alvo) return;
     const origem = this.#raiz.querySelector(`.assento[data-id="${CSS.escape(de)}"] .carta`) || this.#partes.centro;
     const a = origem.getBoundingClientRect();
     const b = alvo.getBoundingClientRect();
-    const voo = el("span.emoji-voo", { text: emoji, "aria-hidden": "true" });
+    const voo = el("span.emoji-voo", { "aria-hidden": "true" }, [icon(emoji)]);
     voo.style.left = `${a.left + a.width / 2}px`;
     voo.style.top = `${a.top + a.height / 2}px`;
     voo.style.setProperty("--dx", `${b.left - a.left + (b.width - a.width) / 2}px`);
@@ -470,7 +515,7 @@ export class PainelJogos {
         el("div.poker__barra", { class: d.carta === r.maioria ? "is-maioria" : "" }, [
           el("span.poker__barraN", { text: `${d.n} ${d.n === 1 ? "voto" : "votos"}` }),
           el("div.poker__barraCol", { style: { "--h": `${Math.max(4, Math.round((d.n / maximo) * 56))}px` } }),
-          el("div.carta.carta--mini", {}, [el("span", { text: d.carta })]),
+          el("div.carta.carta--mini", {}, [rotuloCarta(d.carta)]),
         ]),
       ),
     );
@@ -481,7 +526,7 @@ export class PainelJogos {
       const opcoes = [...new Set([r.sugestao, r.maioria, ...r.distribuicao.map((d) => d.carta)].filter((c) => c && c !== "?" && c !== "☕"))];
       for (const c of opcoes) {
         chips.append(
-          el("button.btn.jogos__chip", { type: "button", class: c === r.sugestao ? "is-sugestao" : "", "aria-label": `Salvar ${c} como estimativa`, dataset: c === r.sugestao ? { tip: "Sugestão: a carta mais perto da média" } : {}, onClick: () => this.o.poker.salvarEstimativa(atual.id, c) }, [el("span", { text: c })]),
+          el("button.btn.jogos__chip", { type: "button", class: c === r.sugestao ? "is-sugestao" : "", "aria-label": `Salvar ${c} como estimativa`, dataset: c === r.sugestao ? { tip: "Sugestão: a carta mais perto da média" } : {}, onClick: () => this.o.poker.salvarEstimativa(atual.id, c) }, [rotuloCarta(c)]),
         );
       }
       filhos.push(chips);
@@ -491,25 +536,8 @@ export class PainelJogos {
 
   /** Comemoração do consenso: algumas dezenas de pedacinhos em CSS, e somem. */
   #confete() {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const camada = el("div.confete", { "aria-hidden": "true" });
-    const cores = ["var(--brand-pink)", "var(--brand-orange)", "var(--ok)", "var(--accent-2)"];
-    for (let i = 0; i < 36; i += 1) {
-      camada.append(
-        el("i", {
-          style: {
-            left: `${Math.random() * 100}%`,
-            background: cores[i % cores.length],
-            "--atraso": `${Math.random() * 300}ms`,
-            "--giro": `${Math.random() * 720 - 360}deg`,
-            "--x": `${Math.random() * 80 - 40}px`,
-          },
-        }),
-      );
-    }
-    this.#raiz.append(camada);
-    setTimeout(() => camada.remove(), 2200);
-    this.o.avisar("Consenso! 🎉", "ok");
+    confete(this.#raiz);
+    this.o.avisar("Consenso!", "ok");
   }
 
   /* ---------------------------------------------------------------- *
@@ -746,7 +774,7 @@ export class PainelJogos {
         el("div.daily__vazio", {}, [
           icon("party-popper", { size: "lg" }),
           el("h3", { text: `Daily encerrada em ${mmss(v.total)}` }),
-          el("p", { text: estouraram.length ? `Passaram do tempo: ${estouraram.map((o) => o.nome).join(", ")}.` : "Todo mundo dentro do tempo. 👏" }),
+          el("p", { text: estouraram.length ? `Passaram do tempo: ${estouraram.map((o) => o.nome).join(", ")}.` : "Todo mundo dentro do tempo." }),
           el("button.btn", { type: "button", onClick: () => dl.reiniciar() }, [icon("rotate-ccw", { size: "sm" }), el("span", { text: "Recomeçar" })]),
         ]),
       );

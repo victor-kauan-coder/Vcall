@@ -58,6 +58,8 @@ para a outra.
 3. **Discutir**: os pontos aparecem, e as notas mais votadas sobem. Embaixo fica
    o **plano de ação**: escreva quem faz o quê e marque quando estiver feito.
 
+![Fase de escrita: as notas dos outros ficam borradas](imagens/retro-escrever.png)
+
 ![Retrospectiva na fase de discussão, com o plano de ação](imagens/retro-discutir.png)
 
 Modelos: **Começar · Parar · Continuar**, **Bom · Melhorar · Ideias**, **4Ls**

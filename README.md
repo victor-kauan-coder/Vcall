@@ -29,7 +29,6 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Android 8+ | `Vcall-3.9.0.apk` |
 | Windows 10/11 | `VcallSetup-3.9.0.exe` |
 | Fedora, openSUSE, RHEL | `Vcall-3.9.0-x86_64.rpm` |
 | Arch, Manjaro, EndeavourOS | `Vcall-3.9.0-x64.pacman` |

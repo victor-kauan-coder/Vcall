@@ -29,15 +29,15 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Windows 10/11 | `VcallSetup-3.9.0.exe` |
-| Fedora, openSUSE, RHEL | `Vcall-3.9.0-x86_64.rpm` |
-| Arch, Manjaro, EndeavourOS | `Vcall-3.9.0-x64.pacman` |
-| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.9.0-amd64.deb` |
-| Qualquer Linux | `Vcall-3.9.0-x86_64.AppImage` ou `.tar.gz` |
+| Windows 10/11 | `VcallSetup-3.10.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.10.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.10.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.10.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.10.0-x86_64.AppImage` ou `.tar.gz` |
 
 Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
-o que mudou na **[3.9.0](docs/release/v3.9.0.md)**.
+o que mudou na **[3.10.0](docs/release/v3.10.0.md)**.
 
 ## Recursos
 
@@ -52,6 +52,7 @@ o que mudou na **[3.9.0](docs/release/v3.9.0.md)**.
 - Moderação: silenciar, remover, trancar a sala, **sala de espera**, fila de mãos
 - Convite clicável no **WhatsApp** que abre direto no app
 - Link pela sua rede **Tailscale**: privado, com HTTPS, e um caminho a mais para a mídia em redes que bloqueiam a conexão direta
+- **Chamadas ativas de toda a rede Tailscale** na tela inicial, chamadas "Na minha rede" e criar chamadas pelo celular
 - **Foco na voz** (quem fala acende, quem está calado apaga) e **modo jogo** com sobreposição e atalhos globais
 - App para **Windows** e **Linux** (AppImage, .deb, .rpm, pacman, .tar.gz)
 

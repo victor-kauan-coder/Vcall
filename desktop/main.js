@@ -19,7 +19,7 @@
  */
 import { app, BrowserWindow, Menu, dialog, desktopCapturer, globalShortcut, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +30,7 @@ import { RoomRegistry } from "../src/rooms.js";
 import { hostControl } from "./guard.js";
 import { Tunnel } from "./tunnel.js";
 import { LinkTailscale } from "./tailscale.js";
+import { RedeVcall } from "./rede.js";
 import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
@@ -49,6 +50,30 @@ let baseUrl = "";
 let tunnel = null;
 /** O link pela rede Tailscale da pessoa (`tailscale serve`), quando pedido. */
 let linkTs = null;
+/** Sobe o link do Tailscale (usado pelo Convidar e pelo "sempre disponível"). */
+let ligarTailscale = async () => null;
+
+/*
+ * "Deixar este computador disponível na minha rede Tailscale": guardado em
+ * rede.json, na pasta do app. Ligado, o link do Tailscale sobe sozinho ao
+ * abrir o Vcall, e o celular consegue criar chamadas aqui a qualquer hora.
+ */
+const arquivoRede = () => path.join(app.getPath("userData"), "rede.json");
+function lerPrefRede() {
+  try {
+    return { sempre: false, ...JSON.parse(readFileSync(arquivoRede(), "utf8")) };
+  } catch {
+    return { sempre: false };
+  }
+}
+function gravarPrefRede(pref) {
+  try {
+    mkdirSync(path.dirname(arquivoRede()), { recursive: true });
+    writeFileSync(arquivoRede(), JSON.stringify(pref));
+  } catch (err) {
+    registrar("rede-pref-falhou", { erro: String(err?.message || err) });
+  }
+}
 /** Destino pedido por link antes de a janela existir. */
 let pendente = null;
 /** Origens de salas de outras pessoas que o usuário abriu por convite. */
@@ -182,14 +207,29 @@ async function subirServidor() {
         if (linkTs && ["conferindo", "habilitar", "verificando"].includes(linkTs.state)) {
           return { estado: linkTs.state, url: null, habilitar: linkTs.habilitar };
         }
-        linkTs?.stop({ silencioso: true });
-        linkTs = new LinkTailscale(porta);
-        try {
-          return { estado: "pronto", url: await linkTs.start() };
-        } catch (err) {
-          registrar("tailscale-falhou", { erro: String(err?.message || err) });
-          throw err;
+        return { estado: "pronto", url: await ligarTailscale() };
+      },
+
+      // "Sempre disponível na rede": lê ou muda (e já liga ou desliga o link).
+      "rede/config": async (url) => {
+        const valor = url.searchParams.get("sempre");
+        if (valor === "1" || valor === "0") {
+          gravarPrefRede({ ...lerPrefRede(), sempre: valor === "1" });
+          if (valor === "1" && linkTs?.state !== "pronto") ligarTailscale().catch(() => {});
         }
+        return lerPrefRede();
+      },
+
+      /*
+       * Entrar numa chamada de outro computador da rede, nesta janela. Passa
+       * pela mesma conferência dos links vcall:// (https e id de sala
+       * válido): uma página não leva a janela para qualquer lugar.
+       */
+      abrir: async (url) => {
+        const destino = destinoDoLink(`${ESQUEMA}://join?u=${encodeURIComponent(url.searchParams.get("u") || "")}`);
+        if (destino?.tipo !== "remoto") return { code: 400, erro: "endereço de sala inválido" };
+        setImmediate(() => abrirDestino(destino));
+        return { ok: true };
       },
       "tailscale/fechar": async () => {
         linkTs?.stop();
@@ -216,7 +256,20 @@ async function subirServidor() {
     }
   }
 
-  const server = createHttpServer({ registry, control });
+  ligarTailscale = async () => {
+    linkTs?.stop({ silencioso: true });
+    linkTs = new LinkTailscale(porta);
+    try {
+      return await linkTs.start();
+    } catch (err) {
+      registrar("tailscale-falhou", { erro: String(err?.message || err) });
+      throw err;
+    }
+  };
+  const rede = new RedeVcall({
+    eu: () => ({ url: linkTs?.state === "pronto" ? linkTs.url : null, salas: registry.directory({ rede: true }) }),
+  });
+  const server = createHttpServer({ registry, control, trustTailscale: true, rede: () => rede.listar() });
   // O link público do app é o cloudflared nesta mesma máquina: o endereço
   // real de cada convidado vem no CF-Connecting-IP. Pelo Tailscale, no
   // X-Forwarded-For que o `tailscale serve` põe (só endereços da tailnet).
@@ -877,6 +930,8 @@ if (!app.requestSingleInstanceLock()) {
 
     await semCache();
     permissoes();
+    // Disponível na rede Tailscale desde que o app abre, se a pessoa pediu.
+    if (lerPrefRede().sempre) ligarTailscale().catch(() => {});
     pendente = destinoDoLink(linkDosArgumentos(process.argv));
     criarJanela();
     atualizador.iniciar({ registrar });

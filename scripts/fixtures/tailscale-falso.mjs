@@ -35,6 +35,13 @@ if (args[0] === "status" && args.includes("--json")) {
       MagicDNSSuffix: "tail1234.ts.net",
       CurrentTailnet: { Name: "teste@example.com", MagicDNSSuffix: "tail1234.ts.net", MagicDNSEnabled: true },
       CertDomains: [NOME],
+      // Outro computador "com Vcall" (na verdade, este mesmo, pelo serve
+      // falso) e um celular sem Vcall: a varredura da rede tem de achar um e
+      // ignorar o outro.
+      Peer: {
+        "nodekey:1": { DNSName: "outra-maquina.tail1234.ts.net.", HostName: "outra-maquina", Online: true, TailscaleIPs: ["127.0.0.1"], OS: "linux" },
+        "nodekey:2": { DNSName: "celular.tail1234.ts.net.", HostName: "celular", Online: true, TailscaleIPs: ["127.0.0.2"], OS: "android" },
+      },
     }),
   );
   process.exit(0);

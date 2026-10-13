@@ -112,8 +112,15 @@ theme.bindButton($("#themeBtn"));
 theme.bindButton($("#themeBtn2"));
 
 const hashRoom = location.hash.slice(1);
-const isGuest = isRoomId(hashRoom);
-app.room = isGuest ? hashRoom : newRoomId();
+/*
+ * `?criar=1#sala`: alguém, em outro computador da rede Tailscale, pediu para
+ * criar uma chamada AQUI. A sala ainda não existe: em vez da antessala de
+ * convidado, abre o "Criar nova call" (nome, quem vê) já com esse id.
+ */
+const criarAqui = new URLSearchParams(location.search).get("criar") === "1" && isRoomId(hashRoom);
+if (criarAqui) history.replaceState(null, "", location.pathname);
+const isGuest = isRoomId(hashRoom) && !criarAqui;
+app.room = isRoomId(hashRoom) ? hashRoom : newRoomId();
 
 const lobby = new Lobby({ media, theme, onJoin: enterCall });
 let dashboard = null;
@@ -161,8 +168,34 @@ if (isGuest) {
     nome: app.profile?.name || "",
     theme,
     onSettings: () => openSettings({ naRecepcao: true }),
+    irPara: irParaOutroComputador,
   });
   dashboard.mount($(".app"));
+  if (criarAqui) dashboard.abrirCriar({ roomId: hashRoom });
+}
+
+/**
+ * Ir para uma chamada (ou para o "criar") em OUTRO computador da rede.
+ *
+ * Cada lugar tem seu jeito: no app de mesa a janela só navega pelo próprio
+ * app (que confere o endereço); no app do Android, um link vcall:// faz o app
+ * abrir a chamada nele mesmo, em vez de jogar a pessoa no navegador; no
+ * navegador comum, é só navegar.
+ */
+function irParaOutroComputador(url) {
+  if (host.disponivel) {
+    host.abrir(url).catch(() => location.assign(url));
+    return;
+  }
+  if (document.documentElement.classList.contains("vcall-android")) {
+    // O app do Android só repassa o endereço e a sala; o "?criar=1" se perde.
+    // Para criar, ele vai à tela inicial do outro computador, onde está o botão.
+    const u = new URL(url);
+    const alvo = u.searchParams.get("criar") === "1" ? `${u.origin}/` : url;
+    location.href = `vcall://join?u=${encodeURIComponent(alvo)}`;
+    return;
+  }
+  location.assign(url);
 }
 playIntro();
 
@@ -1270,6 +1303,73 @@ function avisarDeAtualizacao() {
  * fazer. No app que se atualiza sozinho ele mostra o andamento (procurando,
  * baixando, conferindo a assinatura, pronta) e oferece reiniciar na hora.
  */
+/**
+ * "Rede Tailscale" nas configurações do app de mesa: deixar este computador
+ * sempre disponível na rede (o link do Tailscale sobe sozinho ao abrir o
+ * Vcall), para o celular e os outros computadores criarem chamadas aqui.
+ */
+function blocoDaRede() {
+  const caixa = el("input", { type: "checkbox", "aria-describedby": "redeDica" });
+  const dica = el("div.field__hint", { id: "redeDica", text: "Conferindo o Tailscale…" });
+  const endereco = el("input.input.mono", { type: "text", readonly: true, hidden: true, "aria-label": "Endereço deste computador na rede" });
+  const copiar = el("button.btn", { type: "button", hidden: true, onClick: () => copy(endereco.value, "Endereço copiado") }, [
+    icon("copy", { size: "sm" }),
+    el("span", { text: "Copiar" }),
+  ]);
+  const bloco = el("div.stack", {}, [
+    el("label.row", {}, [
+      caixa,
+      el("div", {}, [
+        el("div", { text: "Deixar este computador disponível na minha rede Tailscale" }),
+        el("div.field__hint", { text: "O link do Tailscale sobe sozinho ao abrir o Vcall. Assim dá para criar chamadas aqui pelo celular, a qualquer hora." }),
+      ]),
+    ]),
+    el("div.row", {}, [endereco, copiar]),
+    dica,
+  ]);
+
+  const pintar = () => {
+    const c = host.tsConferido;
+    const pronto = host.ts.estado === "pronto" && host.ts.url;
+    endereco.hidden = copiar.hidden = !pronto;
+    if (pronto) endereco.value = `${host.ts.url}/`;
+    caixa.disabled = !!c && !c.instalado;
+    dica.textContent = !c
+      ? "Conferindo o Tailscale…"
+      : !c.instalado || !c.pronto
+        ? c.mensagem || "O Tailscale não está pronto neste computador."
+        : pronto
+          ? "No celular, com o Tailscale ligado, abra este endereço no app do Vcall (ou no navegador) e toque em “Criar nova call”."
+          : caixa.checked
+            ? "Ligando o link do Tailscale…"
+            : "Desligado: o celular só entra quando você gerar o link no Convidar.";
+  };
+  caixa.addEventListener("change", async () => {
+    caixa.disabled = true;
+    try {
+      await host.configRede(caixa.checked);
+      // O link leva alguns segundos para subir (e o certificado, na 1ª vez).
+      if (caixa.checked) {
+        let n = 0;
+        const t = setInterval(() => {
+          if (!bloco.isConnected || host.ts.estado === "pronto" || ++n > 40) return clearInterval(t);
+          host.status().catch(() => {});
+        }, 1500);
+      }
+    } catch {
+      toast("Não consegui mudar a opção agora.", { tone: "warn" });
+    }
+    caixa.disabled = false;
+    pintar();
+  });
+  host.configRede().then((r) => ((caixa.checked = !!r?.sempre), pintar())).catch(() => {});
+  host.conferirTailscale().then(pintar);
+  const ouvir = () => (bloco.isConnected ? pintar() : host.off?.("status", ouvir));
+  host.on("status", ouvir);
+  pintar();
+  return bloco;
+}
+
 function blocoDeAtualizacao() {
   const api = window.vcallDesktop?.atualizacao;
   if (!api) return blocoDeAtualizacaoSoAviso();
@@ -3102,6 +3202,7 @@ function openSettings({ naRecepcao = false } = {}) {
   if (naRecepcao) {
     section("Aparência", [themeRowDeConfiguracoes(), seletorDePaletas()]);
     if (host.disponivel) section("Atualizações", [blocoDeAtualizacao()]);
+    if (host.disponivel) section("Rede Tailscale", [blocoDaRede()]);
     $("#settingsModal").showModal();
     animarEntradaDoDialogo($("#settingsModal"));
     return;
@@ -3393,6 +3494,7 @@ function openSettings({ naRecepcao = false } = {}) {
     .catch(() => {
       about.textContent = "Não foi possível consultar a versão.";
     });
+  if (host.disponivel) section("Rede Tailscale", [blocoDaRede()]);
   section("Sobre esta versão", [
     about,
     el("div.field__hint", {

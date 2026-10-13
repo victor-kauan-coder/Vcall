@@ -124,6 +124,7 @@ const ICONS = [
   "rotate-ccw",
   "save",
   "laptop",
+  "network",
   "arrow-up-right",
   "arrow-right",
   "eye",

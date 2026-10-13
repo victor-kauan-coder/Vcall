@@ -53,6 +53,46 @@ Outras vantagens do link do Tailscale:
 
 **Desligar este link** tira a sala da rede na hora. Fechar o Vcall também.
 
+## Chamadas ativas na rede
+
+Com o Tailscale ligado, a tela inicial do Vcall mostra em **Ao vivo agora** as
+chamadas de **todos os computadores da sua rede** que estão com o Vcall
+aberto. Cada uma diz em qual computador está ("em notebook-ana"), e
+**Entrar** leva até ela. Embaixo, **Também na sua rede Tailscale** lista esses
+computadores, com **Criar aqui** para abrir uma chamada em outro computador.
+
+![Chamadas da rede na tela inicial](imagens/rede-painel.png)
+
+Quem aparece é o que cada pessoa escolheu ao criar a chamada:
+
+| Ao criar | Quem vê na lista |
+| --- | --- |
+| **Privada** | Ninguém. Só entra quem tem o link ou o código |
+| **Na minha rede** (padrão na rede) | Quem está na sua rede Tailscale. Quem chega pelo link público do Cloudflare não vê |
+| **Pública** | Qualquer pessoa que abra a tela inicial daquele computador, inclusive pelo link público |
+
+Um computador só aparece para os outros quando está **disponível na rede**:
+com o link do Tailscale ligado no Convidar, ou com a opção abaixo.
+
+## Criar chamadas pelo celular
+
+O celular não hospeda a chamada: ela fica num computador com o Vcall. Com o
+Tailscale, o celular cria a chamada num computador da rede a qualquer hora.
+
+1. No computador: **Configurações › Rede Tailscale › Deixar este computador
+   disponível na minha rede Tailscale**. O link do Tailscale passa a subir
+   sozinho sempre que o Vcall abre, e o endereço aparece ali com **Copiar**.
+2. No celular, com o Tailscale ligado, abra esse endereço
+   (`https://seu-computador.sua-rede.ts.net/`):
+   - **no app do Vcall:** cole o endereço completo (com `https://`) em "Link do
+     convite" e toque em **Entrar**. Ele fica nos **Recentes** para as próximas
+     vezes;
+   - **no navegador:** é só abrir o endereço.
+3. Aparece a tela inicial daquele computador: **Criar nova call**, e as
+   chamadas ativas da rede para entrar com um toque.
+
+Do celular também dá para usar **Criar aqui** nos outros computadores da lista.
+
 ## Como saber se a chamada está indo pelo Tailscale
 
 Abra **Qualidade da chamada** (o gráfico na barra) e veja **Rota**:
@@ -97,6 +137,15 @@ Se você já publica algo na porta 443 do Tailscale, o Vcall usa a 8443 (ou a
 - A voz e o vídeo não passam pelo `serve`: vão de computador para computador.
   O Tailscale entra como mais uma "placa de rede" com endereço 100.x, e o
   navegador a usa quando o caminho comum falha.
+
+- A lista da rede é montada pelo app de mesa: `tailscale status --json` diz
+  quais computadores estão ligados, e cada um é perguntado (`/api/rooms`, nas
+  portas 443, 8443 e 10000 ao mesmo tempo, com 2,5 s de prazo) se tem Vcall.
+  Quem não tem fica 30 s sem ser perguntado. O que chega de cada computador é
+  conferido campo a campo antes de aparecer na tela.
+- `/api/rede` (a lista) e as salas **Na minha rede** só respondem para a
+  própria máquina e para quem chega pela tailnet. Pelo túnel do Cloudflare,
+  elas não existem.
 
 ### Servidor próprio (`npm start`)
 

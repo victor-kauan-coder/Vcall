@@ -81,6 +81,28 @@ export function icon(name, { size = "", label = "", className = "" } = {}) {
   return svg;
 }
 
+/**
+ * Um emoji do sprite colorido (Fluent Emoji Flat, em /vendor/emoji.svg): igual
+ * em todo sistema, sem depender da fonte de emoji instalada.
+ */
+export function emoji(name, { size = 24, label = "", className = "" } = {}) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", `emoji${className ? ` ${className}` : ""}`);
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("viewBox", "0 0 32 32");
+  if (label) {
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", label);
+  } else {
+    svg.setAttribute("aria-hidden", "true");
+  }
+  const use = document.createElementNS(SVG_NS, "use");
+  use.setAttribute("href", `/vendor/emoji.svg#e-${name}`);
+  svg.append(use);
+  return svg;
+}
+
 /** Troca o ícone de um <svg class="icon"> já montado, sem recriar o nó. */
 export function setIcon(svg, name) {
   const use = svg?.querySelector("use");

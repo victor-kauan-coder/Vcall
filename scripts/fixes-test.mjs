@@ -30,6 +30,7 @@ import { mkdtempSync, writeFileSync as gravar } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
+import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, SINAIS, Sinais, validar as validarReacao } from "../public/js/features/reacoes.js";
 import { BARALHOS, Daily, EstadoJogos, Poker, Retro, daily, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
 import { LinkTailscale, MENSAGENS, escolherPorta, interpretarFalha, lerEstado, urlDe } from "../desktop/tailscale.js";
 import { ehDaRede, ehIpTailscale } from "../src/rede.js";
@@ -925,6 +926,92 @@ server.close();
   const semLogin = new RedeVcall({ achar: async () => "tailscale", rodar: async () => ({ stdout: JSON.stringify({ BackendState: "NeedsLogin" }) }) });
   assert.deepEqual(await semLogin.listar(), { disponivel: false, motivo: "deslogado", computadores: [] });
   ok("rede Tailscale: sala \"Na minha rede\" só para a tailnet, varredura dos computadores com Vcall, dados de fora limpos");
+}
+
+/* ------------------------------------------------------------------ *
+ * Reações: combo sem inundar a rede, chuva só com várias pessoas, sinais
+ * que vencem sozinhos e dado de fora conferido
+ * ------------------------------------------------------------------ */
+{
+  // Combo: 9 cliques em 600 ms viram no máximo 3 mensagens, com a soma certa.
+  let t = 0;
+  const enviados = [];
+  const combo = new Combo((id, n) => enviados.push([id, n]), { janela: 250, agora: () => t });
+  const tamanhos = [];
+  for (let i = 0; i < 9; i += 1) {
+    t = i * 70;
+    tamanhos.push(combo.soltar("festa"));
+  }
+  assert.deepEqual(tamanhos, [1, 2, 3, 4, 5, 6, 7, 8, 9], "o combo cresce na hora, sem esperar a rede");
+  await espera(300);
+  combo.descarregar();
+  assert.ok(enviados.length <= 3, `9 cliques viraram ${enviados.length} mensagens`);
+  assert.equal(enviados.reduce((a, [, n]) => a + n, 0), 9, "nenhum clique se perde");
+  t = 5000;
+  assert.equal(combo.soltar("festa"), 1, "depois de uma pausa, o combo recomeça");
+  assert.equal(combo.soltar("amei"), 1, "outra reação recomeça o combo");
+  combo.descarregar();
+
+  // Do outro lado, os lotes somam: quem vê também vê o ×9.
+  const remoto = new ComboRemoto({ janela: 1500 });
+  assert.equal(remoto.somar("ana", "festa", 3, 0), 3);
+  assert.equal(remoto.somar("ana", "festa", 4, 250), 7);
+  assert.equal(remoto.somar("bia", "festa", 1, 300), 1, "cada pessoa tem o próprio combo");
+  assert.equal(remoto.somar("ana", "festa", 2, 500), 9);
+  assert.equal(remoto.somar("ana", "festa", 1, 3000), 1, "1,5 s sem nada e o combo zera");
+
+  // Chuva: a mesma reação de 3 pessoas em 4 s; uma pessoa clicando sem parar não basta.
+  const chuva = new Chuva({ pessoas: 3, janela: 4000, pausa: 6000 });
+  for (let i = 0; i < 20; i += 1) assert.equal(chuva.registrar("palmas", "ana", i * 50), false, "uma pessoa só não faz chover");
+  assert.equal(chuva.registrar("palmas", "bia", 1000), false);
+  assert.equal(chuva.registrar("palmas", "caio", 2000), true, "a terceira pessoa faz chover");
+  assert.equal(chuva.registrar("palmas", "duda", 2500), false, "e não chove de novo logo em seguida");
+  assert.equal(chuva.registrar("fogo", "ana", 2600) || chuva.registrar("fogo", "bia", 2700), false);
+  assert.equal(chuva.registrar("fogo", "caio", 9000), false, "reações espalhadas por mais de 4 s não contam juntas");
+
+  // Sinais: um por grupo, vencem no prazo de quem recebe, e "Já volto" não vence.
+  let agora = 0;
+  const sinais = new Sinais({ agora: () => agora });
+  const mudancas = [];
+  sinais.on("mudou", (m) => mudancas.push(m));
+  assert.deepEqual(sinais.alternar("ana", "sim"), ["sim"]);
+  assert.deepEqual(sinais.alternar("ana", "nao"), ["nao"], "Não tira o Sim");
+  assert.deepEqual(sinais.alternar("ana", "devagar"), ["nao", "devagar"], "grupos diferentes convivem");
+  assert.deepEqual(sinais.alternar("ana", "devagar"), ["nao"], "clicar de novo desliga");
+  sinais.definir("bia", ["sim", "nao", "javolto", "inventado"]);
+  assert.deepEqual(sinais.de("bia"), ["nao", "javolto"], "o que chega pela rede também respeita os grupos");
+  sinais.definir("caio", ["nao"]);
+  assert.deepEqual(sinais.contagem(), { nao: 3, javolto: 1 });
+  assert.deepEqual(sinais.porSinal().nao.sort(), ["ana", "bia", "caio"]);
+  agora = 91_000;
+  assert.equal(sinais.vencer(), true);
+  assert.deepEqual(sinais.de("ana"), [], "o Não some depois de 90 s");
+  assert.deepEqual(sinais.de("bia"), ["javolto"], "o Já volto fica até a pessoa tirar");
+  assert.ok(mudancas.some((m) => m.pessoa === "caio" && m.ids.length === 0), "quem venceu avisa a tela");
+  sinais.esquecer("bia");
+  assert.deepEqual(sinais.porSinal(), {}, "quem sai da chamada leva os sinais junto");
+  const n = mudancas.length;
+  sinais.definir("ana", []);
+  assert.equal(mudancas.length, n, "sem mudança, sem repintar");
+
+  // O que chega pelo canal é dado de fora.
+  assert.deepEqual(validarReacao({ type: "reacao", r: "festa", n: 3 }), { tipo: "reacao", id: "festa", n: 3 });
+  assert.equal(validarReacao({ type: "reacao", r: "festa", n: 1e9 }).n, 20, "lote enorme vira 20");
+  assert.equal(validarReacao({ type: "reacao", r: "festa", n: "5" }).n, 1);
+  assert.equal(validarReacao({ type: "reacao", r: "<img src=x>" }), null);
+  assert.equal(validarReacao({ type: "reacao", r: "__proto__" }), null);
+  assert.deepEqual(validarReacao({ type: "sinal", s: ["sim", "sim", "x", 7] }), { tipo: "sinal", ids: ["sim"] });
+  assert.deepEqual(validarReacao({ type: "sinal", s: "sim" }), { tipo: "sinal", ids: [] });
+  assert.equal(validarReacao(null), null);
+
+  // Catálogo: ids únicos, e todo emoji existe no sprite (senão aparece um buraco).
+  const { readFileSync } = await import("node:fs");
+  const sprite = readFileSync(new URL("../public/vendor/emoji.svg", import.meta.url), "utf8");
+  const ids = [...REACOES, ...SINAIS].map((x) => x.id);
+  assert.equal(new Set(ids).size, ids.length, "ids repetidos");
+  for (const x of [...REACOES, ...SINAIS]) assert.ok(sprite.includes(`id="e-${x.emoji}"`), `falta o emoji ${x.emoji} no sprite`);
+  for (const novo of Object.values(DO_ANTIGO)) assert.ok(REACOES.some((r) => r.id === novo), "reação antiga sem par novo");
+  ok("reações: combo em poucas mensagens e igual dos dois lados, chuva só com 3 pessoas, sinais que vencem, dado de fora conferido");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

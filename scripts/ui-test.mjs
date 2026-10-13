@@ -504,6 +504,91 @@ try {
     await m.context().close();
   }
 
+  console.log("\nReações e sinais");
+  {
+    const sala = novaSala("reacoes");
+    const a = await participante("Ana", sala);
+    await noDock(a);
+    const b = await participante("Bia", sala);
+    await noDock(b);
+    const c = await participante("Caio", sala);
+    await noDock(c);
+    await conectados(a, 2);
+    await conectados(c, 2);
+    await espera(1000);
+
+    // Combo: cinco cliques rápidos viram ×5 nos dois lados, em poucas mensagens.
+    await b.evaluate(() => {
+      window.__combos = [];
+      new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => n.classList?.contains("reacaoCombo") && window.__combos.push(n.textContent)))).observe(document.body, { subtree: true, childList: true });
+    });
+    await a.keyboard.press("r");
+    await a.waitForSelector(".popover--reactions .reagirBotao");
+    const botoes = await a.locator(".reagirBotao").count();
+    check("o menu de reagir tem a grade de reações e os sinais", botoes >= 18 && (await a.locator(".reagirSinal").count()) >= 7, `${botoes} reações`);
+    for (let i = 0; i < 5; i += 1) await a.click('.reagirBotao[aria-label="Amei"]');
+    await b.waitForFunction(() => window.__combos.includes("×5"), null, { timeout: 4000 }).catch(() => {});
+    const combos = await b.evaluate(() => window.__combos);
+    check("cinco cliques chegam como ×5 do outro lado (antes ×2)", combos.includes("×5"), combos.join(" "));
+    const selo = await b.evaluate(() => !!document.querySelector(".tile .tile__reacao.is-on"));
+    check("a reação marca o quadrinho de quem reagiu", selo);
+
+    // Chuva: a mesma reação de três pessoas.
+    await espera(1600);
+    for (const p of [a, b, c]) {
+      await p.keyboard.press("Escape");
+      await p.keyboard.press("r");
+      await p.click('.reagirBotao[aria-label="Festa"]');
+    }
+    await espera(700);
+    const noAr = await a.evaluate(() => document.querySelectorAll(".reacaoVoo").length);
+    check("três pessoas com a mesma reação fazem chover na chamada", noAr >= 15, `${noAr} no ar`);
+
+    // Teclado: com o menu aberto, 1 a 9 reagem direto.
+    await espera(2500);
+    await c.keyboard.press("2");
+    const doTeclado = await a
+      .waitForFunction(() => document.querySelectorAll(".reacaoVoo").length > 0, null, { timeout: 3000 })
+      .then(() => true, () => false);
+    check("com o menu aberto, um número reage direto", doTeclado);
+
+    // Sinais: votação rápida com placar e etiquetas no quadrinho.
+    const sinal = async (p, nome) => {
+      await p.keyboard.press("Escape");
+      await p.keyboard.press("r");
+      await p.click(`.reagirSinal:has-text("${nome}")`);
+      await p.keyboard.press("Escape");
+    };
+    await sinal(a, "Sim");
+    await sinal(b, "Sim");
+    await sinal(c, "Não");
+    await c.waitForFunction(() => document.querySelectorAll(".placarItem").length === 2, null, { timeout: 4000 }).catch(() => {});
+    const placar = await c.evaluate(() => [...document.querySelectorAll(".placarItem")].map((x) => x.getAttribute("aria-label")));
+    check("Sim e Não viram um placar para todos", placar.some((x) => x.startsWith("Sim: 2")) && placar.some((x) => x.startsWith("Não: 1")), placar.join(" · "));
+    const etiquetas = await c.evaluate(() => document.querySelectorAll(".tile__sinais .sinal").length);
+    check("os sinais ficam como etiqueta no quadrinho", etiquetas === 3, `${etiquetas} etiquetas`);
+    await sinal(b, "Já volto");
+    await sinal(c, "Não estou ouvindo");
+    const ausente = await a
+      .waitForFunction(() => document.querySelectorAll(".tile.is-ausente").length === 1, null, { timeout: 4000 })
+      .then(() => true, () => false);
+    check("\"Já volto\" esmaece o quadrinho", ausente);
+    const aviso = await a
+      .waitForFunction(() => [...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("Caio não está ouvindo")), null, { timeout: 4000 })
+      .then(() => true, () => false);
+    check("\"Não estou ouvindo\" avisa a chamada", aviso);
+
+    // Quem chega depois vê os sinais de quem já estava.
+    const d = await participante("Duda", sala);
+    await noDock(d);
+    await conectados(d, 3);
+    const viu = await d
+      .waitForFunction(() => document.querySelectorAll(".tile__sinais .sinal").length >= 4, null, { timeout: 8000 })
+      .then(() => true, () => false);
+    check("quem entra depois recebe os sinais que já estavam ligados", viu);
+    for (const p of [a, b, c, d]) await p.context().close();
+  }
+
   console.log("\nRede Tailscale no painel");
   {
     // A lista da rede vem do app de mesa; aqui ela é simulada na rota.

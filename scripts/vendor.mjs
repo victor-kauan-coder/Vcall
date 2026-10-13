@@ -5,6 +5,7 @@
  * Gera os artefatos "vendorizados" que o navegador consome diretamente:
  *
  *   public/vendor/icons.svg    — sprite SVG com o subconjunto de ícones do Lucide (ISC)
+ *   public/vendor/emoji.svg    — sprite com os emoji das reações e dos jogos (Fluent Emoji Flat, MIT)
  *   public/vendor/icons.json   — manifesto (id -> viewBox) para checagem em build
  *   public/vendor/avatars.js   — bundle ESM do DiceBear (MIT) com os estilos escolhidos
  *   public/vendor/vosk.js      — reconhecimento de fala offline (vosk-browser, Apache-2.0),
@@ -165,6 +166,52 @@ const ALIASES = {
   line: "slash",
   host: "crown",
 };
+
+/*
+ * Emoji das reações e dos jogos: Fluent Emoji Flat, da Microsoft (MIT), pelo
+ * pacote @iconify-json/fluent-emoji-flat. Desenhados aqui, e não com a fonte
+ * do sistema, para serem iguais no Windows, em qualquer Linux (onde a fonte
+ * colorida às vezes nem existe e o emoji vira um quadrado) e no celular.
+ */
+export const EMOJIS = [
+  // Reações rápidas
+  "thumbs-up", "red-heart", "face-with-tears-of-joy", "face-with-open-mouth", "clapping-hands", "party-popper",
+  "fire", "thinking-face", "crying-face", "folded-hands", "hundred-points", "rocket",
+  "star-struck", "raising-hands", "eyes", "smiling-face-with-heart-eyes", "skull", "exploding-head",
+  // Sinais (ficam no quadrinho até a pessoa tirar)
+  "check-mark-button", "cross-mark", "turtle", "rabbit-face", "repeat-button", "muted-speaker", "hot-beverage",
+  // Jogos
+  "game-die", "trophy", "crown", "light-bulb", "artist-palette", "pencil", "alarm-clock", "sparkles",
+  "glowing-star", "partying-face", "waving-hand", "grinning-squinting-face", "performing-arts", "speech-balloon",
+  "brain", "red-question-mark", "bullseye", "puzzle-piece", "joystick", "man-detective", "magic-wand",
+  "slot-machine", "money-bag", "1st-place-medal", "2nd-place-medal", "3rd-place-medal", "hourglass-not-done",
+];
+
+async function buildEmoji() {
+  const fonte = path.join(root, "node_modules", "@iconify-json", "fluent-emoji-flat", "icons.json");
+  if (!existsSync(fonte)) {
+    console.warn("  ! @iconify-json/fluent-emoji-flat não instalado: emoji.svg não foi gerado");
+    return;
+  }
+  const pacote = JSON.parse(await readFile(fonte, "utf8"));
+  const largura = pacote.width || 32;
+  const altura = pacote.height || 32;
+  const simbolos = [];
+  for (const nome of EMOJIS) {
+    const e = pacote.icons[nome];
+    if (!e) {
+      console.warn(`  ! emoji ausente no Fluent Emoji Flat: ${nome}`);
+      continue;
+    }
+    simbolos.push(`<symbol id="e-${nome}" viewBox="0 0 ${e.width || largura} ${e.height || altura}">${e.body}</symbol>`);
+  }
+  const sprite =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<!-- Fluent Emoji Flat (MIT License) — https://github.com/microsoft/fluentui-emoji — subconjunto gerado por scripts/vendor.mjs -->\n` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true">\n${simbolos.join("\n")}\n</svg>\n`;
+  await writeFile(path.join(outDir, "emoji.svg"), sprite);
+  console.log(`  ✓ emoji.svg  (${simbolos.length} emoji, ${Math.round(sprite.length / 1024)} KB)`);
+}
 
 async function buildSprite() {
   const symbols = [];
@@ -403,6 +450,7 @@ async function copyRnnoise() {
 await mkdir(outDir, { recursive: true });
 console.log("Vendorizando dependências de UI...");
 await buildSprite();
+await buildEmoji();
 await buildAvatars();
 await copyVosk();
 await buildWhisper();

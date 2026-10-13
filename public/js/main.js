@@ -19,7 +19,9 @@ import { PALETAS } from "./ui/paletas.js";
 import { Lobby } from "./ui/lobby.js";
 import { Stage } from "./ui/stage.js";
 import { Panel } from "./ui/panel.js";
-import { Dock, REACTIONS } from "./ui/dock.js";
+import { Dock } from "./ui/dock.js";
+import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, Sinais, validar as validarReacao } from "./features/reacoes.js";
+import { CamadaReacoes, montarMenu as montarMenuDeReacoes } from "./ui/reacoes.js";
 import { toast, chime } from "./ui/toast.js";
 import { avatarEl, colorFor, defaultAvatar } from "./ui/avatars.js";
 import { ilustracao } from "./ui/ilustracao.js";
@@ -1046,21 +1048,7 @@ function openMoreMenu() {
     if (window.vcallDesktop?.modoJogo) item("zap", "Modo jogo (sobreposição)", () => setModoJogo(!app.modoJogo), !!app.modoJogo);
     item("smile", "Reagir", () => {
       // Reabre como menu de reações, ancorado no mesmo botão.
-      setTimeout(() => dock.openPopover("more", (p2, c2) => {
-        for (const r of REACTIONS) {
-          p2.append(
-            Dock.item({
-              iconName: r.icon,
-              label: r.label,
-              onClick: () => {
-                mesh.sendReaction(r.kind);
-                showReaction(mesh.selfId || "self", r.kind);
-                c2();
-              },
-            }),
-          );
-        }
-      }), 0);
+      setTimeout(() => openReactionMenu("more"), 0);
     });
     item("eye", captions.enabled ? "Parar de legendar" : "Legendar minha fala", toggleCaptions, captions.enabled);
     if (canRecord) {
@@ -1093,7 +1081,7 @@ const SHORTCUTS = [
     ["S", "Compartilhar a tela"],
     ["D", "Silenciar todo mundo para você"],
     ["H", "Levantar e baixar a mão"],
-    ["R", "Reagir"],
+    ["R", "Reagir (com o menu aberto, 1 a 9 reagem direto)"],
     ["T", "Legendar sua fala"],
   ]],
   ["Tela e painéis", [
@@ -1832,6 +1820,11 @@ function wireJogos() {
   jogosEstado.on("mudou", (chaves) => {
     if (chaves.includes("jogo")) avisarJogo();
   });
+  // Quem chega vê os meus sinais (Já volto, Sim…) sem eu precisar repetir.
+  mesh.on("board-channel", ({ id }) => {
+    const meus = sinaisChamada.de(mesh.selfId);
+    if (meus.length) mesh.peers.get(id)?.sendBoard({ type: "sinal", s: meus });
+  });
   // Quem chega (ou volta) recebe tudo, em pedaços que cabem no canal.
   mesh.on("board-channel", ({ id }) => {
     if (jogosEstado.vazio) return;
@@ -2221,35 +2214,88 @@ function toggleHand() {
   if (app.hand) toast("Você levantou a mão", { tone: "info", ms: 2000 });
 }
 
-function openReactionMenu() {
+/*
+ * Reações e sinais (features/reacoes.js, ui/reacoes.js). Vão pelo canal
+ * direto da chamada; cliques repetidos viram combo, e a mesma reação de três
+ * pessoas vira chuva. Sinais (Sim, Não, Mais devagar…) ficam no quadrinho.
+ */
+const sinaisChamada = new Sinais();
+const chuvaDeReacoes = new Chuva();
+const comboDeReacoes = new Combo((id, n) => mesh.broadcastBoard({ type: "reacao", r: id, n }, { fallback: true }));
+const combosDosOutros = new ComboRemoto();
+const camadaReacoes = new CamadaReacoes({
+  quadro: (p) => stage?.get(p === mesh.selfId ? "self" : p, "cam")?.node || null,
+  nome: (p) => (p === mesh.selfId ? "Você" : mesh.profiles.get(p)?.name || "Alguém"),
+  palco: () => $("#stage"),
+});
+let menuDeReacoes = null;
+
+function openReactionMenu(dono = "react") {
   dock.openPopover(
-    "react",
-    (pop, close) => {
-      for (const r of REACTIONS) {
-        const b = Dock.item({
-          iconName: r.icon,
-          label: "",
-          onClick: () => {
-            mesh.sendReaction(r.kind);
-            showReaction(mesh.selfId || "self", r.kind);
-            close();
-          },
-        });
-        b.setAttribute("aria-label", r.label);
-        b.dataset.tip = r.label;
-        b.dataset.tipPlacement = "bottom";
-        pop.append(b);
-      }
+    dono,
+    (pop) => {
+      menuDeReacoes = montarMenuDeReacoes(pop, {
+        aoReagir: (id) => reagir(id),
+        aoSinal: (id) => alternarSinal(id),
+        meusSinais: () => sinaisChamada.de(mesh.selfId),
+      });
     },
     { className: "popover--reactions" },
   );
 }
 
-function showReaction(peerId, kind) {
-  const r = REACTIONS.find((x) => x.kind === kind);
-  if (!r) return;
-  const tileId = peerId === mesh.selfId ? "self" : peerId;
-  stage.get(tileId, "cam")?.react(r.icon);
+function reagir(id) {
+  if (!mesh.selfId) return;
+  const combo = comboDeReacoes.soltar(id);
+  mostrarReacao(mesh.selfId, id, { combo });
+}
+
+function mostrarReacao(pessoa, id, { n = 1, combo = 1 } = {}) {
+  camadaReacoes.voar(pessoa, id, { n, combo });
+  if (chuvaDeReacoes.registrar(id, pessoa)) camadaReacoes.chover(id);
+}
+
+function alternarSinal(id) {
+  if (!mesh.selfId) return;
+  const ids = sinaisChamada.alternar(mesh.selfId, id);
+  mesh.broadcastBoard({ type: "sinal", s: ids }, { fallback: true });
+  menuDeReacoes?.pintar(ids);
+}
+
+function pintarSinais(pessoa, ids) {
+  camadaReacoes.sinais(pessoa, ids);
+  camadaReacoes.placar(sinaisChamada.porSinal());
+  if (pessoa === mesh.selfId) menuDeReacoes?.pintar(ids);
+}
+sinaisChamada.on("mudou", ({ pessoa, ids }) => pintarSinais(pessoa, ids));
+// Os sinais vencem (Sim e Não depois de 90 s…), e um quadrinho refeito
+// (troca de layout, reconexão) recebe as etiquetas de novo.
+setInterval(() => {
+  if (!mesh.selfId) return;
+  sinaisChamada.vencer();
+  for (const [pessoa, ids] of Object.entries(sinaisPorPessoa())) camadaReacoes.sinais(pessoa, ids);
+}, 5000);
+
+function sinaisPorPessoa() {
+  const out = {};
+  for (const [id, pessoas] of Object.entries(sinaisChamada.porSinal())) for (const p of pessoas) (out[p] ||= []).push(id);
+  return out;
+}
+
+/** Reação ou sinal que chegou pelo canal direto (dado de fora: validado). */
+function receberReacao(from, op) {
+  const v = validarReacao(op);
+  if (!v) return false;
+  if (v.tipo === "reacao") {
+    mostrarReacao(from, v.id, { n: v.n, combo: combosDosOutros.somar(from, v.id, v.n) });
+    return true;
+  }
+  const antes = sinaisChamada.de(from);
+  sinaisChamada.definir(from, v.ids);
+  if (v.ids.includes("semaudio") && !antes.includes("semaudio")) {
+    toast(`${mesh.profiles.get(from)?.name || "Alguém"} não está ouvindo`, { tone: "warn", ms: 5000, key: `semaudio-${from}` });
+  }
+  return true;
 }
 
 /* ================================================================== *
@@ -2303,6 +2349,7 @@ function wireMesh() {
 
   mesh.on("peer-leave", ({ id, profile, replaced }) => {
     stage.removePeer(id);
+    if (!replaced) sinaisChamada.esquecer(id);
     updateHeader();
     if (replaced) return; // a mesma pessoa está voltando com outra conexão
     panel.addSystem(`${profile?.name || "Alguém"} saiu`);
@@ -2484,7 +2531,8 @@ function wireMesh() {
     }
   });
 
-  mesh.on("reaction", ({ id, kind }) => showReaction(id, kind));
+  // Reação pelo caminho antigo (servidor): quem ainda manda assim.
+  mesh.on("reaction", ({ id, kind }) => DO_ANTIGO[kind] && mostrarReacao(id, DO_ANTIGO[kind]));
 
   mesh.on("board", ({ from, op }) => {
     /*
@@ -2500,6 +2548,7 @@ function wireMesh() {
       jogosEstado.aplicar(op.o);
       return;
     }
+    if ((op?.type === "reacao" || op?.type === "sinal") && receberReacao(from, op)) return;
     if (op?.type === "jogo-emoji") {
       jogos?.voarEmoji(from, String(op.para || ""), String(op.e || ""));
       return;
@@ -3551,7 +3600,17 @@ function bindShortcuts() {
     // procurada, e a maioria deles é dele.
     if (app.boardMode && e.key !== "Escape" && e.key !== "?") return;
 
+    // Com o menu de reagir aberto, 1 a 9 reagem direto (dá para fazer combo no teclado).
+    if (/^[1-9]$/.test(e.key) && document.querySelector(".popover--reactions")) {
+      const r = REACOES[Number(e.key) - 1];
+      if (r) reagir(r.id);
+      return;
+    }
+
     switch (e.key.toLowerCase()) {
+      case "r":
+        openReactionMenu();
+        break;
       case "m":
         media.toggleMic();
         syncDockMedia();
@@ -3650,6 +3709,7 @@ function leaveCall({ motivo = null, por = "" } = {}) {
   app.mini?.close();
   closeBoard();
   fecharJogos();
+  camadaReacoes.destruir();
   captions.stop();
   captions.unmount();
   if (recorder.recording) recorder.stop();

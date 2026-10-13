@@ -7,6 +7,11 @@
  * alguém marcou como PÚBLICAS ao criá-las; as privadas — o padrão — não
  * aparecem aqui nem por engano, e só são alcançadas por link ou código.
  *
+ * Com o Tailscale, "Ao vivo agora" junta também as chamadas dos outros
+ * computadores com Vcall da rede (/api/rede, que só responde para quem é da
+ * máquina ou da tailnet), e a sala pode ser "Na minha rede": visível para a
+ * tailnet, invisível para quem chega pelo link público.
+ *
  * A atualização é por sondagem a cada poucos segundos, e não por WebSocket.
  * Assinar o diretório exigiria uma conexão de sinalização antes de entrar em
  * qualquer sala, aberta o tempo todo em cada aba parada nesta tela; uma
@@ -20,8 +25,10 @@ import { toast } from "./toast.js";
 import { newRoomId, prefs } from "../lib/util.js";
 
 const POLL_MS = 5000;
+/** A rede é varrida pelo app de mesa; perguntar mais que isto não traz nada novo. */
+const POLL_REDE_MS = 10_000;
 /** Quantas salas cabem na tela inicial sem rolagem; o resto vira "+N". */
-const MAX_VISIVEIS = 3;
+const MAX_VISIVEIS = 4;
 
 function saudacao() {
   const h = new Date().getHours();
@@ -32,7 +39,12 @@ function saudacao() {
 
 export class Dashboard {
   #timer = 0;
+  #timerRede = 0;
   #rooms = [];
+  /** Resposta de /api/rede: { disponivel, computadores: [{ eu, curto, url, salas }] } */
+  #rede = null;
+  #maquinas = null;
+  #aoMudarRede = null;
   #list = null;
   #empty = null;
   #count = null;
@@ -54,6 +66,8 @@ export class Dashboard {
     root.append(this.#node);
     this.refresh();
     this.#timer = setInterval(() => this.refresh(), POLL_MS);
+    this.#buscarRede();
+    this.#timerRede = setInterval(() => this.#buscarRede(), POLL_REDE_MS);
     // Uma aba em segundo plano não precisa sondar nada.
     on(document, "visibilitychange", () => {
       if (!document.hidden) this.refresh();
@@ -63,7 +77,9 @@ export class Dashboard {
 
   hide() {
     clearInterval(this.#timer);
+    clearInterval(this.#timerRede);
     this.#timer = 0;
+    this.#timerRede = 0;
     this.#node?.remove();
     this.#node = null;
   }
@@ -182,6 +198,7 @@ export class Dashboard {
   #body() {
     this.#count = el("span.dash__count", { text: "…" });
     this.#list = el("div.dash__list", { role: "list" });
+    this.#maquinas = el("div.dash__rede", { hidden: true, "aria-label": "Computadores na sua rede Tailscale" });
     this.#empty = el("div.dash__empty", {}, [
       ilustracao("empty", { largura: 72, altura: 48, classe: "dash__emptyArt" }),
       el("p.dash__emptyTitle", { text: "Nenhuma call pública no ar agora." }),
@@ -203,7 +220,69 @@ export class Dashboard {
       ]),
       this.#list,
       this.#empty,
+      this.#maquinas,
     ]);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Rede Tailscale
+   * ---------------------------------------------------------------- */
+
+  async #buscarRede() {
+    if (!this.#node || document.hidden) return;
+    try {
+      const res = await fetch("/api/rede", { cache: "no-store" });
+      const dados = res.ok ? await res.json() : null;
+      this.#rede = dados?.disponivel ? dados : null;
+    } catch {
+      this.#rede = null;
+    }
+    this.#render();
+    this.#aoMudarRede?.();
+  }
+
+  /** As salas dos OUTROS computadores, cada uma sabendo de onde é. */
+  #salasDaRede() {
+    const out = [];
+    for (const c of this.#rede?.computadores || []) {
+      if (c.eu || !c.url) continue;
+      for (const s of c.salas || []) out.push({ ...s, computador: { curto: c.curto, url: c.url } });
+    }
+    return out;
+  }
+
+  /** "Na sua rede": os outros computadores com Vcall, com "criar aqui". */
+  #desenharMaquinas() {
+    const outros = (this.#rede?.computadores || []).filter((c) => !c.eu && c.url);
+    this.#maquinas.hidden = !this.#rede;
+    if (!this.#rede) return;
+    const eu = this.#rede.computadores.find((c) => c.eu);
+    this.#maquinas.replaceChildren(
+      el("p.dash__redeTitulo", {}, [
+        icon("network", { size: "sm" }),
+        el("span", { text: outros.length ? "Também na sua rede Tailscale" : "Sua rede Tailscale" }),
+      ]),
+      ...(outros.length
+        ? outros.map((c) =>
+            el("div.dashPc", { role: "group", "aria-label": c.curto }, [
+              el("i.dashPc__luz", { "aria-hidden": "true" }),
+              el("span.dashPc__nome", { text: c.curto }),
+              el("span.dashPc__n", { text: c.salas.length ? `${c.salas.length} ${c.salas.length === 1 ? "chamada" : "chamadas"}` : "livre" }),
+              el("button.btn.btn--ghost.dashPc__criar", {
+                type: "button",
+                "aria-label": `Criar chamada em ${c.curto}`,
+                onClick: () => this.opts.irPara?.(`${c.url}/?criar=1#${newRoomId()}`),
+              }, [icon("plus", { size: "sm" }), el("span", { text: "Criar aqui" })]),
+            ]),
+          )
+        : [
+            el("p.field__hint", {
+              text: eu?.url
+                ? "Nenhum outro computador com o Vcall aberto na rede agora."
+                : "Nenhum outro computador com o Vcall na rede agora. Para o celular criar chamadas neste computador, ligue Configurações › Rede Tailscale.",
+            }),
+          ]),
+    );
   }
 
   /* ---------------------------------------------------------------- *
@@ -218,6 +297,7 @@ export class Dashboard {
       const data = await res.json();
       this.#rooms = Array.isArray(data.rooms) ? data.rooms : [];
       this.#render();
+      if (this.#count && !this.#rooms.length && !this.#salasDaRede().length) this.#count.textContent = "";
     } catch {
       if (this.#count) this.#count.textContent = "sem contato com o servidor";
     }
@@ -226,15 +306,20 @@ export class Dashboard {
   #render() {
     if (!this.#list) return;
     clear(this.#list);
-    const n = this.#rooms.length;
-    const people = this.#rooms.reduce((a, r) => a + r.size, 0);
+    this.#desenharMaquinas();
+    const todas = [...this.#rooms, ...this.#salasDaRede()];
+    const n = todas.length;
+    const people = todas.reduce((a, r) => a + r.size, 0);
     this.#count.textContent = n
       ? `${n} ${n === 1 ? "sala" : "salas"} · ${people} ${people === 1 ? "pessoa" : "pessoas"}`
       : "";
     this.#empty.hidden = n > 0;
+    this.#empty.querySelector(".dash__emptyTitle").textContent = this.#rede
+      ? "Nenhuma call no ar na sua rede agora."
+      : "Nenhuma call pública no ar agora.";
 
     // A tela inicial não rola: mostra as mais cheias e resume o resto.
-    const ordenadas = [...this.#rooms].sort((a, b) => b.size - a.size);
+    const ordenadas = todas.sort((a, b) => b.size - a.size);
     for (const room of ordenadas.slice(0, MAX_VISIVEIS)) this.#list.append(this.#card(room));
     if (ordenadas.length > MAX_VISIVEIS) {
       this.#list.append(el("p.dash__more", { text: `+ ${ordenadas.length - MAX_VISIVEIS} salas públicas no ar — entre pelo código` }));
@@ -270,7 +355,10 @@ export class Dashboard {
         el("div.dashRoom__meta", {}, [
           el("span", { text: room.host?.name ? `por ${room.host.name}` : "sem anfitrião" }),
           el("span.dot-sep", { text: `${room.size}/${room.max} ${room.size === 1 ? "pessoa" : "pessoas"}` }),
-          el("span.dot-sep.mono", { text: room.code }),
+          room.computador
+            ? el("span.dot-sep.dashRoom__pc", {}, [icon("laptop", { size: "sm" }), el("span", { text: `em ${room.computador.curto}` })])
+            : el("span.dot-sep.mono", { text: room.code }),
+          room.visibility === "rede" ? el("span.dot-sep", { text: "só na rede" }) : null,
         ]),
       ]),
       el("span.spacer"),
@@ -279,14 +367,17 @@ export class Dashboard {
         type: "button",
         "aria-label": "Copiar link de convite",
         dataset: { tip: "Copiar link", "tip-placement": "left" },
-        onClick: () => copy(linkFor(room.id), "Link copiado"),
+        onClick: () => copy(room.computador ? `${room.computador.url}/#${room.id}` : linkFor(room.id), "Link copiado"),
       }, [icon("link")]),
-      el("button.btn.btn--icon.btn--ghost", {
-        type: "button",
-        "aria-label": "Copiar código P2P",
-        dataset: { tip: "Copiar código", "tip-placement": "left" },
-        onClick: () => copy(room.code, `Código ${room.code} copiado`),
-      }, [icon("copy")]),
+      // O código só vale no servidor da sala: o de outro computador não serve aqui.
+      room.computador
+        ? null
+        : el("button.btn.btn--icon.btn--ghost", {
+            type: "button",
+            "aria-label": "Copiar código P2P",
+            dataset: { tip: "Copiar código", "tip-placement": "left" },
+            onClick: () => copy(room.code, `Código ${room.code} copiado`),
+          }, [icon("copy")]),
       enter,
     ]);
   }
@@ -296,6 +387,11 @@ export class Dashboard {
    * ---------------------------------------------------------------- */
 
   #enter(room) {
+    // Sala de outro computador da rede: vai até ele (a senha, se houver, é pedida lá).
+    if (room.computador) {
+      this.opts.irPara?.(`${room.computador.url}/#${room.id}`);
+      return;
+    }
     if (!room.locked) {
       this.onEnter({ roomId: room.id, pass: "", isNew: false, roomName: room.name });
       return;
@@ -345,7 +441,12 @@ export class Dashboard {
     });
   }
 
-  #openCreate() {
+  /** Abre o "Criar nova call" (com um id já escolhido, quando veio de outro computador). */
+  abrirCriar({ roomId = null } = {}) {
+    this.#openCreate(roomId);
+  }
+
+  #openCreate(roomIdFixo = null) {
     const nameInput = el("input.input", {
       type: "text",
       maxLength: 48,
@@ -360,7 +461,9 @@ export class Dashboard {
     ]);
 
     const options = el("div.dash__privacy", { role: "radiogroup", "aria-label": "Privacidade" });
-    let visibility = prefs.get("room:lastVisibility", "private");
+    // Na rede Tailscale, o padrão é "Na minha rede": aparece para a turma, e
+    // continua escondida de quem chega pelo link público.
+    let visibility = prefs.get("room:visibilidade", null) || (this.#rede ? "rede" : "private");
 
     const mk = (value, iconName, title, hint) => {
       const b = el("button.privacy", {
@@ -391,6 +494,16 @@ export class Dashboard {
       "Pública",
       "Listada aqui para qualquer pessoa neste servidor entrar.",
     );
+    // "Na minha rede" só existe onde há rede: no app com Tailscale, ou pela tailnet.
+    const opcaoRede = () => {
+      if (!this.#rede || options.querySelector('[data-valor="rede"]')) return;
+      mk("rede", "network", "Na minha rede", "Aparece para quem está na sua rede Tailscale. Quem chega pelo link público não vê.");
+      options.lastElementChild.dataset.valor = "rede";
+      if (visibility === "rede") for (const b of options.children) b.setAttribute("aria-checked", String(b.dataset.valor === "rede"));
+    };
+    if (visibility === "rede" && !this.#rede) visibility = "private";
+    opcaoRede();
+    this.#aoMudarRede = opcaoRede;
 
     const passToggle = el("input", { type: "checkbox" });
     passToggle.addEventListener("change", () => {
@@ -422,9 +535,10 @@ export class Dashboard {
       onConfirm: () => {
         const name = nameInput.value.trim().slice(0, 48);
         prefs.set("room:lastName", name);
-        prefs.set("room:lastVisibility", visibility);
+        prefs.set("room:visibilidade", visibility);
+        this.#aoMudarRede = null;
         this.onEnter({
-          roomId: newRoomId(),
+          roomId: roomIdFixo || newRoomId(),
           pass: passToggle.checked ? passInput.value : "",
           isNew: true,
           roomName: name,

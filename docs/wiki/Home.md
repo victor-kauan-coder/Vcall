@@ -19,7 +19,7 @@ em qualquer distribuição Linux e no navegador.
 | Instalar no Windows, Fedora, Arch, Ubuntu… | [Instalação](Instalacao) |
 | Fazer a primeira chamada | [Primeiros passos](Primeiros-passos) |
 | Mandar o convite pelo WhatsApp | [Convidar e WhatsApp](Convidar-e-WhatsApp) |
-| Chamar pela sua rede Tailscale | [Tailscale](Tailscale) |
+| Chamar pela sua rede Tailscale, ver as chamadas da rede, criar pelo celular | [Tailscale](Tailscale) |
 | Mostrar uma janela ou a tela inteira | [Compartilhar a tela](Compartilhar-a-tela) |
 | Desenhar junto e mandar arquivos | [Canvas e arquivos](Canvas-e-arquivos) |
 | Ligar legendas e baixar a transcrição | [Legendas](Legendas) |
@@ -29,7 +29,7 @@ em qualquer distribuição Linux e no navegador.
 | Algo não funciona | [Solução de problemas](Solucao-de-problemas) |
 | Entender o que é privado | [Segurança e privacidade](Seguranca-e-privacidade) |
 | Mexer no código, rodar os testes | [Para desenvolvedores](Para-desenvolvedores) |
-| Ver o que mudou | [Novidades da 3.9](Novidades-3.9) |
+| Ver o que mudou | [Novidades da 3.10](Novidades-3.10) |
 
 ## O que o Vcall faz
 

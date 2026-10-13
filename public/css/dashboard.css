@@ -410,6 +410,60 @@
   color: var(--text-secondary);
 }
 
+/* Rede Tailscale: os outros computadores com Vcall, com "criar aqui". */
+.dash__rede {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+.dash__redeTitulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+.dashPc {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px 4px 4px var(--sp-3);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.dashPc__luz {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok) 20%, transparent);
+}
+.dashPc__nome {
+  font-weight: var(--weight-semibold);
+}
+.dashPc__n {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.dashPc__criar {
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+}
+.dashRoom__pc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .dash__empty {
   display: grid;
   grid-template-columns: auto 1fr;

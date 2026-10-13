@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { iceConfiguration } from "./ice.js";
 import { VERSION } from "./version.js";
+import { ehDaRede } from "./rede.js";
 import { log } from "./logger.js";
 
 /**
@@ -222,7 +223,14 @@ function pickEncoding(req, ext, size) {
  *   quando o app roda como executável, e o servidor web puro não deve nem
  *   conhecer a existência dele.
  */
-export function createHttpServer({ registry = null, control = null, assets = null } = {}) {
+export function createHttpServer({
+  registry = null,
+  control = null,
+  assets = null,
+  trustTailscale = config.trustTailscale,
+  rede = null,
+} = {}) {
+  const daRede = (req) => ehDaRede(req, { trustTailscale, trustProxy: config.trustProxy });
   const server = http.createServer(async (req, res) => {
     const SEC = headersFor(req);
     const method = req.method || "GET";
@@ -263,15 +271,39 @@ export function createHttpServer({ registry = null, control = null, assets = nul
      * padrão — nunca aparecem, porque o id delas é o próprio segredo.
      */
     if (pathname === "/api/rooms") {
-      const rooms = registry ? registry.directory() : [];
+      const rooms = registry ? registry.directory({ rede: daRede(req) }) : [];
       res.writeHead(200, {
         ...SEC,
         "Content-Type": MIME[".json"],
         "Cache-Control": "no-store",
       });
       return res.end(
-        method === "HEAD" ? undefined : JSON.stringify({ rooms, stats: registry?.stats() || null }),
+        method === "HEAD"
+          ? undefined
+          : // `servidor` identifica um Vcall para quem procura computadores na tailnet.
+            JSON.stringify({ servidor: "vcall", versao: VERSION?.version || null, rooms, stats: registry?.stats() || null }),
       );
+    }
+
+    /*
+     * As chamadas de todos os computadores com Vcall na rede Tailscale. Quem
+     * junta é o app de mesa (desktop/rede.js); aqui só se decide quem pode
+     * ver: a própria máquina e quem chegou pela tailnet. Para o resto (o
+     * túnel do Cloudflare, a internet) a rota não existe.
+     */
+    if (pathname === "/api/rede") {
+      if (!rede || !daRede(req)) {
+        res.writeHead(404, { ...SEC, "Content-Type": MIME[".json"] });
+        return res.end(method === "HEAD" ? undefined : JSON.stringify({ disponivel: false }));
+      }
+      let corpo;
+      try {
+        corpo = await rede(req);
+      } catch (err) {
+        corpo = { disponivel: false, erro: String(err?.message || err) };
+      }
+      res.writeHead(200, { ...SEC, "Content-Type": MIME[".json"], "Cache-Control": "no-store" });
+      return res.end(method === "HEAD" ? undefined : JSON.stringify(corpo));
     }
 
     /** Resolve um código curto (VC-XXXXXX) no id longo da sala. */

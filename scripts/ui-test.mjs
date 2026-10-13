@@ -504,6 +504,90 @@ try {
     await m.context().close();
   }
 
+  console.log("\nRede Tailscale no painel");
+  {
+    // A lista da rede vem do app de mesa; aqui ela é simulada na rota.
+    const ID_ANA = "planningdaana-0123456789";
+    const rede = {
+      disponivel: true,
+      tailnet: "time",
+      computadores: [
+        { eu: true, curto: "este", url: null, salas: [] },
+        {
+          eu: false,
+          curto: "notebook-ana",
+          url: "https://notebook-ana.tail1.ts.net:8443",
+          salas: [{ id: ID_ANA, code: "ABC123", name: "Planning da Ana", visibility: "rede", size: 3, max: 16, host: { name: "Ana", avatar: null } }],
+        },
+        { eu: false, curto: "pc-sala", url: "https://pc-sala.tail1.ts.net", salas: [] },
+      ],
+    };
+    const abrirPainel = async (viewport) => {
+      const ctx = await browser.newContext({ permissions: ["camera", "microphone"], viewport });
+      const pg = await ctx.newPage();
+      pg.on("pageerror", (e) => errosJs.push(`[painel] ${e.message}`));
+      await pg.route("**/api/rede", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(rede) }));
+      return pg;
+    };
+    const pg = await abrirPainel({ width: 1280, height: 820 });
+    await pg.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await pg.waitForSelector(".dashPc", { timeout: 15_000 });
+    const linha = await pg.locator(".dashRoom", { hasText: "Planning da Ana" }).textContent();
+    const pcs = await pg.locator(".dashPc__nome").allTextContents();
+    check("as chamadas dos outros computadores da rede aparecem em Ao vivo agora", linha.includes("em notebook-ana") && linha.includes("só na rede"), linha.replace(/\s+/g, " ").slice(0, 80));
+    check("os computadores da rede aparecem com Criar aqui", pcs.join() === "notebook-ana,pc-sala", pcs.join());
+
+    // Entrar numa chamada de outro computador: vai até ele (no navegador, navegando).
+    let foiPara = "";
+    await pg.route("https://notebook-ana.tail1.ts.net:8443/**", (r) => ((foiPara = r.request().url()), r.fulfill({ body: "ok" })));
+    await pg.locator(".dashRoom", { hasText: "Planning da Ana" }).locator("button", { hasText: "Entrar" }).click();
+    await pg.waitForURL(/notebook-ana/, { timeout: 5000 }).catch(() => {});
+    check("Entrar leva até o computador da chamada", pg.url() === `https://notebook-ana.tail1.ts.net:8443/#${ID_ANA}`, pg.url());
+
+    // Criar: com rede, a opção "Na minha rede" existe e vem marcada.
+    await pg.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await pg.waitForSelector(".dashPc");
+    await pg.click("text=Criar nova call");
+    const opcoes = await pg.locator(".dash__privacy .privacy").evaluateAll((bs) => bs.map((b) => `${b.querySelector("strong").textContent}:${b.getAttribute("aria-checked")}`));
+    check("na rede, criar oferece 'Na minha rede', já marcada", opcoes.includes("Na minha rede:true"), opcoes.join(" · "));
+    await pg.fill("dialog[open] input[type=text]", "Do time");
+    await pg.click("text=Criar e entrar");
+    await pg.waitForSelector("#joinBtn", { timeout: 10_000 });
+    await pg.fill("#nameInput", "Bia");
+    await pg.click("#joinBtn");
+    await noDock(pg);
+    const outra = await (await browser.newContext()).newPage();
+    await outra.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    const vistas = await outra.evaluate(async () => {
+      const ver = async (h) => (await (await fetch("/api/rooms", { headers: h })).json()).rooms.map((r) => r.name);
+      return { daRede: await ver({}), peloTunel: await ver({ "cf-connecting-ip": "203.0.113.9" }) };
+    });
+    check(
+      "sala 'Na minha rede' aparece para a rede e some para quem vem pelo link público",
+      vistas.daRede.includes("Do time") && !vistas.peloTunel.includes("Do time"),
+      JSON.stringify(vistas),
+    );
+    await outra.context().close();
+    await pg.context().close();
+
+    // "Criar aqui" de outro computador chega como ?criar=1#sala: abre o criar com esse id.
+    const ID_NOVA = "criadapelarede-0123456789";
+    const c = await abrirPainel({ width: 390, height: 820 });
+    await c.goto(`${BASE}/?criar=1#${ID_NOVA}`, { waitUntil: "networkidle" });
+    const dialogo = await c.waitForSelector(".modal >> text=Criar nova call", { timeout: 8000 }).then(() => true, () => false);
+    check("?criar=1 abre o Criar nova call (em vez da antessala de convidado)", dialogo);
+    await c.fill("dialog[open] input[type=text]", "Do celular");
+    await c.click("text=Criar e entrar");
+    await c.waitForSelector("#joinBtn", { timeout: 10_000 });
+    check("a chamada criada usa o id que veio do outro computador", (await c.evaluate(() => location.hash)) === `#${ID_NOVA}`);
+    await c.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await c.waitForSelector(".dashPc");
+    const vaza = await c.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+    check("no celular, o painel com a rede cabe na tela (sem rolar para o lado)", !vaza);
+    await c.screenshot({ path: path.join(tmp, "painel-rede-celular.png") });
+    await c.context().close();
+  }
+
   console.log("\nTransmissão estável");
   {
     const sala = novaSala("estavel");

@@ -44,7 +44,7 @@ const tsKey = path.join(tsDir, "ts.key");
 let tsOk = true;
 try {
   execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=maquina.tail1234.ts.net",
-    "-addext", "subjectAltName=DNS:maquina.tail1234.ts.net", "-keyout", tsKey, "-out", tsCert], { stdio: "ignore" });
+    "-addext", "subjectAltName=DNS:maquina.tail1234.ts.net,DNS:outra-maquina.tail1234.ts.net", "-keyout", tsKey, "-out", tsCert], { stdio: "ignore" });
   chmodSync(path.join(root, "scripts", "fixtures", "tailscale-falso.mjs"), 0o755);
 } catch {
   tsOk = false;
@@ -330,6 +330,45 @@ try {
     } finally {
       await doTs.close().catch(() => {});
     }
+    // A rede: a varredura acha o outro computador com Vcall e ignora o celular.
+    const rede = await win.evaluate(async () => {
+      // Até ~40 s: o outro computador pode ter sido visto "sem Vcall" na
+      // abertura do app (antes do link existir), e fica 30 s de fora.
+      for (let i = 0; i < 80; i++) {
+        const r = await (await fetch("/api/rede")).json();
+        if (r.computadores?.length > 1) return r;
+        await new Promise((ok) => setTimeout(ok, 500));
+      }
+      return (await fetch("/api/rede")).json();
+    });
+    const nomes = (rede.computadores || []).map((c) => `${c.curto}${c.eu ? "*" : ""}`);
+    check("a rede acha os computadores com Vcall (e ignora o celular sem Vcall)", nomes.join() === "maquina*,outra-maquina", nomes.join());
+    const outro = (rede.computadores || []).find((c) => c.curto === "outra-maquina");
+    check("o outro computador vem com o endereço certo", outro?.url === "https://outra-maquina.tail1234.ts.net:8443", outro?.url || "");
+
+    // Configurações › Rede Tailscale: a opção fica guardada.
+    await win.click('[aria-label="Configurações"]').catch(() => win.keyboard.press("Control+,"));
+    const caixa = win.locator("#settingsModal label", { hasText: "Deixar este computador disponível" }).locator("input[type=checkbox]");
+    const temOpcao = await caixa.waitFor({ timeout: 8000 }).then(() => true, () => false);
+    check("as configurações têm 'Deixar este computador disponível na rede Tailscale'", temOpcao);
+    if (temOpcao) {
+      await caixa.check();
+      await espera(800);
+      const guardada = await win.evaluate(async () => {
+        const t = sessionStorage.getItem("vcall:host-token");
+        return (await (await fetch(`/__host/rede/config?t=${t}`)).json()).sempre;
+      });
+      check("ligar a opção fica guardado (o link sobe sozinho ao abrir o app)", guardada === true);
+      await caixa.uncheck();
+      await espera(500);
+    }
+    await win.keyboard.press("Escape");
+    const invalido = await win.evaluate(async () => {
+      const t = sessionStorage.getItem("vcall:host-token");
+      return (await fetch(`/__host/abrir?t=${t}&u=${encodeURIComponent("http://exemplo.com/")}`)).status;
+    });
+    check("entrar em outro computador só aceita endereço de sala de verdade", invalido === 400, `HTTP ${invalido}`);
+
     await win.click("#inviteBtn");
     await win.click("#tsFechar");
     const fechou = await win.waitForFunction(() => !document.querySelector("#tsLink").value, null, { timeout: 5000 }).then(() => true, () => false);

@@ -162,7 +162,7 @@ export function normalizeState(s) {
  */
 export function normalizeRoomMeta(m) {
   if (!m || typeof m !== "object") return null;
-  const visibility = m.visibility === "public" ? "public" : "private";
+  const visibility = ["public", "rede"].includes(m.visibility) ? m.visibility : "private";
   return {
     name: clean(m.name, 48),
     visibility,

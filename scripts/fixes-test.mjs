@@ -32,7 +32,10 @@ import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
 import { BARALHOS, Daily, EstadoJogos, Poker, Retro, daily, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
 import { LinkTailscale, MENSAGENS, escolherPorta, interpretarFalha, lerEstado, urlDe } from "../desktop/tailscale.js";
-import { ehIpTailscale } from "../src/rede.js";
+import { ehDaRede, ehIpTailscale } from "../src/rede.js";
+import { RoomRegistry, Participant } from "../src/rooms.js";
+import { normalizeRoomMeta } from "../src/protocol.js";
+import { RedeVcall, limparSala, paresOnline, pareceVcall } from "../desktop/rede.js";
 import { ehIpTailscale as ehIpTailscaleNavegador } from "../public/js/core/stats.js";
 import { clientIp } from "../src/signaling.js";
 import { EventEmitter } from "node:events";
@@ -806,6 +809,122 @@ server.close();
   await assert.rejects(link3.start(), (err) => err.message === interpretarFalha("serve config denied"));
   assert.equal(link3.state, "erro");
   ok("Tailscale: estados reais do CLI, porta livre, IP da tailnet, serve em primeiro plano que morre junto");
+}
+
+/* ------------------------------------------------------------------ *
+ * Rede Tailscale: chamadas de todos os computadores e "Na minha rede"
+ * ------------------------------------------------------------------ */
+{
+  // Quem é "da rede": a própria máquina, ou quem veio pelo tailscale serve.
+  const pedido = (headers = {}, ip = "127.0.0.1") => ({ socket: { remoteAddress: ip }, headers });
+  assert.equal(ehDaRede(pedido()), true, "a janela do app, na própria máquina");
+  assert.equal(ehDaRede(pedido({ "x-forwarded-for": "100.101.102.103" }), { trustTailscale: true }), true, "pela tailnet");
+  assert.equal(ehDaRede(pedido({ "x-forwarded-for": "100.101.102.103" }), { trustTailscale: false }), false);
+  assert.equal(ehDaRede(pedido({ "cf-connecting-ip": "203.0.113.9" }), { trustTailscale: true }), false, "pelo túnel do Cloudflare, não");
+  assert.equal(ehDaRede(pedido({ "x-forwarded-for": "203.0.113.9" }), { trustTailscale: true }), false, "proxy de fora da tailnet, não");
+  assert.equal(ehDaRede(pedido({}, "192.168.0.20")), false, "outro computador direto, não");
+  assert.equal(ehDaRede(pedido(), { trustProxy: true }), false, "atrás de proxy declarado, sem endereço da tailnet, não");
+
+  // Visibilidade "rede": o servidor aceita e o diretório só mostra para a rede.
+  assert.equal(normalizeRoomMeta({ visibility: "rede" }).visibility, "rede");
+  assert.equal(normalizeRoomMeta({ visibility: "qualquer" }).visibility, "private");
+  const reg = new RoomRegistry();
+  const ID = (c) => c.repeat(20);
+  const entrar = (sala) => sala.add(new Participant({ readyState: 1, send() {} }, { room: sala.id, profile: { name: "Ana" }, state: { mic: true } }));
+  entrar(reg.ensure(ID("p"), { name: "Pública", visibility: "public" }));
+  entrar(reg.ensure(ID("r"), { name: "Do time", visibility: "rede" }));
+  entrar(reg.ensure(ID("x"), { name: "Segredo", visibility: "private" }));
+  assert.deepEqual(reg.directory().map((r) => r.name), ["Pública"], "de fora: só a pública");
+  assert.deepEqual(reg.directory({ rede: true }).map((r) => r.name).sort(), ["Do time", "Pública"], "da rede: pública e da rede, nunca a privada");
+
+  // As mesmas regras pela HTTP de verdade: /api/rooms e /api/rede.
+  const srv = createHttpServer({ registry: reg, trustTailscale: true, rede: async () => ({ disponivel: true, computadores: [] }) });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  const pegar = async (caminho, headers = {}) => {
+    const res = await fetch(base + caminho, { headers });
+    return { status: res.status, json: await res.json().catch(() => null) };
+  };
+  const local = await pegar("/api/rooms");
+  assert.equal(local.json.servidor, "vcall", "o servidor se identifica para a varredura da rede");
+  assert.deepEqual(local.json.rooms.map((r) => r.name).sort(), ["Do time", "Pública"]);
+  const pelaTailnet = await pegar("/api/rooms", { "x-forwarded-for": "100.101.102.103" });
+  assert.equal(pelaTailnet.json.rooms.length, 2, "quem vem pela tailnet vê a sala da rede");
+  const peloTunel = await pegar("/api/rooms", { "cf-connecting-ip": "203.0.113.9" });
+  assert.deepEqual(peloTunel.json.rooms.map((r) => r.name), ["Pública"], "pelo link público, a sala da rede não existe");
+  assert.equal((await pegar("/api/rede")).status, 200);
+  assert.equal((await pegar("/api/rede", { "cf-connecting-ip": "203.0.113.9" })).status, 404, "a lista da rede não vaza pelo túnel");
+  srv.close();
+
+  // A varredura: só computadores ligados, só quem é Vcall, e com prazo.
+  const st = {
+    BackendState: "Running",
+    Self: { DNSName: "eu.tail1.ts.net.", TailscaleIPs: ["100.64.0.1"] },
+    CurrentTailnet: { Name: "time", MagicDNSEnabled: true },
+    Peer: {
+      a: { DNSName: "notebook-ana.tail1.ts.net.", HostName: "notebook-ana", Online: true, TailscaleIPs: ["100.64.0.2", "fd7a:115c:a1e0::2"], OS: "windows" },
+      b: { DNSName: "celular.tail1.ts.net.", HostName: "celular", Online: true, TailscaleIPs: ["100.64.0.3"], OS: "android" },
+      c: { DNSName: "desligado.tail1.ts.net.", HostName: "desligado", Online: false, TailscaleIPs: ["100.64.0.4"] },
+      d: { DNSName: "malicioso.tail1.ts.net.", HostName: "malicioso", Online: true, TailscaleIPs: ["100.64.0.5"] },
+    },
+  };
+  assert.deepEqual(paresOnline(st).map((p) => p.curto), ["notebook-ana", "celular", "malicioso"]);
+  assert.equal(pareceVcall({ rooms: [], stats: { publicRooms: 0 } }), true, "um Vcall 3.9 (sem a marca) também conta");
+  assert.equal(pareceVcall({ rooms: [] }), false);
+  assert.equal(limparSala({ id: "../../etc", name: "x" }), null, "id de sala inválido é descartado");
+
+  let agora = 1_000_000;
+  const pedidos = [];
+  const salaAna = { id: ID("a"), code: "ABC123", name: "Planning", visibility: "rede", size: 3, max: 16, host: { name: "Ana", avatar: { style: "thumbs", seed: "a" } } };
+  const pedir = async (url, ip) => {
+    pedidos.push(url);
+    if (url.startsWith("https://notebook-ana.tail1.ts.net:8443/")) return { status: 200, json: { servidor: "vcall", versao: "3.10.0", rooms: [salaAna] } };
+    if (url.startsWith("https://malicioso.tail1.ts.net/")) {
+      return { status: 200, json: { servidor: "vcall", rooms: [{ id: ID("m"), name: "y".repeat(5000), size: -5, host: { name: { toString: 1 } }, extra: "<script>" }] } };
+    }
+    throw new Error("ECONNREFUSED");
+  };
+  const rede = new RedeVcall({
+    achar: async () => "tailscale",
+    rodar: async () => ({ code: 0, stdout: JSON.stringify(st), stderr: "" }),
+    pedir,
+    eu: () => ({ url: "https://eu.tail1.ts.net", salas: [] }),
+    agora: () => agora,
+  });
+  const lista = await rede.listar();
+  assert.equal(lista.disponivel, true);
+  const nomes = lista.computadores.map((c) => c.curto);
+  assert.equal(nomes[0], "eu", "este computador primeiro");
+  assert.deepEqual(nomes.slice(1).sort(), ["malicioso", "notebook-ana"], "o celular sem Vcall e o desligado ficam de fora");
+  const ana = lista.computadores.find((c) => c.curto === "notebook-ana");
+  assert.equal(ana.url, "https://notebook-ana.tail1.ts.net:8443", "achou o Vcall na porta em que ele está");
+  assert.equal(ana.salas[0].name, "Planning");
+  const mal = lista.computadores.find((c) => c.curto === "malicioso").salas[0];
+  assert.equal(mal.name.length, 48, "nome gigante cortado");
+  assert.equal(mal.size, 0, "número inválido zerado");
+  assert.equal(mal.host.name, "", "tipo errado vira vazio");
+  assert.ok(!("extra" in mal), "campo desconhecido não passa");
+
+  // Logo depois: devolve a lista guardada, sem perguntar de novo.
+  const antes = pedidos.length;
+  await rede.listar();
+  assert.equal(pedidos.length, antes, "lista fresca vem do cache");
+  // Mais tarde: quem não é Vcall (o celular) não é perguntado por 2 minutos.
+  agora += 10_000;
+  await rede.listar();
+  await new Promise((r) => setTimeout(r, 20));
+  const novos = pedidos.slice(antes);
+  assert.ok(!novos.some((u) => u.includes("celular")), "o celular sem Vcall não é perguntado de novo tão cedo");
+  agora += 31_000;
+  await rede.listar();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(pedidos.slice(antes + novos.length).some((u) => u.includes("celular")), "depois de 30 s, é perguntado de novo (pode ter ligado o Vcall)");
+  assert.ok(novos.some((u) => u.startsWith("https://notebook-ana.tail1.ts.net:8443/")), "o Vcall conhecido é perguntado primeiro na porta certa");
+
+  // Sem Tailscale pronto: a rede some do painel, sem erro.
+  const semLogin = new RedeVcall({ achar: async () => "tailscale", rodar: async () => ({ stdout: JSON.stringify({ BackendState: "NeedsLogin" }) }) });
+  assert.deepEqual(await semLogin.listar(), { disponivel: false, motivo: "deslogado", computadores: [] });
+  ok("rede Tailscale: sala \"Na minha rede\" só para a tailnet, varredura dos computadores com Vcall, dados de fora limpos");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

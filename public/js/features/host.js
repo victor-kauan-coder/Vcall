@@ -196,6 +196,16 @@ export class HostPanel extends Emitter {
     }
   }
 
+  /** Abre, nesta janela do app, uma chamada de outro computador da rede. */
+  async abrir(url) {
+    return this.#chamar("abrir", { params: { u: url } });
+  }
+
+  /** "Deixar este computador disponível na rede Tailscale": ler ou mudar. */
+  async configRede(sempre) {
+    return this.#chamar("rede/config", { params: sempre == null ? null : { sempre: sempre ? "1" : "0" } });
+  }
+
   async fecharTailscale() {
     await this.#chamar("tailscale/fechar").catch(() => {});
     this.ts = { estado: "parado", url: null, habilitar: null, erro: null };

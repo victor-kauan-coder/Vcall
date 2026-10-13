@@ -87,7 +87,8 @@ export class Room {
      * Quem entra por link não renomeia nem torna pública a sala dos outros.
      */
     this.name = meta?.name || "";
-    this.visibility = meta?.visibility === "public" ? "public" : "private";
+    // "rede": aparece só para quem é da máquina ou da tailnet (src/rede.js).
+    this.visibility = ["public", "rede"].includes(meta?.visibility) ? meta.visibility : "private";
     this.passHash = meta?.pass ? hashPass(id, meta.pass) : null;
     this.code = newCode();
     /** Hash da chave de anfitrião de quem criou a sala. */
@@ -193,6 +194,7 @@ export class Room {
       id: this.id,
       code: this.code,
       name: this.name || "Sala sem nome",
+      visibility: this.visibility,
       size: this.members.size,
       max: config.maxPeersPerRoom,
       full: this.isFull,
@@ -284,10 +286,15 @@ export class RoomRegistry {
    * Diretório de salas públicas, para o painel inicial. Salas privadas não
    * aparecem aqui em hipótese alguma: o id delas é o próprio segredo.
    */
-  directory() {
+  /**
+   * Salas que aparecem no painel. `rede`: quem pergunta é da máquina ou da
+   * tailnet, e vê também as salas "Na minha rede".
+   */
+  directory({ rede = false } = {}) {
     const out = [];
     for (const r of this.rooms.values()) {
-      if (r.visibility !== "public" || !r.size) continue;
+      if (!r.size) continue;
+      if (r.visibility !== "public" && !(rede && r.visibility === "rede")) continue;
       out.push(r.card());
     }
     // Mais gente primeiro; empate resolve pela mais recente.

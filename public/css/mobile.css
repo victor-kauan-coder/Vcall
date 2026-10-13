@@ -602,6 +602,15 @@
     aspect-ratio: 16 / 10;
     width: 100%;
   }
+  /*
+   * Mas com o quadro ou os jogos abertos, o destaque tem de esticar: com o
+   * `start` acima ele media o conteúdo — que é posicionado em absoluto — e
+   * ficava com 2 px de largura, sem nada clicável. Mesma especificidade,
+   * vence pela ordem (ver o comentário de `.stage--board` em call.css).
+   */
+  .stage--board .stage__main {
+    align-items: stretch;
+  }
 }
 
 @media (max-width: 560px) {

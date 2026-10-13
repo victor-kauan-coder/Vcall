@@ -15,7 +15,12 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  /*
+   * `clip`, não `hidden`: um contêiner `hidden` ainda rola por código, e o
+   * foco num campo (ou a dica do botão de fechar, que passa da borda) fazia
+   * o painel inteiro deslizar uns 70 px para o lado, cortando as abas.
+   */
+  overflow: clip;
   color: var(--text);
 }
 
@@ -310,7 +315,13 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 92px;
+  width: 100px;
+}
+.assento__voce {
+  margin-top: -4px;
+  font-size: 0.68rem;
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
 }
 .assento.is-saiu {
   opacity: 0.5;
@@ -469,6 +480,10 @@
   gap: var(--sp-2);
   align-items: flex-end;
 }
+.poker__add--pilha {
+  flex-direction: column;
+  align-items: stretch;
+}
 .poker__nova,
 .poker__add > .input {
   flex: 1;
@@ -562,7 +577,7 @@
   color: #fff;
 }
 .retro__pontos {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   color: var(--accent);
   letter-spacing: 2px;
 }
@@ -640,6 +655,8 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--brand-orange);
+}
+.nota.is-nova {
   animation: notaEntra 220ms var(--ease-out);
 }
 .coluna[data-col="0"] .nota {
@@ -875,7 +892,21 @@
   .carta--mao {
     --w: 46px;
   }
-  .jogos__aba span {
+  /* Topo em duas linhas: abas e fechar em cima, os controles do jogo embaixo. */
+  .jogos__topo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .jogos__abas {
+    justify-self: start;
+  }
+  .jogos__extra {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+  /* Só a aba aberta mostra o nome; as outras ficam no ícone. */
+  .jogos__aba:not([aria-selected="true"]) span {
     display: none;
   }
 }

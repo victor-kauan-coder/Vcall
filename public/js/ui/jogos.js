@@ -6,9 +6,13 @@
  * features/jogos.js; aqui é só desenho.
  *
  * Leve de propósito:
- *   - redesenha no máximo uma vez por quadro de animação, e só a parte que
- *     muda (assentos, listas); os campos de texto são criados uma vez e
- *     nunca perdem o foco nem o que a pessoa está digitando;
+ *   - redesenha no máximo uma vez por quadro de animação, e só o que mudou:
+ *     cada assento, nota, história e ação tem uma assinatura, e um nó só é
+ *     refeito quando a dele muda (`sincronizar`). Assim a carta não vira de
+ *     novo, a nota não "entra" de novo e o foco do teclado não se perde
+ *     quando outra pessoa vota;
+ *   - os campos de texto são criados uma vez e nunca perdem o foco nem o
+ *     que a pessoa está digitando;
  *   - um único relógio de 250 ms, ligado só enquanto há contagem, cronômetro
  *     ou Daily em andamento;
  *   - nada de canvas nem biblioteca: elementos simples, animações em CSS.
@@ -29,6 +33,35 @@ import {
 
 const EMOJIS = ["👏", "🎉", "😂", "🤔", "☕", "🔥"];
 const FASE_NOME = { escrever: "Escrever", votar: "Votar", discutir: "Discutir" };
+
+/** Os nós com `data-chave` de um ou mais contêineres, por chave. */
+function porChave(...pais) {
+  const m = new Map();
+  for (const pai of pais) for (const n of pai.children) if (n.dataset.chave) m.set(n.dataset.chave, n);
+  return m;
+}
+
+/**
+ * Põe em `pai` os itens na ordem dada, reaproveitando todo nó cuja chave e
+ * assinatura não mudaram. `criar()` só roda para o que é novo ou mudou; o
+ * que é novo de verdade (chave que não existia) ganha `is-nova`, que é
+ * quem anima a entrada.
+ */
+function sincronizar(pai, itens, antigos = porChave(pai)) {
+  const nos = itens.map(({ chave, sig, criar }) => {
+    const velho = antigos.get(chave);
+    if (velho && velho.dataset.sig === sig) return velho;
+    const novo = criar();
+    novo.dataset.chave = chave;
+    novo.dataset.sig = sig;
+    if (!velho) novo.classList.add("is-nova");
+    return novo;
+  });
+  nos.forEach((n, i) => {
+    if (pai.children[i] !== n) pai.insertBefore(n, pai.children[i] || null);
+  });
+  while (pai.children.length > nos.length) pai.lastElementChild.remove();
+}
 
 const mmss = (s) => {
   const neg = s < 0;
@@ -131,14 +164,14 @@ export class PainelJogos {
     const abas = {};
     const lista = el("div.jogos__abas", { role: "tablist", "aria-label": "Jogos" });
     for (const [id, j] of Object.entries(JOGOS)) {
-      abas[id] = el("button.jogos__aba", { type: "button", role: "tab", dataset: { tip: j.desc, "tip-placement": "bottom" }, onClick: () => this.mostrar(id) }, [
+      abas[id] = el("button.jogos__aba", { type: "button", role: "tab", "aria-label": j.nome, dataset: { tip: j.desc, "tip-placement": "bottom" }, onClick: () => this.mostrar(id) }, [
         icon(j.icone, { size: "sm" }),
         el("span", { text: j.nome }),
       ]);
       lista.append(abas[id]);
     }
     const extra = el("div.jogos__extra");
-    const fechar = el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": "Fechar os jogos", dataset: { tip: "Fechar (os outros continuam)" }, onClick: () => this.o.aoFechar() }, [icon("x", { size: "sm" })]);
+    const fechar = el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": "Fechar os jogos", dataset: { tip: "Fechar (os outros continuam)", "tip-placement": "bottom", "tip-align": "end" }, onClick: () => this.o.aoFechar() }, [icon("x", { size: "sm" })]);
     this.#corpo = el("div.jogos__corpo");
     this.#partes = { abas, extra };
     return el("section.jogos", { "aria-label": "Jogos de equipe" }, [el("header.jogos__topo", {}, [lista, extra, fechar]), this.#corpo]);
@@ -160,10 +193,10 @@ export class PainelJogos {
     const baralho = el("select.input.jogos__select", { "aria-label": "Baralho" });
     for (const [id, b] of Object.entries(BARALHOS)) baralho.append(el("option", { value: id, text: b.nome }));
     baralho.addEventListener("change", () => poker.definirBaralho(baralho.value));
-    const auto = el("button.btn.btn--ghost.jogos__chip", { type: "button", "aria-pressed": "false", dataset: { tip: "Revela sozinho quando todo mundo votar" }, onClick: () => estado.definir([["p/auto", !estado.ler("p/auto", false)]]) }, [icon("zap", { size: "sm" }), el("span", { text: "Auto" })]);
-    const assistir = el("button.btn.btn--ghost.jogos__chip", { type: "button", "aria-pressed": "false", dataset: { tip: "Só assistir: você não conta na votação" }, onClick: () => poker.espectador(!estado.ler(`p/esp/${estado.eu}`, false)) }, [icon("eye", { size: "sm" }), el("span", { text: "Assistir" })]);
+    const auto = el("button.btn.btn--ghost.jogos__chip", { type: "button", "aria-pressed": "false", dataset: { tip: "Revela sozinho quando todo mundo votar", "tip-placement": "bottom" }, onClick: () => estado.definir([["p/auto", !estado.ler("p/auto", false)]]) }, [icon("zap", { size: "sm" }), el("span", { text: "Auto" })]);
+    const assistir = el("button.btn.btn--ghost.jogos__chip", { type: "button", "aria-pressed": "false", dataset: { tip: "Só assistir: você não conta na votação", "tip-placement": "bottom" }, onClick: () => poker.espectador(!estado.ler(`p/esp/${estado.eu}`, false)) }, [icon("eye", { size: "sm" }), el("span", { text: "Assistir" })]);
     const timerTxt = el("span", { text: "Cronômetro" });
-    const timer = el("button.btn.btn--ghost.jogos__chip", { type: "button", dataset: { tip: "Tempo de discussão para todos" }, onClick: () => this.#menuTimer(timer) }, [icon("timer", { size: "sm" }), timerTxt]);
+    const timer = el("button.btn.btn--ghost.jogos__chip", { type: "button", dataset: { tip: "Tempo de discussão para todos", "tip-placement": "bottom" }, onClick: () => this.#menuTimer(timer) }, [icon("timer", { size: "sm" }), timerTxt]);
     p.extra.append(baralho, auto, assistir, timer);
 
     // Mesa
@@ -176,7 +209,7 @@ export class PainelJogos {
 
     // Histórias
     const listaH = el("ol.poker__historias");
-    const novas = el("textarea.input.poker__nova", { rows: 2, placeholder: "Nova história (uma por linha — dá para colar várias)", "aria-label": "Novas histórias", maxLength: 4000 });
+    const novas = el("textarea.input.poker__nova", { rows: 2, placeholder: "Nova história (uma por linha)", "aria-label": "Novas histórias", maxLength: 4000 });
     const adicionar = () => {
       const linhas = novas.value.split(/\r?\n/);
       if (!linhas.some((l) => l.trim())) return;
@@ -193,7 +226,7 @@ export class PainelJogos {
     const lado = el("aside.poker__lado", { "aria-label": "Histórias" }, [
       el("h3.jogos__titulo", { text: "Histórias" }),
       listaH,
-      el("div.poker__add", {}, [novas, el("button.btn.btn--primary", { type: "button", onClick: adicionar }, [icon("plus", { size: "sm" }), el("span", { text: "Adicionar" })])]),
+      el("div.poker__add.poker__add--pilha", {}, [novas, el("button.btn.btn--primary", { type: "button", onClick: adicionar }, [icon("plus", { size: "sm" }), el("span", { text: "Adicionar" })])]),
       el("div.jogos__rodape", {}, [
         el("button.btn.btn--ghost", { type: "button", onClick: () => this.o.baixar(this.#csv(), "estimativas.csv", "text/csv") }, [icon("download", { size: "sm" }), el("span", { text: "CSV" })]),
         el("button.btn.btn--ghost", { type: "button", onClick: () => this.o.copiar(this.#textoHistorias(), "Estimativas copiadas") }, [icon("copy", { size: "sm" }), el("span", { text: "Copiar" })]),
@@ -232,8 +265,7 @@ export class PainelJogos {
     const { estado, poker } = this.o;
     const p = this.#partes;
     if (!p.centro) return;
-    const pessoas = this.#pessoas();
-    const v = mesaPoker(estado, { pessoas, meuVoto: poker.meuVoto() });
+    const v = mesaPoker(estado, { pessoas: this.#pessoas(), meuVoto: poker.meuVoto() });
 
     // Cronômetro de discussão
     const t = estado.ler("p/timer");
@@ -261,48 +293,40 @@ export class PainelJogos {
     // História em votação
     const lista = historias(estado);
     const atual = lista.find((h) => h.id === v.historia);
-    p.historia.replaceChildren(
-      atual
-        ? el("div.poker__historiaTxt", {}, [el("span.jogos__rotulo", { text: "Votando" }), el("strong", { text: atual.titulo })])
-        : el("div.poker__historiaTxt", {}, [el("span.jogos__rotulo", { text: "Votação livre" }), el("span.muted", { text: "Adicione histórias ao lado para estimar uma de cada vez." })]),
-    );
+    sincronizar(p.historia, [
+      {
+        chave: "h",
+        sig: atual ? `v|${atual.titulo}` : "livre",
+        criar: () =>
+          atual
+            ? el("div.poker__historiaTxt", {}, [el("span.jogos__rotulo", { text: "Votando" }), el("strong", { text: atual.titulo })])
+            : el("div.poker__historiaTxt", {}, [el("span.jogos__rotulo", { text: "Votação livre" }), el("span.muted", { text: "Adicione histórias ao lado para estimar uma de cada vez." })]),
+      },
+    ]);
 
-    // Assentos: metade em cima, metade embaixo da mesa
-    const assentos = v.jogadores.map((j) => this.#assento(j, v));
-    p.topo.replaceChildren(...assentos.filter((_, i) => i % 2 === 0));
-    p.base.replaceChildren(...assentos.filter((_, i) => i % 2 === 1));
+    // Assentos: metade em cima, metade embaixo da mesa. Um assento só é
+    // refeito quando muda o que ele mostra.
+    const pessoas = this.#pessoas();
+    const assentos = v.jogadores.map((j) => this.#assento(j, v, pessoas));
+    const antigos = porChave(p.topo, p.base);
+    sincronizar(p.topo, assentos.filter((_, i) => i % 2 === 0), antigos);
+    sincronizar(p.base, assentos.filter((_, i) => i % 2 === 1), antigos);
 
-    // Centro da mesa
+    // Centro da mesa (refeito só quando muda: o botão não perde o foco)
     const votos = v.jogadores.filter((j) => j.votou).length;
-    if (v.contagem != null) {
-      p.centro.replaceChildren(el("div.poker__contagem", { text: String(v.contagem), "aria-live": "assertive" }));
-    } else if (v.revelado) {
-      const r = v.resultado;
-      p.centro.replaceChildren(
-        el("div.poker__resumo", {}, [
-          r.media != null ? el("div", {}, [el("span.jogos__rotulo", { text: "Média" }), el("strong", { text: String(r.media).replace(".", ",") })]) : null,
-          r.mediana != null ? el("div", {}, [el("span.jogos__rotulo", { text: "Mediana" }), el("strong", { text: String(r.mediana).replace(".", ",") })]) : null,
-          el("div", {}, [el("span.jogos__rotulo", { text: "Concordância" }), el("strong", { text: `${r.concordancia}%` })]),
-        ].filter(Boolean)),
-        el("button.btn.btn--primary", { type: "button", onClick: () => poker.novaRodada() }, [icon("rotate-ccw", { size: "sm" }), el("span", { text: "Nova votação" })]),
-      );
-      const chave = `${v.historia}/${v.rodada}`;
-      if (r.consenso && this.#festejado !== chave) {
-        this.#festejado = chave;
-        this.#confete();
-      }
-    } else if (!votos) {
-      p.centro.replaceChildren(el("p.poker__aviso", { text: souEspectador ? "Assistindo. Esperando os votos…" : "Escolham suas cartas 👇" }));
-    } else {
-      p.centro.replaceChildren(
-        el("button.btn.btn--primary.btn--lg.poker__revelar", { type: "button", onClick: () => poker.revelar() }, [el("span", { text: "Revelar cartas" })]),
-        el("p.poker__aviso", { text: v.faltam ? `${votos} votaram · faltam ${v.faltam}` : "Todo mundo votou" }),
-      );
-      // Revelação automática: quem tem o menor id faz (os outros só veem).
-      if (estado.ler("p/auto", false) && v.todosVotaram) {
-        const lider = v.jogadores.filter((j) => j.presente && !j.espectador).map((j) => j.id).sort()[0];
-        if (lider === estado.eu) poker.revelar();
-      }
+    const chaveCentro = JSON.stringify([v.contagem, v.revelado && v.resultado, votos, v.faltam, souEspectador]);
+    if (chaveCentro !== p.centroChave) {
+      p.centroChave = chaveCentro;
+      p.centro.replaceChildren(...this.#centro(v, votos, souEspectador));
+    }
+    if (v.revelado && v.resultado?.consenso && this.#festejado !== `${v.historia}/${v.rodada}`) {
+      this.#festejado = `${v.historia}/${v.rodada}`;
+      this.#confete();
+    }
+    // Revelação automática: quem tem o menor id faz (os outros só veem).
+    if (!v.revelado && v.contagem == null && v.todosVotaram && estado.ler("p/auto", false)) {
+      const lider = v.jogadores.filter((j) => j.presente && !j.espectador).map((j) => j.id).sort()[0];
+      if (lider === estado.eu) poker.revelar();
     }
 
     // A mão (ou, revelado, o gráfico e a estimativa a salvar)
@@ -331,43 +355,81 @@ export class PainelJogos {
     }
 
     // Lista de histórias
-    p.listaH.replaceChildren(
-      ...lista.map((h) =>
-        el("li.poker__item", { class: h.id === v.historia ? "is-atual" : "" }, [
-          el("button.poker__itemBtn", { type: "button", "aria-label": `Votar: ${h.titulo}`, onClick: () => poker.escolherHistoria(h.id) }, [
-            el("span.truncate", { text: h.titulo }),
-            h.estimativa != null ? el("span.poker__estimativa", { text: h.estimativa }) : h.id === v.historia ? el("span.jogos__rotulo", { text: "votando" }) : null,
-          ].filter(Boolean)),
-          el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": `Apagar: ${h.titulo}`, onClick: () => poker.apagarHistoria(h.id) }, [icon("trash-2", { size: "sm" })]),
-        ]),
-      ),
+    sincronizar(
+      p.listaH,
+      lista.length
+        ? lista.map((h) => ({
+            chave: h.id,
+            sig: JSON.stringify([h.titulo, h.estimativa, h.id === v.historia]),
+            criar: () =>
+              el("li.poker__item", { class: h.id === v.historia ? "is-atual" : "" }, [
+                el("button.poker__itemBtn", { type: "button", "aria-label": `Votar: ${h.titulo}`, onClick: () => poker.escolherHistoria(h.id) }, [
+                  el("span.truncate", { text: h.titulo }),
+                  h.estimativa != null ? el("span.poker__estimativa", { text: h.estimativa }) : h.id === v.historia ? el("span.jogos__rotulo", { text: "votando" }) : null,
+                ].filter(Boolean)),
+                el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": `Apagar: ${h.titulo}`, onClick: () => poker.apagarHistoria(h.id) }, [icon("trash-2", { size: "sm" })]),
+              ]),
+          }))
+        : [{ chave: "vazio", sig: "", criar: () => el("li.poker__vazio", { text: "Nenhuma história ainda." }) }],
     );
-    if (!lista.length) p.listaH.append(el("li.poker__vazio", { text: "Nenhuma história ainda." }));
   }
 
-  #assento(j, v) {
-    const pessoa = this.#pessoas().find((x) => x.id === j.id);
+  #centro(v, votos, souEspectador) {
+    const { poker } = this.o;
+    if (v.contagem != null) return [el("div.poker__contagem", { text: String(v.contagem), "aria-live": "assertive" })];
+    if (v.revelado) {
+      const r = v.resultado;
+      return [
+        el("div.poker__resumo", {}, [
+          r.media != null ? el("div", {}, [el("span.jogos__rotulo", { text: "Média" }), el("strong", { text: String(r.media).replace(".", ",") })]) : null,
+          r.mediana != null ? el("div", {}, [el("span.jogos__rotulo", { text: "Mediana" }), el("strong", { text: String(r.mediana).replace(".", ",") })]) : null,
+          el("div", {}, [el("span.jogos__rotulo", { text: "Concordância" }), el("strong", { text: `${r.concordancia}%` })]),
+        ].filter(Boolean)),
+        el("button.btn.btn--primary", { type: "button", onClick: () => poker.novaRodada() }, [icon("rotate-ccw", { size: "sm" }), el("span", { text: "Nova votação" })]),
+      ];
+    }
+    if (!votos) return [el("p.poker__aviso", { text: souEspectador ? "Assistindo. Esperando os votos…" : "Escolham suas cartas 👇" })];
+    return [
+      el("button.btn.btn--primary.btn--lg.poker__revelar", { type: "button", onClick: () => poker.revelar() }, [el("span", { text: "Revelar cartas" })]),
+      el("p.poker__aviso", { text: v.faltam ? `${votos} votaram · faltam ${v.faltam}` : "Todo mundo votou" }),
+    ];
+  }
+
+  /** Um assento da mesa, como item de `sincronizar`. */
+  #assento(j, v, pessoas) {
+    const pessoa = pessoas.find((x) => x.id === j.id);
     const estadoCarta = v.revelado && j.valor != null ? "revelada" : j.votou ? "virada" : "vazia";
-    const carta = el(`div.carta.carta--${estadoCarta}`, { "aria-hidden": "true" }, [el("span", { text: estadoCarta === "revelada" ? j.valor : "" })]);
+    let extremo = false;
     if (v.revelado && v.resultado && j.valor != null) {
       const n = j.valor === "½" ? 0.5 : Number(j.valor);
-      if (v.resultado.menor !== v.resultado.maior && (n === v.resultado.menor || n === v.resultado.maior)) carta.classList.add("is-extremo");
+      extremo = v.resultado.menor !== v.resultado.maior && (n === v.resultado.menor || n === v.resultado.maior);
     }
+    return {
+      chave: j.id,
+      sig: JSON.stringify([estadoCarta, estadoCarta === "revelada" ? j.valor : "", extremo, j.nome, j.eu, j.presente, j.espectador, pessoa?.avatar || null]),
+      criar: () => this.#criarAssento(j, pessoa, estadoCarta, extremo, v),
+    };
+  }
+
+  #criarAssento(j, pessoa, estadoCarta, extremo, v) {
+    const carta = el(`div.carta.carta--${estadoCarta}`, { "aria-hidden": "true" }, [el("span", { text: estadoCarta === "revelada" ? j.valor : "" })]);
+    if (extremo) carta.classList.add("is-extremo");
     const filhos = [
       carta,
       el("div.assento__quem", {}, [
         pessoa?.avatar ? avatarEl(pessoa.avatar, { title: j.nome }) : null,
-        el("span.truncate", { text: j.eu ? `${j.nome} (você)` : j.nome }),
+        el("span.truncate", { text: j.nome }),
         j.espectador ? icon("eye", { size: "sm", label: "Assistindo" }) : null,
       ].filter(Boolean)),
     ];
+    if (j.eu) filhos.push(el("span.assento__voce", { text: "você" }));
     if (!j.eu && j.presente) {
       filhos.push(
         el("button.assento__emoji", { type: "button", "aria-label": `Jogar um emoji em ${j.nome}`, dataset: { tip: "Jogar emoji" }, onClick: (e) => this.#menuEmoji(e.currentTarget, j.id) }, [el("span", { text: "😄" })]),
       );
     }
     const label = j.espectador ? `${j.nome}: assistindo` : v.revelado ? `${j.nome}: ${j.valor ?? "sem voto"}` : `${j.nome}: ${j.votou ? "votou" : "ainda não votou"}`;
-    return el("div.assento", { dataset: { id: j.id }, class: `${j.presente ? "" : "is-saiu"} ${j.espectador ? "is-espectador" : ""}`, role: "group", "aria-label": label }, filhos);
+    return el("div.assento", { dataset: { id: j.id }, class: `${j.presente ? "" : "is-saiu"} ${j.espectador ? "is-espectador" : ""} ${j.eu ? "is-eu" : ""}`, role: "group", "aria-label": label }, filhos);
   }
 
   #menuEmoji(ancora, para) {
@@ -469,7 +531,7 @@ export class PainelJogos {
     const pontos = el("span.retro__pontos", { "aria-live": "polite" });
     const exportar = el("button.btn.btn--ghost.jogos__chip", { type: "button", onClick: () => this.o.copiar(this.#retroMd(), "Retrospectiva copiada (Markdown)") }, [icon("copy", { size: "sm" }), el("span", { text: "Copiar" })]);
     const baixar = el("button.btn.btn--ghost.jogos__chip", { type: "button", onClick: () => this.o.baixar(this.#retroMd(), "retrospectiva.md", "text/markdown") }, [icon("download", { size: "sm" }), el("span", { text: ".md" })]);
-    p.extra.append(modelo, fases, pontos, exportar, baixar);
+    p.extra.append(modelo, fases, exportar, baixar);
 
     const colunas = el("div.retro__colunas");
     const acoesLista = el("ul.retro__acoes");
@@ -521,16 +583,20 @@ export class PainelJogos {
       b.setAttribute("aria-selected", String(f === v.fase));
       b.classList.toggle("is-feita", FASES_RETRO.indexOf(f) < FASES_RETRO.indexOf(v.fase));
     }
-    p.pontos.textContent = v.fase === "votar" ? `Seus pontos: ${"●".repeat(v.votosPorPessoa - v.meusVotosUsados)}${"○".repeat(v.meusVotosUsados)}` : "";
+    const sobra = v.votosPorPessoa - v.meusVotosUsados;
+    p.pontos.textContent = `${"●".repeat(sobra)}${"○".repeat(v.meusVotosUsados)}`;
+    p.pontos.setAttribute("aria-label", `${sobra} de ${v.votosPorPessoa} pontos sobrando`);
 
-    // Quem já escreveu (na fase de escrita os textos estão escondidos)
+    // Escrita: quem já escreveu (os textos estão escondidos). Votação: seus pontos.
     p.quem.replaceChildren(
       ...(v.fase === "escrever"
         ? [
             el("span.jogos__rotulo", { text: "Escrevendo (as notas aparecem para todos na fase de votar):" }),
             ...v.escreveram.map((x) => el("span.retro__pessoa", { class: x.notas ? "is-escreveu" : "" }, [el("span", { text: x.nome }), el("b", { text: String(x.notas) })])),
           ]
-        : []),
+        : v.fase === "votar"
+          ? [el("span.jogos__rotulo", { text: "Dê seus pontos às notas que mais importam:" }), p.pontos]
+          : []),
     );
 
     // Colunas: o esqueleto (e os campos de texto) só muda com o modelo
@@ -562,38 +628,56 @@ export class PainelJogos {
       const alvo = p.entradas[i];
       if (!alvo) return;
       alvo.titulo.textContent = `${c.titulo} · ${c.notas.length}`;
-      alvo.lista.replaceChildren(...c.notas.map((n) => this.#nota(n, v)));
+      sincronizar(alvo.lista, c.notas.map((n) => this.#nota(n, v)));
     });
+    // Acabaram os pontos: os "+" apagam sem refazer as notas.
+    const semPontos = v.meusVotosUsados >= v.votosPorPessoa;
+    for (const b of p.colunas.querySelectorAll(".nota__mais")) b.disabled = semPontos;
 
     p.acoes.hidden = v.fase === "escrever";
-    p.acoesLista.replaceChildren(
-      ...v.acoes.map((a) =>
-        el("li.retro__acao", { class: a.feita ? "is-feita" : "" }, [
-          el("label", {}, [
-            el("input", { type: "checkbox", checked: a.feita, onChange: (e) => rt.marcarAcao(a.id, e.target.checked) }),
-            el("span", { text: a.texto }),
-          ]),
-          el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": `Apagar ação: ${a.texto}`, onClick: () => rt.apagarAcao(a.id) }, [icon("trash-2", { size: "sm" })]),
-        ]),
-      ),
+    sincronizar(
+      p.acoesLista,
+      v.acoes.length
+        ? v.acoes.map((a) => ({
+            chave: a.id,
+            sig: JSON.stringify([a.texto, a.feita]),
+            criar: () =>
+              el("li.retro__acao", { class: a.feita ? "is-feita" : "" }, [
+                el("label", {}, [
+                  el("input", { type: "checkbox", checked: a.feita, onChange: (e) => rt.marcarAcao(a.id, e.target.checked) }),
+                  el("span", { text: a.texto }),
+                ]),
+                el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": `Apagar ação: ${a.texto}`, onClick: () => rt.apagarAcao(a.id) }, [icon("trash-2", { size: "sm" })]),
+              ]),
+          }))
+        : [{ chave: "vazio", sig: "", criar: () => el("li.poker__vazio", { text: "Nenhuma ação combinada ainda." }) }],
     );
-    if (!v.acoes.length) p.acoesLista.append(el("li.poker__vazio", { text: "Nenhuma ação combinada ainda." }));
   }
 
+  /** Uma nota da retrospectiva, como item de `sincronizar`. */
   #nota(n, v) {
     const { estado, retro: rt } = this.o;
     const minha = n.autor === estado.eu;
     const texto = n.texto ?? (minha ? rt.meus.get(n.id) : null);
+    const meus = Number(estado.ler(`r/vt/${n.id}/${estado.eu}`, 0)) || 0;
+    return {
+      chave: n.id,
+      sig: JSON.stringify([texto, n.nome, minha, v.fase, v.fase === "votar" ? meus : 0, v.fase === "discutir" ? n.votos : 0]),
+      criar: () => this.#criarNota(n, v, minha, texto, meus),
+    };
+  }
+
+  #criarNota(n, v, minha, texto, meus) {
+    const { retro: rt } = this.o;
     const filhos = [texto != null ? el("p.nota__texto", { text: texto }) : el("p.nota__texto.is-oculta", { text: "Nota escondida até a votação", "aria-label": `Nota de ${n.nome || "alguém"}, escondida até a votação` })];
     const pe = el("div.nota__pe");
     if (minha) pe.append(el("span.jogos__rotulo", { text: "sua" }));
     if (v.fase === "votar") {
-      const meus = Number(estado.ler(`r/vt/${n.id}/${estado.eu}`, 0)) || 0;
       pe.append(
         el("div.nota__votos", {}, [
           el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": "Tirar um ponto", disabled: !meus, onClick: () => rt.votar(n.id, -1) }, [el("span", { text: "−" })]),
           el("span.nota__meus", { text: "●".repeat(meus) || "·", "aria-label": `${meus} ponto(s) seu(s)` }),
-          el("button.btn.btn--icon.btn--ghost", { type: "button", "aria-label": "Dar um ponto", disabled: v.meusVotosUsados >= v.votosPorPessoa, onClick: () => rt.votar(n.id, +1) }, [el("span", { text: "+" })]),
+          el("button.btn.btn--icon.btn--ghost.nota__mais", { type: "button", "aria-label": "Dar um ponto", disabled: v.meusVotosUsados >= v.votosPorPessoa, onClick: () => rt.votar(n.id, +1) }, [el("span", { text: "+" })]),
         ]),
       );
     } else if (v.fase === "discutir" && n.votos) {

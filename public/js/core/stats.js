@@ -200,7 +200,9 @@ export class StatsMonitor extends Emitter {
       const larguraEsperada = cfg.width ? cfg.width / escala : null;
       const qpsEsperado = Math.min(enc.maxFramerate || 30, cfg.frameRate || 30);
       const encolhida = larguraEsperada && out.width && out.width < larguraEsperada * 0.9;
-      const lenta = out.fps != null && out.fps < qpsEsperado * 0.6;
+      // Na tela, pouco quadro por segundo é o normal (tela parada só manda o
+      // repetido); ali só a resolução encolhida denuncia o encoder travado.
+      const lenta = papel === "cam" && out.fps != null && out.fps < qpsEsperado * 0.6;
       if (!encolhida && !lenta) continue;
       const chave = `${peer.id}:${papel}`;
       const agora = performance.now();

@@ -428,6 +428,82 @@ try {
     await b.context().close();
   }
 
+  console.log("\nJogos de equipe");
+  {
+    const sala = novaSala("jogos");
+    const a = await participante("Ana", sala);
+    await noDock(a);
+    const b = await participante("Bia", sala);
+    await noDock(b);
+    await conectados(a, 1);
+    await espera(800);
+    await a.keyboard.press("k");
+    await a.waitForSelector(".jogos");
+    const aviso = await b
+      .waitForFunction(() => [...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("abriu o Planning Poker")), null, { timeout: 5000 })
+      .then(() => true, () => false);
+    check("quem abre o Planning Poker avisa os outros, com botão de participar", aviso);
+    await b.click(".toast >> text=Participar");
+    await b.waitForSelector(".jogos");
+
+    await a.fill(".poker__nova", "Login com Google\nTela de perfil");
+    await a.press(".poker__nova", "Enter");
+    await b.waitForFunction(() => document.querySelectorAll(".poker__item").length === 2, null, { timeout: 5000 });
+    await a.click('.carta--mao[aria-label="Carta 5"]');
+    await b.click('.carta--mao[aria-label="Carta 8"]');
+    await a.waitForFunction(() => [...document.querySelectorAll(".assento")].every((x) => x.getAttribute("aria-label").endsWith(": votou")), null, { timeout: 5000 });
+    const vazou = await a.evaluate(() => JSON.stringify(window.vcall.jogosEstado.instantaneo()).includes('"8"'));
+    check("antes de revelar todos veem quem votou, e o voto da outra pessoa não chegou", !vazou);
+    await b.click(".poker__revelar");
+    await a.waitForSelector(".poker__resumo", { timeout: 8000 });
+    const cartas = await a.evaluate(() => [...document.querySelectorAll(".assento")].map((x) => x.getAttribute("aria-label")).sort());
+    const resumo = await b.evaluate(() => document.querySelector(".poker__resumo")?.textContent || "");
+    check("revelar mostra as cartas e o resumo nos dois", cartas.join() === "Ana: 5,Bia: 8" && resumo.includes("6,5"), `${cartas} · ${resumo}`);
+    await a.click(".poker__salvar .jogos__chip >> text=8");
+    await b.waitForFunction(() => document.querySelector(".poker__item .poker__estimativa")?.textContent === "8", null, { timeout: 5000 });
+    check("salvar a estimativa grava na história e passa para a próxima", await b.evaluate(() => document.querySelector(".poker__item.is-atual")?.textContent.includes("Tela de perfil")));
+
+    // Retrospectiva: o texto dos outros fica escondido até a votação.
+    await a.click('.jogos__aba[aria-label="Retrospectiva"]');
+    await b.click('.jogos__aba[aria-label="Retrospectiva"]');
+    await b.fill('.coluna[data-col="1"] textarea', "Reuniões longas demais");
+    await b.press('.coluna[data-col="1"] textarea', "Enter");
+    await a.waitForFunction(() => document.querySelectorAll(".nota").length === 1, null, { timeout: 5000 });
+    const escondida = await a.evaluate(() => document.querySelector(".nota__texto").classList.contains("is-oculta") && !document.body.textContent.includes("Reuniões longas"));
+    await a.click(".retro__fase >> text=Votar");
+    await a.waitForFunction(() => document.body.textContent.includes("Reuniões longas demais"), null, { timeout: 5000 }).catch(() => {});
+    const aparece = await a.evaluate(() => document.querySelector(".nota__texto")?.textContent === "Reuniões longas demais");
+    check("Retro: nota escondida enquanto se escreve, visível na votação", escondida && aparece);
+
+    // Quem entra depois recebe o estado inteiro.
+    const c = await participante("Caio", sala);
+    await noDock(c);
+    await conectados(c, 2);
+    const recebeu = await c
+      .waitForFunction(() => window.vcall.jogosEstado.ler("r/fase") === "votar" && [...window.vcall.jogosEstado.com("p/h/")].length === 2, null, { timeout: 8000 })
+      .then(() => true, () => false);
+    check("quem entra depois recebe o jogo em andamento", recebeu);
+
+    // Daily: a mesma ordem para todo mundo.
+    await a.click('.jogos__aba[aria-label="Daily"]');
+    await a.click(".daily__vazio >> text=Sortear ordem");
+    await c.keyboard.press("k");
+    await c.click('.jogos__aba[aria-label="Daily"]');
+    const ordem = (p) => p.evaluate(() => [...document.querySelectorAll(".daily__item")].map((x) => x.textContent.replace(/\d+:\d+$/, "")).join("|"));
+    await c.waitForFunction(() => document.querySelectorAll(".daily__item").length === 3, null, { timeout: 5000 });
+    check("Daily: ordem sorteada igual para todos", (await ordem(a)) === (await ordem(c)), await ordem(c));
+    for (const p of [a, b, c]) await p.context().close();
+
+    // Celular, sozinho na sala: o painel tem largura (antes ficava com 0 px).
+    const m = await participante("Duda", novaSala("jogos-cel"), { viewport: { width: 390, height: 820 } });
+    await noDock(m);
+    await m.keyboard.press("k");
+    await m.waitForSelector(".jogos");
+    const largura = await m.evaluate(() => document.querySelector(".jogos").getBoundingClientRect().width);
+    check("no celular, sozinho, os jogos ocupam a tela (antes 0 px)", largura > 300, `${Math.round(largura)} px`);
+    await m.context().close();
+  }
+
   console.log("\nTransmissão estável");
   {
     const sala = novaSala("estavel");

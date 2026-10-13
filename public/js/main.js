@@ -3560,6 +3560,7 @@ window.vcall = {
   },
   setFocoVoz,
   setModoJogo,
+  jogosEstado,
 };
 console.info(
   "%cVcall%c — mídia ponto a ponto, criptografada. `window.vcall` expõe o estado para depuração." +

@@ -3468,6 +3468,7 @@ function leaveCall({ motivo = null, por = "" } = {}) {
   clearInterval(app.timerId);
   app.mini?.close();
   closeBoard();
+  fecharJogos();
   captions.stop();
   captions.unmount();
   if (recorder.recording) recorder.stop();

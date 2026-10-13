@@ -29,6 +29,7 @@ import { attachSignaling } from "../src/signaling.js";
 import { RoomRegistry } from "../src/rooms.js";
 import { hostControl } from "./guard.js";
 import { Tunnel } from "./tunnel.js";
+import { LinkTailscale } from "./tailscale.js";
 import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
@@ -46,6 +47,8 @@ const TOKEN = randomBytes(24).toString("base64url");
 let win = null;
 let baseUrl = "";
 let tunnel = null;
+/** O link pela rede Tailscale da pessoa (`tailscale serve`), quando pedido. */
+let linkTs = null;
 /** Destino pedido por link antes de a janela existir. */
 let pendente = null;
 /** Origens de salas de outras pessoas que o usuário abriu por convite. */
@@ -138,7 +141,17 @@ async function subirServidor() {
       tchau: async () => ({ ok: true }),
     },
     acoes: {
-      status: async () => ({ estado: tunnel?.state || "parado", url: tunnel?.url || null, porta }),
+      status: async () => ({
+        estado: tunnel?.state || "parado",
+        url: tunnel?.url || null,
+        porta,
+        tailscale: {
+          estado: linkTs?.state || "parado",
+          url: linkTs?.url || null,
+          habilitar: linkTs?.habilitar || null,
+          erro: linkTs?.erro || null,
+        },
+      }),
 
       /*
        * Verificação de versão. Estava só no caminho antigo (SEA), então no
@@ -155,6 +168,31 @@ async function subirServidor() {
       "tunnel/renovar": async () => ({ estado: "pronto", url: await ligarTunel() }),
       "tunnel/fechar": async () => {
         tunnel?.stop();
+        return { estado: "parado", url: null };
+      },
+
+      /*
+       * Link pela rede Tailscale. "conferir" só olha (instalado? conectado?),
+       * para o Convidar mostrar a opção do jeito certo antes de qualquer clique.
+       */
+      "tailscale/conferir": async () => LinkTailscale.conferir(),
+      "tailscale/abrir": async () => {
+        if (linkTs?.url && linkTs.state === "pronto") return { estado: "pronto", url: linkTs.url };
+        // Um pedido que ainda está esperando (o HTTPS sendo ligado) não começa outro.
+        if (linkTs && ["conferindo", "habilitar", "verificando"].includes(linkTs.state)) {
+          return { estado: linkTs.state, url: null, habilitar: linkTs.habilitar };
+        }
+        linkTs?.stop({ silencioso: true });
+        linkTs = new LinkTailscale(porta);
+        try {
+          return { estado: "pronto", url: await linkTs.start() };
+        } catch (err) {
+          registrar("tailscale-falhou", { erro: String(err?.message || err) });
+          throw err;
+        }
+      },
+      "tailscale/fechar": async () => {
+        linkTs?.stop();
         return { estado: "parado", url: null };
       },
     },
@@ -180,8 +218,9 @@ async function subirServidor() {
 
   const server = createHttpServer({ registry, control });
   // O link público do app é o cloudflared nesta mesma máquina: o endereço
-  // real de cada convidado vem no CF-Connecting-IP.
-  attachSignaling(server, { registry, trustCloudflare: true });
+  // real de cada convidado vem no CF-Connecting-IP. Pelo Tailscale, no
+  // X-Forwarded-For que o `tailscale serve` põe (só endereços da tailnet).
+  attachSignaling(server, { registry, trustCloudflare: true, trustTailscale: true });
 
   for (const p of PORTAS) {
     const obtida = await escutar(server, p);
@@ -855,8 +894,10 @@ if (!app.requestSingleInstanceLock()) {
     if (!atualizador.aoFechar()) app.quit();
   });
 
-  // O túnel é a parte exposta à internet: cai junto com o app, sempre.
-  app.on("before-quit", () => tunnel?.stop());
+  // O túnel é a parte exposta à internet: cai junto com o app, sempre. O link
+  // do Tailscale também (e, mesmo que o app morra sem passar aqui, o
+  // `tailscale serve` em primeiro plano se desfaz sozinho com o processo).
+  app.on("before-quit", () => (tunnel?.stop(), linkTs?.stop({ silencioso: true })));
   app.on("will-quit", () => globalShortcut.unregisterAll());
-  process.on("exit", () => tunnel?.stop());
+  process.on("exit", () => (tunnel?.stop(), linkTs?.stop({ silencioso: true })));
 }

@@ -31,6 +31,12 @@ import { tmpdir } from "node:os";
 import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
 import { BARALHOS, Daily, EstadoJogos, Poker, Retro, daily, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
+import { LinkTailscale, MENSAGENS, escolherPorta, interpretarFalha, lerEstado, urlDe } from "../desktop/tailscale.js";
+import { ehIpTailscale } from "../src/rede.js";
+import { ehIpTailscale as ehIpTailscaleNavegador } from "../public/js/core/stats.js";
+import { clientIp } from "../src/signaling.js";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 
 let passou = 0;
 const ok = (nome) => {
@@ -693,6 +699,113 @@ server.close();
   ]);
   assert.deepEqual(aceitos, ["jogo"], "chave estranha, valor enorme e relógio absurdo recusados");
   ok("jogos: Poker, Retro e Daily convergem fora de ordem; voto e nota só aparecem na hora certa");
+}
+
+/* ------------------------------------------------------------------ *
+ * Tailscale: o link pela rede privada de quem convida
+ * ------------------------------------------------------------------ */
+{
+  // Respostas de verdade do CLI (tailscale v1.104, deslogado e sem daemon).
+  const deslogado = { BackendState: "NeedsLogin", Self: { DNSName: "", TailscaleIPs: null }, Health: ["Tailscale is stopped."] };
+  assert.equal(lerEstado(deslogado).motivo, "deslogado");
+  assert.equal(interpretarFalha("Logged out."), MENSAGENS.deslogado);
+  assert.equal(
+    interpretarFalha("failed to connect to local tailscaled (which appears to be running as tailscaled, pid 1). Got error: ...; not running?"),
+    MENSAGENS["sem-daemon"],
+  );
+  assert.match(interpretarFalha("flag provided but not defined: -https"), /1\.52/, "versão antiga pede atualização");
+  assert.equal(interpretarFalha("serve config denied", "linux"), MENSAGENS.operador, "no Linux: o comando do operador");
+
+  const rodando = {
+    BackendState: "Running",
+    Self: { DNSName: "maquina.tail1234.ts.net.", TailscaleIPs: ["100.101.5.5", "fd7a:115c:a1e0::5"] },
+    CurrentTailnet: { Name: "time@example.com", MagicDNSEnabled: true },
+    CertDomains: ["maquina.tail1234.ts.net"],
+  };
+  const e = lerEstado(rodando);
+  assert.deepEqual([e.pronto, e.nome, e.ipv4, e.https], [true, "maquina.tail1234.ts.net", "100.101.5.5", true]);
+  assert.equal(lerEstado({ ...rodando, CurrentTailnet: { MagicDNSEnabled: false } }).motivo, "sem-dns");
+
+  // Não pisa no que a pessoa já publica.
+  assert.equal(escolherPorta({}, "m.ts.net"), 443);
+  assert.equal(escolherPorta({ TCP: { 443: { HTTPS: true } } }, "m.ts.net"), 8443);
+  assert.equal(escolherPorta({ Web: { "m.ts.net:443": {} }, Foreground: { s1: { TCP: { 8443: {} } } } }, "m.ts.net"), 10000);
+  assert.equal(escolherPorta({ TCP: { 443: {}, 8443: {}, 10000: {} } }, "m.ts.net"), null);
+  assert.equal(urlDe("m.ts.net", 443), "https://m.ts.net");
+  assert.equal(urlDe("m.ts.net", 8443), "https://m.ts.net:8443");
+
+  // Endereços da tailnet: a mesma regra no servidor e no navegador.
+  for (const [ip, sim] of [["100.64.0.1", true], ["100.127.255.254", true], ["100.63.0.1", false], ["100.128.0.1", false], ["::ffff:100.101.5.5", true], ["fd7a:115c:a1e0::1", true], ["192.168.0.10", false], ["", false]]) {
+    assert.equal(ehIpTailscale(ip), sim, ip);
+    assert.equal(ehIpTailscaleNavegador(ip), sim, `navegador: ${ip}`);
+  }
+
+  // O IP real de quem entra pelo `tailscale serve` (que SUBSTITUI o X-Forwarded-For).
+  const pedido = (headers, ip = "127.0.0.1") => ({ socket: { remoteAddress: ip }, headers });
+  assert.equal(clientIp(pedido({ "x-forwarded-for": "100.101.102.103" }), { trustTailscale: true }), "100.101.102.103");
+  assert.equal(clientIp(pedido({ "x-forwarded-for": "100.101.102.103" }), { trustTailscale: false }), "127.0.0.1", "desligado, não confia");
+  assert.equal(clientIp(pedido({ "x-forwarded-for": "8.8.8.8" }), { trustTailscale: true }), "127.0.0.1", "fora da tailnet, não confia");
+  assert.equal(
+    clientIp(pedido({ "x-forwarded-for": "100.101.102.103", "cf-connecting-ip": "203.0.113.9" }), { trustTailscale: true, trustCloudflare: true }),
+    "203.0.113.9",
+    "pelo túnel do Cloudflare, um X-Forwarded-For forjado não vale",
+  );
+  assert.equal(clientIp(pedido({ "x-forwarded-for": "100.101.102.103" }, "192.168.0.7"), { trustTailscale: true }), "192.168.0.7", "só de dentro da máquina");
+
+  // O fluxo inteiro, com um `tailscale serve` de mentira (sem shell: roda até no Windows).
+  const falso = ({ habilitar = false, morre = false } = {}) => {
+    const chamadas = [];
+    const gerar = (cli, args) => {
+      chamadas.push(args.join(" "));
+      const proc = new EventEmitter();
+      proc.stdout = new PassThrough();
+      proc.stderr = new PassThrough();
+      proc.morto = false;
+      proc.kill = () => {
+        proc.morto = true;
+        setImmediate(() => proc.emit("exit", null));
+      };
+      setTimeout(() => {
+        if (morre) {
+          proc.stderr.write("serve config denied\n");
+          return setTimeout(() => proc.emit("exit", 1), 5);
+        }
+        if (habilitar) proc.stdout.write("\nServe is not enabled on your tailnet.\nTo enable, visit:\n\n         https://login.tailscale.com/f/serve?node=nX\n");
+        setTimeout(() => proc.stdout.write("Available within your tailnet:\n\nhttps://maquina.tail1234.ts.net/\n\nPress Ctrl+C to exit.\n"), habilitar ? 40 : 5);
+      }, 5);
+      falso.ultimo = proc;
+      return proc;
+    };
+    const rodar = async (cli, args) =>
+      args[0] === "status"
+        ? { code: 0, stdout: JSON.stringify(rodando), stderr: "" }
+        : { code: 0, stdout: JSON.stringify({ TCP: { 443: {} } }), stderr: "" };
+    return { achar: async () => "tailscale", rodar, gerar, pedir: async () => 200, chamadas };
+  };
+
+  const f1 = falso({ habilitar: true });
+  const link = new LinkTailscale(7718, f1);
+  const estados = [];
+  link.on("status", (st) => estados.push(st.state + (st.habilitar ? `:${st.habilitar}` : "")));
+  assert.equal(await link.start(), "https://maquina.tail1234.ts.net:8443");
+  assert.deepEqual(f1.chamadas, ["serve --https=8443 http://127.0.0.1:7718"], "primeiro plano (sem --bg), na 8443 porque a 443 estava em uso");
+  assert.deepEqual(estados, ["conferindo", "habilitar:https://login.tailscale.com/f/serve?node=nX", "verificando", "pronto"]);
+  link.stop();
+  assert.ok(falso.ultimo.morto, "desligar mata o serve (e o Tailscale desfaz a publicação)");
+  assert.equal(link.url, null);
+
+  // O serve cai sozinho (Tailscale fechado): o link some.
+  const f2 = falso();
+  const link2 = new LinkTailscale(7718, f2);
+  await link2.start();
+  falso.ultimo.emit("exit", 0);
+  assert.deepEqual([link2.state, link2.url], ["parado", null]);
+
+  // Sem permissão no Linux: a mensagem diz o que fazer.
+  const link3 = new LinkTailscale(7718, falso({ morre: true }));
+  await assert.rejects(link3.start(), (err) => err.message === interpretarFalha("serve config denied"));
+  assert.equal(link3.state, "erro");
+  ok("Tailscale: estados reais do CLI, porta livre, IP da tailnet, serve em primeiro plano que morre junto");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

@@ -17,7 +17,10 @@
  *
  *   xvfb-run -a sh -c 'openbox & node scripts/desktop-test.mjs'
  */
-import { cpSync, mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync } from "node:fs";
+import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron, chromium } from "playwright";
@@ -30,6 +33,23 @@ const check = (nome, ok, detalhe = "") => {
 };
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/*
+ * Um Tailscale de mentira (scripts/fixtures/tailscale-falso.mjs) com HTTPS
+ * de verdade: o certificado é gerado aqui e o app confia nele pelo
+ * NODE_EXTRA_CA_CERTS, como confiaria no da Let's Encrypt que o Tailscale usa.
+ */
+const tsDir = mkdtempSync(path.join(os.tmpdir(), "vcall-ts-"));
+const tsCert = path.join(tsDir, "ts.crt");
+const tsKey = path.join(tsDir, "ts.key");
+let tsOk = true;
+try {
+  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=maquina.tail1234.ts.net",
+    "-addext", "subjectAltName=DNS:maquina.tail1234.ts.net", "-keyout", tsKey, "-out", tsCert], { stdio: "ignore" });
+  chmodSync(path.join(root, "scripts", "fixtures", "tailscale-falso.mjs"), 0o755);
+} catch {
+  tsOk = false;
+}
+
 // O microfone do app é um .wav com uma frase falada: a legenda é testada
 // com fala de verdade, do microfone até o texto.
 const app = await electron.launch({
@@ -40,6 +60,20 @@ const app = await electron.launch({
     "desktop/main.js",
   ],
   cwd: root,
+  env: {
+    ...process.env,
+    ...(tsOk
+      ? {
+          VCALL_TAILSCALE: path.join(root, "scripts", "fixtures", "tailscale-falso.mjs"),
+          VCALL_TS_FALSO_CERT: tsCert,
+          VCALL_TS_FALSO_KEY: tsKey,
+          // 443 "ocupada" (e sem ser root não daria mesmo): o app tem de ir para a 8443.
+          VCALL_TS_FALSO_443: "1",
+          VCALL_TS_FALSO_HABILITAR: "1",
+          NODE_EXTRA_CA_CERTS: tsCert,
+        }
+      : {}),
+  },
 });
 const win = await app.firstWindow();
 const erros = [];
@@ -246,6 +280,70 @@ try {
   await win.evaluate(() => window.vcall.setModoJogo?.(false, { avisar: false }));
   await espera(600);
   check("desligar o modo jogo fecha a sobreposição", !app.windows().some((w) => w.url().endsWith("/sobreposicao.html")));
+
+  /* -- link pela rede Tailscale -- */
+  if (tsOk) {
+    await win.click("#inviteBtn");
+    const apareceu = await win
+      .waitForSelector("#hostTailscale:not([hidden]) #tsBtn", { timeout: 8000 })
+      .then(() => true, () => false);
+    check("o Convidar oferece o link pelo Tailscale quando ele está instalado", apareceu);
+    await win.click("#tsBtn");
+    const pediuHttps = await win
+      .waitForSelector("#tsHabilitar:not([hidden])", { timeout: 8000 })
+      .then(() => true, () => false);
+    check("rede sem HTTPS: mostra o botão para ligar e espera", pediuHttps);
+    const link = await win
+      .waitForFunction(() => document.querySelector("#tsLink").value || null, null, { timeout: 20_000 })
+      .then((h) => h.jsonValue(), () => "");
+    check(
+      "o link sai sozinho depois de ligado, na 8443 (a 443 estava ocupada)",
+      /^https:\/\/maquina\.tail1234\.ts\.net:8443\/#/.test(link),
+      link || "sem link",
+    );
+    const convite = await win.evaluate(() => document.querySelector("#appLink").value);
+    check("sem túnel, o convite do WhatsApp usa o link do Tailscale", convite.includes("maquina.tail1234.ts.net"), convite);
+    await win.keyboard.press("Escape");
+
+    // Alguém da tailnet entra pelo link (o nome resolve para cá, como o MagicDNS faria).
+    const doTs = await chromium.launch({
+      executablePath: process.env.CHROMIUM_PATH || undefined,
+      args: [
+        "--use-fake-ui-for-media-stream",
+        "--use-fake-device-for-media-stream",
+        "--host-resolver-rules=MAP maquina.tail1234.ts.net 127.0.0.1",
+        "--no-proxy-server",
+      ],
+    });
+    try {
+      const pg = await (await doTs.newContext({ permissions: ["camera", "microphone"], ignoreHTTPSErrors: true })).newPage();
+      await pg.goto(link, { waitUntil: "load" });
+      await pg.fill("#nameInput", "Tailnet");
+      await pg.click("#joinBtn");
+      await pg.waitForSelector("#dock:not([hidden])", { timeout: 15_000 });
+      const entrou = await win
+        .waitForFunction(() => [...window.vcall.mesh.peers.values()].filter((p) => p.connectionState === "connected").length >= 2, null, { timeout: 25_000 })
+        .then(() => true, () => false);
+      check("quem entra pelo link do Tailscale chega na chamada (sinalização pelo serve)", entrou);
+      const painel = await pg.evaluate(async () => (await fetch("/__host/hello")).status);
+      check("pelo link do Tailscale, o painel do anfitrião não existe", painel === 404, `HTTP ${painel}`);
+    } finally {
+      await doTs.close().catch(() => {});
+    }
+    await win.click("#inviteBtn");
+    await win.click("#tsFechar");
+    const fechou = await win.waitForFunction(() => !document.querySelector("#tsLink").value, null, { timeout: 5000 }).then(() => true, () => false);
+    await espera(500);
+    const aindaAberta = await new Promise((r) => {
+      const sk = net.connect(8443, "127.0.0.1");
+      sk.on("connect", () => (sk.destroy(), r(true)));
+      sk.on("error", () => r(false));
+    });
+    check("desligar o link do Tailscale para de publicar (o serve morre junto)", fechou && !aindaAberta, aindaAberta ? "a 8443 continua aberta" : "");
+    await win.keyboard.press("Escape");
+  } else {
+    console.log("  (sem openssl: pulando o link pelo Tailscale)");
+  }
 
   check("nenhum erro de JavaScript no app", erros.length === 0, erros.slice(0, 2).join(" | "));
 } catch (err) {

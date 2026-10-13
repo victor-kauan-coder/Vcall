@@ -248,7 +248,7 @@ async function resolverDoH(host) {
 }
 
 /** GET num endereço https, conectando no IP dado (o nome segue no SNI e no Host). */
-function pedirNoIp(url, ip) {
+export function pedirNoIp(url, ip) {
   return new Promise((ok, falha) => {
     const req = https.get(
       url,

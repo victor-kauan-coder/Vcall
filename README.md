@@ -29,16 +29,16 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Android 8+ | `Vcall-3.8.0.apk` |
-| Windows 10/11 | `VcallSetup-3.8.0.exe` |
-| Fedora, openSUSE, RHEL | `Vcall-3.8.0-x86_64.rpm` |
-| Arch, Manjaro, EndeavourOS | `Vcall-3.8.0-x64.pacman` |
-| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.8.0-amd64.deb` |
-| Qualquer Linux | `Vcall-3.8.0-x86_64.AppImage` ou `.tar.gz` |
+| Android 8+ | `Vcall-3.9.0.apk` |
+| Windows 10/11 | `VcallSetup-3.9.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.9.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.9.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.9.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.9.0-x86_64.AppImage` ou `.tar.gz` |
 
 Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
-o que mudou na **[3.8.0](docs/release/v3.8.0.md)**.
+o que mudou na **[3.9.0](docs/release/v3.9.0.md)**.
 
 ## Recursos
 
@@ -52,6 +52,7 @@ o que mudou na **[3.8.0](docs/release/v3.8.0.md)**.
 - Trocar a janela compartilhada **sem parar** a transmissão
 - Moderação: silenciar, remover, trancar a sala, **sala de espera**, fila de mãos
 - Convite clicável no **WhatsApp** que abre direto no app
+- Link pela sua rede **Tailscale**: privado, com HTTPS, e um caminho a mais para a mídia em redes que bloqueiam a conexão direta
 - **Foco na voz** (quem fala acende, quem está calado apaga) e **modo jogo** com sobreposição e atalhos globais
 - App para **Windows** e **Linux** (AppImage, .deb, .rpm, pacman, .tar.gz)
 
@@ -314,6 +315,8 @@ para sempre. Todos estão tratados, com o porquê comentado no código.
   a resolução pela estimativa do começo da chamada e nunca a revisava
 - Tela parada não pisca: o vídeo segura o último quadro enquanto a trilha
   recebida fica "muda" entre um quadro repetido e outro
+- Rota da mídia no painel: direta, direta pela rede Tailscale, ou via TURN
+  ([wiki](docs/wiki/Tailscale.md))
 - Indicador de rede por participante, no próprio ladrilho
 - Painel com latência, perda, banda, resolução real enviada e recebida, codec,
   custo de codificação, congelamentos e rota (direta ou via TURN)

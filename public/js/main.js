@@ -2665,8 +2665,11 @@ function openInvite() {
   $("#inviteCapacity").textContent =
     `Até ${app.maxPeers} pessoas ao mesmo tempo. Como cada participante envia vídeo diretamente para todos os outros, salas maiores exigiriam um servidor de mídia no meio — e a conversa deixaria de ser criptografada ponta a ponta.`;
   syncTunnelUi();
+  syncTailscaleUi();
   syncAppLink();
   dlg.showModal();
+  // O Tailscale pode ter sido aberto ou fechado desde a última vez.
+  if (host.disponivel && host.ts.estado !== "pronto") host.conferirTailscale().then(syncTailscaleUi);
   requestAnimationFrame(() => $("#inviteLink").select());
 }
 
@@ -2687,8 +2690,10 @@ function syncAppLink() {
   $("#appLink").value = inviteLink() || "";
   const local = /^http:\/\/(127\.|localhost)/.test(inviteLink() || "");
   $("#appLinkHint").textContent = local
-    ? "Este endereço só funciona neste computador. Gere o link público abaixo para mandar pelo WhatsApp."
-    : host.url || !host.disponivel
+    ? "Este endereço só funciona neste computador. Gere o link público (ou o do Tailscale) abaixo para mandar pelo WhatsApp."
+    : !host.url && host.ts.url
+      ? "Pela sua rede Tailscale: só abre para quem está nela, com o Tailscale ligado."
+      : host.url || !host.disponivel
       ? "Clicável no WhatsApp. Abre direto no Vcall de quem tem o aplicativo; quem não tem entra pelo navegador."
       : "Funciona para quem está na mesma rede que você. Para quem está fora dela, gere o link público abaixo.";
 }
@@ -2698,8 +2703,60 @@ function syncAppLink() {
  * sobre o endereço público quando o túnel está de pé, ou sobre o atual.
  */
 function inviteLink() {
-  const base = (host.url && host.linkPublico(roomLink())) || roomLink();
+  const base = (host.url && host.linkPublico(roomLink())) || host.linkTailscale(roomLink()) || roomLink();
   return linkAbrir(base);
+}
+
+/**
+ * O link pela rede Tailscale. Aparece no app de mesa quando o Tailscale está
+ * instalado; sem ele, uma linha só diz que a opção existe.
+ */
+function syncTailscaleUi() {
+  const box = $("#hostTailscale");
+  if (!box) return;
+  const c = host.tsConferido;
+  box.hidden = !host.disponivel || !c;
+  if (box.hidden) return;
+  const { estado, url, habilitar, erro } = host.ts;
+  const campo = $("#tsLink");
+  const btn = $("#tsBtn");
+  const texto = $("#tsBtnText");
+  const dica = $("#tsHint");
+  const ocupado = ["conferindo", "habilitar", "verificando"].includes(estado);
+  const linha = $("#tsLink").closest(".row");
+
+  linha.hidden = !c.instalado;
+  campo.value = url ? host.linkTailscale(roomLink()) || "" : "";
+  btn.disabled = ocupado;
+  $("#tsHabilitar").hidden = estado !== "habilitar" || !habilitar;
+  $("#tsFechar").hidden = !(estado === "pronto" || estado === "habilitar");
+
+  if (!c.instalado) {
+    dica.textContent =
+      "Usa Tailscale? Com ele instalado e ligado aqui e em quem você convida, o Vcall gera um link que só abre dentro da sua rede privada.";
+  } else if (estado === "pronto") {
+    texto.textContent = "Copiar";
+    dica.textContent =
+      "Só abre para quem está na sua rede Tailscale. A voz e o vídeo vão direto pela rede privada quando a internet comum não deixa.";
+  } else if (estado === "habilitar") {
+    texto.textContent = "Esperando…";
+    dica.textContent =
+      "Falta ligar o HTTPS da sua rede Tailscale (uma vez só). Abra a página, confirme, e o link sai sozinho.";
+  } else if (ocupado) {
+    texto.textContent = estado === "verificando" ? "Testando…" : "Conferindo…";
+    dica.textContent =
+      estado === "verificando"
+        ? "Conferindo se o link abre. Na primeira vez o Tailscale emite o certificado, e isso leva alguns segundos."
+        : "Perguntando ao Tailscale deste computador…";
+  } else {
+    texto.textContent = "Gerar link";
+    dica.textContent =
+      estado === "erro" && erro
+        ? erro
+        : c.pronto
+          ? `Rede ${c.tailnet || "Tailscale"} conectada. O link só abre para quem está nela.`
+          : c.mensagem || "O Tailscale não está pronto neste computador.";
+  }
 }
 
 function syncTunnelUi() {
@@ -2745,8 +2802,9 @@ function syncTunnelUi() {
 }
 
 if ($("#tunnelBtn")) {
-  host.on("status", () => (syncTunnelUi(), syncAppLink()));
+  host.on("status", () => (syncTunnelUi(), syncTailscaleUi(), syncAppLink()));
   host.on("disponivel", () => (syncTunnelUi(), syncAppLink()));
+  host.on("tailscale", () => (syncTailscaleUi(), syncAppLink()));
 
   /*
    * Pergunta ao servidor local se estamos dentro do aplicativo. Feito uma vez
@@ -2761,9 +2819,30 @@ if ($("#tunnelBtn")) {
     syncTunnelUi();
     syncAppLink();
     host.status().catch(() => {});
+    host.conferirTailscale().then(syncTailscaleUi);
     avisarDeAtualizacao();
   });
 
+
+  on($("#tsBtn"), "click", async () => {
+    if (host.ts.estado === "pronto") {
+      const link = host.linkTailscale(roomLink());
+      if (link) copy(link, "Link do Tailscale copiado");
+      return;
+    }
+    try {
+      await host.abrirTailscale();
+      const link = host.linkTailscale(roomLink());
+      if (link) copy(link, "Link do Tailscale criado e copiado");
+    } catch (err) {
+      if (err.message !== "cancelado") toast(err.message, { tone: "warn", ms: 10_000 });
+    }
+  });
+  on($("#tsHabilitar"), "click", () => {
+    // O app de mesa abre endereços https no navegador do sistema.
+    if (host.ts.habilitar) window.open(host.ts.habilitar, "_blank", "noopener");
+  });
+  on($("#tsFechar"), "click", () => host.fecharTailscale());
 
   on($("#tunnelBtn"), "click", async () => {
     // Com o túnel já de pé, o botão vira "copiar": é o que se quer fazer em

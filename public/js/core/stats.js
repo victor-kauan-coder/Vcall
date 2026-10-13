@@ -21,6 +21,20 @@ import { Emitter } from "../lib/emitter.js";
 import { clamp, Ema } from "../lib/util.js";
 import { cpuCeiling, meshBudget } from "./tuning.js";
 
+/**
+ * O endereço é da rede Tailscale (100.64.0.0/10 ou fd7a:115c:a1e0::/48)?
+ * Mesma regra de src/rede.js, que o fixes-test confere contra esta.
+ */
+export function ehIpTailscale(ip) {
+  const s = String(ip || "")
+    .trim()
+    .replace(/^::ffff:/i, "")
+    .replace(/^\[|\]$/g, "");
+  const m = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(s);
+  if (m) return Number(m[1]) === 100 && Number(m[2]) >= 64 && Number(m[2]) <= 127;
+  return /^fd7a:115c:a1e0:/i.test(s);
+}
+
 const INTERVAL_MS = 2000;
 const HISTORY = 30;
 
@@ -266,8 +280,14 @@ export class StatsMonitor extends Emitter {
         sample.transport.rtt = r.currentRoundTripTime != null ? r.currentRoundTripTime * 1000 : null;
         sample.transport.availableOutgoing = r.availableOutgoingBitrate ?? null;
         sample.transport.availableIncoming = r.availableIncomingBitrate ?? null;
-        sample.transport.localType = byId.get(r.localCandidateId)?.candidateType ?? null;
-        sample.transport.remoteType = byId.get(r.remoteCandidateId)?.candidateType ?? null;
+        const local = byId.get(r.localCandidateId);
+        const remoto = byId.get(r.remoteCandidateId);
+        sample.transport.localType = local?.candidateType ?? null;
+        sample.transport.remoteType = remoto?.candidateType ?? null;
+        // A rede Tailscale aparece como uma placa de rede a mais: o par
+        // escolhido usa os endereços 100.x dela. (O do outro lado pode vir
+        // escondido como nome .local; basta um dos dois.)
+        sample.transport.tailscale = ehIpTailscale(local?.address ?? local?.ip) || ehIpTailscale(remoto?.address ?? remoto?.ip);
       }
     });
 
@@ -295,6 +315,7 @@ export class StatsMonitor extends Emitter {
     sample.rttSmoothed = ema.rtt.value;
     sample.lossSmoothed = ema.loss.value;
     sample.relay = sample.transport.localType === "relay" || sample.transport.remoteType === "relay";
+    sample.tailscale = !sample.relay && !!sample.transport.tailscale;
 
     return sample;
   }

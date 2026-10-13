@@ -10,6 +10,7 @@ Clique em **Convidar**, no canto de cima.
 | **Código P2P** | Ditar por telefone: seis letras, sem letras parecidas (0/O, 1/I/L) |
 | **Convite que abre o aplicativo** | **WhatsApp**, Telegram, e-mail: abre direto no app de quem tem o Vcall |
 | **Link público pela internet** (app) | Para quem está fora da sua rede |
+| **Pela sua rede Tailscale** (app) | Para quem está na sua tailnet: privado e com HTTPS. Veja [Tailscale](Tailscale) |
 
 ## Enviar pelo WhatsApp
 

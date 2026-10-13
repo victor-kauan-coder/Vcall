@@ -19,6 +19,7 @@ em qualquer distribuição Linux e no navegador.
 | Instalar no Windows, Fedora, Arch, Ubuntu… | [Instalação](Instalacao) |
 | Fazer a primeira chamada | [Primeiros passos](Primeiros-passos) |
 | Mandar o convite pelo WhatsApp | [Convidar e WhatsApp](Convidar-e-WhatsApp) |
+| Chamar pela sua rede Tailscale | [Tailscale](Tailscale) |
 | Mostrar uma janela ou a tela inteira | [Compartilhar a tela](Compartilhar-a-tela) |
 | Desenhar junto e mandar arquivos | [Canvas e arquivos](Canvas-e-arquivos) |
 | Ligar legendas e baixar a transcrição | [Legendas](Legendas) |
@@ -28,7 +29,7 @@ em qualquer distribuição Linux e no navegador.
 | Algo não funciona | [Solução de problemas](Solucao-de-problemas) |
 | Entender o que é privado | [Segurança e privacidade](Seguranca-e-privacidade) |
 | Mexer no código, rodar os testes | [Para desenvolvedores](Para-desenvolvedores) |
-| Ver o que mudou | [Novidades da 3.8](Novidades-3.8) |
+| Ver o que mudou | [Novidades da 3.9](Novidades-3.9) |
 
 ## O que o Vcall faz
 
@@ -49,6 +50,8 @@ em qualquer distribuição Linux e no navegador.
   sala e **sala de espera** com aprovação do anfitrião.
 - **Foco na voz** estilo Discord (quem fala acende, quem está calado apaga), **rampa de volume** por pessoa e **modo jogo** com sobreposição e atalhos globais.
 - **Convite clicável no WhatsApp** que abre direto no aplicativo.
+- **Link pela sua rede Tailscale**: privado, com HTTPS, e um caminho a mais
+  para a voz e o vídeo em redes que bloqueiam a conexão direta.
 - **Aplicativo para Windows e Linux** (AppImage, .deb, .rpm, pacman, .tar.gz)
   e funcionamento completo no navegador.
 

@@ -11,6 +11,7 @@ import { config } from "./config.js";
 import { log, redactRoom } from "./logger.js";
 import { RoomRegistry, Participant } from "./rooms.js";
 import { C2S, S2C, ERRORS, parseClientMessage } from "./protocol.js";
+import { ehIpTailscale } from "./rede.js";
 
 const L = config.limits;
 
@@ -98,7 +99,7 @@ class PassGuard {
  * limite por IP punir a sala inteira por causa de uma pessoa. Só confiamos no
  * cabeçalho quando TRUST_PROXY estiver ligado explicitamente.
  */
-function clientIp(req, { trustCloudflare = config.trustCloudflare } = {}) {
+export function clientIp(req, { trustCloudflare = config.trustCloudflare, trustTailscale = config.trustTailscale } = {}) {
   if (config.trustProxy) {
     const fwd = req.headers["x-forwarded-for"];
     const first = String(Array.isArray(fwd) ? fwd[0] : fwd || "").split(",")[0].trim();
@@ -115,9 +116,23 @@ function clientIp(req, { trustCloudflare = config.trustCloudflare } = {}) {
    * da própria máquina — atrás de um nginx local, sem esse cuidado, qualquer
    * um forjaria o endereço e escaparia dos limites.
    */
-  if (trustCloudflare && /^(127\.|::1$|::ffff:127\.)/.test(direto)) {
+  const daMaquina = /^(127\.|::1$|::ffff:127\.)/.test(direto);
+  if (trustCloudflare && daMaquina) {
     const cf = req.headers["cf-connecting-ip"];
     if (typeof cf === "string" && /^[0-9a-fA-F:.]{2,45}$/.test(cf)) return cf;
+  }
+  /*
+   * Link pelo Tailscale: o `tailscale serve` também roda nesta máquina e
+   * entrega tudo de 127.0.0.1, com o endereço de quem chamou no
+   * X-Forwarded-For (ele SUBSTITUI o cabeçalho, não acrescenta). Só vale um
+   * endereço da própria tailnet, e só sem CF-Connecting-IP: quem entra pelo
+   * túnel do Cloudflare poderia escrever um X-Forwarded-For de mentira, mas
+   * não consegue tirar o cabeçalho que o Cloudflare põe.
+   */
+  if (trustTailscale && daMaquina && !req.headers["cf-connecting-ip"]) {
+    const fwd = req.headers["x-forwarded-for"];
+    const ip = typeof fwd === "string" ? fwd.trim() : "";
+    if (ehIpTailscale(ip)) return ip;
   }
   return direto;
 }
@@ -148,9 +163,14 @@ const GRACA_MS = 20_000;
 
 export function attachSignaling(
   httpServer,
-  { registry = new RoomRegistry(), trustCloudflare = config.trustCloudflare, graca = GRACA_MS } = {},
+  {
+    registry = new RoomRegistry(),
+    trustCloudflare = config.trustCloudflare,
+    trustTailscale = config.trustTailscale,
+    graca = GRACA_MS,
+  } = {},
 ) {
-  const ipDe = (req) => clientIp(req, { trustCloudflare });
+  const ipDe = (req) => clientIp(req, { trustCloudflare, trustTailscale });
   const passGuard = new PassGuard();
   /** Conexões abertas por IP, para um cliente só não esgotar o servidor. */
   const perIp = new Map();

@@ -11,9 +11,12 @@ captura, do reconhecedor de fala). Anexe-o ao relatar um problema:
 ## Alguém não consegue entrar / a chamada não conecta
 
 Quase sempre é uma rede restritiva (empresa, 4G/5G, hotel) que bloqueia a
-conexão direta. O Vcall avisa na tela quando é esse o caso. A solução é um
-servidor **TURN** — há opção gratuita que leva cinco minutos: veja
-[TURN.md](https://github.com/victor-kauan-coder/Vcall/blob/main/TURN.md).
+conexão direta. O Vcall avisa na tela quando é esse o caso. Duas saídas:
+
+- se todos usam **Tailscale**, gere o link pela sua rede Tailscale: a chamada
+  ganha o caminho pela rede privada (veja [Tailscale](Tailscale));
+- ou um servidor **TURN**: há opção gratuita que leva cinco minutos, veja
+  [TURN.md](https://github.com/victor-kauan-coder/Vcall/blob/main/TURN.md).
 
 ## Caio da chamada ao compartilhar a tela
 

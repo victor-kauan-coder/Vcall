@@ -719,7 +719,11 @@ export class Panel {
       row("Latência", formatMs(Math.round(s.rttSmoothed ?? NaN)), toneFor(s.rttSmoothed, 150, 300));
       row("Perda de pacotes", s.lossSmoothed != null ? `${s.lossSmoothed.toFixed(1)} %` : "—", toneFor(s.lossSmoothed, 1.5, 4));
       row("Banda disponível", formatBitrate(s.transport.availableOutgoing));
-      row("Rota", s.relay ? "via servidor TURN" : "direta (P2P)", s.relay ? "warn" : "ok");
+      row(
+        "Rota",
+        s.relay ? "via servidor TURN" : s.tailscale ? "direta pela rede Tailscale" : "direta (P2P)",
+        s.relay ? "warn" : "ok",
+      );
 
       const out = s.outbound.screen || s.outbound.cam;
       if (out) {

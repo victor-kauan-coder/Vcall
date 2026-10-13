@@ -276,6 +276,30 @@
             </button>
           </div>
 
+          <!-- Só no aplicativo de mesa: o link pela rede Tailscale de quem
+               convida (privado: só abre para quem está na mesma tailnet). -->
+          <div class="field" id="hostTailscale" hidden>
+            <span class="field__label">Pela sua rede Tailscale (privado)</span>
+            <div class="row">
+              <input class="input mono" id="tsLink" type="text" readonly placeholder="Ainda não gerado" />
+              <button class="btn" id="tsBtn" type="button">
+                <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-shield-check" /></svg>
+                <span id="tsBtnText">Gerar link</span>
+              </button>
+            </div>
+            <span class="field__hint" id="tsHint" aria-live="polite"></span>
+            <div class="row" style="gap: var(--sp-2)">
+              <button class="btn btn--primary" id="tsHabilitar" type="button" hidden>
+                <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-lock" /></svg>
+                <span>Ligar o HTTPS no Tailscale</span>
+              </button>
+              <button class="btn btn--ghost" id="tsFechar" type="button" hidden>
+                <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-x" /></svg>
+                <span>Desligar este link</span>
+              </button>
+            </div>
+          </div>
+
           <div class="row" style="gap: var(--sp-2); align-items: flex-start">
             <svg class="icon icon--sm" style="color: var(--accent); margin-top: 3px" aria-hidden="true">
               <use href="/vendor/icons.svg#i-users" />

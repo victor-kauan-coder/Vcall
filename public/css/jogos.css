@@ -1,5 +1,6 @@
 /* ------------------------------------------------------------------ *
- * jogos.css — Planning Poker, Retrospectiva e Daily.
+ * jogos.css — a moldura da mesa de jogos e os jogos de equipe (Planning
+ * Poker, Retrospectiva e Daily). Os de festa e tabuleiro: diversao.css.
  *
  * Ocupa o destaque, como o quadro branco. Tudo em CSS simples: cartas que
  * viram, barras que crescem, um anel que esvazia. Nada repinta sem motivo
@@ -123,8 +124,18 @@
   bottom: calc(100% + 4px);
 }
 .jogos__menu--emoji > button {
-  font-size: 1.3rem;
-  padding: 6px;
+  padding: 8px;
+  color: var(--accent);
+}
+.emoji-voo .icon {
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.25));
+}
+.carta .icon {
+  width: 55%;
+  height: auto;
+  max-height: 60%;
 }
 .jogos__corpo {
   flex: 1;
@@ -503,7 +514,7 @@
 .emoji-voo {
   position: fixed;
   z-index: var(--z-toast);
-  font-size: 1.8rem;
+  color: var(--accent);
   pointer-events: none;
   translate: -50% -50%;
   animation: emojiVoa 900ms var(--ease-in-out) forwards;
@@ -907,18 +918,25 @@
   .carta--mao {
     --w: 46px;
   }
-  /* Topo em duas linhas: abas e fechar em cima, os controles do jogo embaixo. */
+  /* Topo em duas linhas: voltar, nome e fechar em cima; os controles do jogo embaixo. */
   .jogos__topo {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
-  .jogos__abas {
-    justify-self: start;
+  .jogos__voltar[hidden] + .jogos__nome {
+    grid-column: 1 / 3;
   }
   .jogos__extra {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-content: flex-start;
+  }
+  .jogos__extra:empty {
+    display: none;
+  }
+  .jogos__extra > .jogos__abas {
+    max-width: 100%;
+    overflow-x: auto;
   }
   /* Só a aba aberta mostra o nome; as outras ficam no ícone. */
   .jogos__aba:not([aria-selected="true"]) span {

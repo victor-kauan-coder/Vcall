@@ -7,7 +7,13 @@
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  overflow: hidden;
+  /*
+   * `clip`, não `hidden`: um contêiner `hidden` ainda rola por código. Uma
+   * dica de botão (pseudo-elemento) que passava da borda direita bastava
+   * para o navegador deslizar a chamada inteira uns 27 px para o lado — o
+   * topo e os vídeos ficavam cortados à esquerda até recarregar.
+   */
+  overflow: clip;
   position: relative;
   isolation: isolate;
 }

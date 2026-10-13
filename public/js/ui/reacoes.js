@@ -10,7 +10,7 @@
  * Com "reduzir movimento" ligado no sistema, nada voa: a reação aparece só
  * como selo no quadrinho.
  */
-import { el, emoji } from "../lib/dom.js";
+import { el, emoji, icon } from "../lib/dom.js";
 import { REACOES, SINAIS, reacao, sinal } from "../features/reacoes.js";
 
 const MAX_NO_AR = 48;
@@ -147,7 +147,7 @@ export class CamadaReacoes {
     caixa.replaceChildren(
       ...ids.map((id) => {
         const s = sinal(id);
-        return el(`div.sinal.sinal--${id}`, { title: s.nome }, [emoji(s.emoji, { size: 20 }), el("span", { text: s.nome })]);
+        return el(`div.sinal.sinal--${id}`, { title: s.nome }, [icon(s.icone, { size: "sm" }), el("span", { text: s.nome })]);
       }),
     );
     // "Já volto": o quadrinho fica esmaecido, como quem saiu da mesa.
@@ -163,7 +163,7 @@ export class CamadaReacoes {
       ...itens.map((s) => {
         const nomes = porSinal[s.id].map((p) => this.o.nome(p)).join(", ");
         return el(`div.placarItem.placarItem--${s.id}`, { title: `${s.nome}: ${nomes}`, "aria-label": `${s.nome}: ${porSinal[s.id].length} (${nomes})` }, [
-          emoji(s.emoji, { size: 20 }),
+          icon(s.icone, { size: "sm" }),
           el("b", { text: String(porSinal[s.id].length) }),
         ]);
       }),
@@ -197,7 +197,7 @@ export function montarMenu(pop, { aoReagir, aoSinal, meusSinais }) {
   const lista = el("div.reagirSinais", { role: "group", "aria-label": "Sinais que ficam no seu quadrinho" });
   const botoes = new Map();
   for (const s of SINAIS) {
-    const b = el("button.reagirSinal", { type: "button", "aria-pressed": "false" }, [emoji(s.emoji, { size: 22 }), el("span", { text: s.nome })]);
+    const b = el("button.reagirSinal", { type: "button", "aria-pressed": "false" }, [icon(s.icone, { size: "sm" }), el("span", { text: s.nome })]);
     b.addEventListener("click", () => aoSinal(s.id));
     botoes.set(s.id, b);
     lista.append(b);

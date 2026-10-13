@@ -30,6 +30,15 @@ const outDir = path.join(root, "public", "vendor");
 
 /** Nome do arquivo no lucide-static -> id usado no app. */
 const ICONS = [
+  // Jogos: menu, telas e sinais (sem emoji: os ícones do app)
+  "lightbulb", "drama", "scan-face", "messages-square", "badge-question-mark", "swords", "hash", "grid-3x3",
+  "brain", "trophy", "bot", "coins", "flame", "megaphone", "ferris-wheel", "bomb", "thumbs-up", "thumbs-down",
+  "heart", "laugh", "coffee", "turtle", "rabbit", "repeat",
+  // Cartas do jogo da memória (features/bancos.js)
+  "cat", "dog", "fish", "bird", "snail", "bug", "squirrel", "panda", "apple", "cherry", "grape", "banana",
+  "pizza", "cake", "ice-cream-cone", "cookie", "carrot", "croissant", "rocket", "plane", "car", "bike", "anchor",
+  "umbrella", "cloud", "snowflake", "flower", "tree-pine", "leaf", "music", "guitar", "star", "gem", "key",
+  "gift", "feather", "ghost", "sailboat", "drum", "glasses", "puzzle", "tent", "mountain",
   // Moderação e anexos (3.1)
   "user-x",
   "user-check",
@@ -178,13 +187,6 @@ export const EMOJIS = [
   "thumbs-up", "red-heart", "face-with-tears-of-joy", "face-with-open-mouth", "clapping-hands", "party-popper",
   "fire", "thinking-face", "crying-face", "folded-hands", "hundred-points", "rocket",
   "star-struck", "raising-hands", "eyes", "smiling-face-with-heart-eyes", "skull", "exploding-head",
-  // Sinais (ficam no quadrinho até a pessoa tirar)
-  "check-mark-button", "cross-mark", "turtle", "rabbit-face", "repeat-button", "muted-speaker", "hot-beverage",
-  // Jogos
-  "game-die", "trophy", "crown", "light-bulb", "artist-palette", "pencil", "alarm-clock", "sparkles",
-  "glowing-star", "partying-face", "waving-hand", "grinning-squinting-face", "performing-arts", "speech-balloon",
-  "brain", "red-question-mark", "bullseye", "puzzle-piece", "joystick", "man-detective", "magic-wand",
-  "slot-machine", "money-bag", "1st-place-medal", "2nd-place-medal", "3rd-place-medal", "hourglass-not-done",
 ];
 
 async function buildEmoji() {

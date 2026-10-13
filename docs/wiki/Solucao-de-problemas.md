@@ -48,6 +48,12 @@ ladrilho sumia. Agora a última imagem é repetida enquanto a tela está parada.
 
 ## O AppImage não abre
 
+**"Cannot mount AppImage" no Wayland (Fedora, Ubuntu GNOME, KDE), até a
+3.10:** o app se fechava para se reabrir pelo XWayland, e fechar desmontava a
+pasta do AppImage antes de a cópia nova subir. Corrigido na 3.11: o próprio
+processo passa para o XWayland, sem sair. Atualize; não precisa editar o
+`.desktop` (se você pôs `--ozone-platform=x11` nele, pode deixar).
+
 Em distribuições que bloqueiam o isolamento do Chromium para programas comuns
 (Ubuntu 24.04+, alguns kernels endurecidos), o Vcall detecta e abre mesmo
 assim. Se ainda falhar:

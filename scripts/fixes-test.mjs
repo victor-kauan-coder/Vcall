@@ -20,7 +20,7 @@ import { lerZip, montarTar, zipParaTarGz, nomeDoModelo, responderModelo } from "
 import { destinoDoLink } from "../desktop/protocol.js";
 import { linkAbrir, linkDaSala, linkDoAplicativo, linkWhatsApp, salaDoFragmento, ehCelular } from "../public/js/lib/invite.js";
 import { createBoardNotice } from "../public/js/features/board-notice.js";
-import { argsParaX11, executavelParaRegistrar, namespacesDisponiveis, opcoesDeExibicao, precisaSemSandbox } from "../desktop/linux.js";
+import { argsParaX11, executavelParaRegistrar, modoDeReabrir, namespacesDisponiveis, opcoesDeExibicao, precisaSemSandbox } from "../desktop/linux.js";
 import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
 import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/assinatura.js";
 import { maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
@@ -30,8 +30,10 @@ import { mkdtempSync, writeFileSync as gravar } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
+import { Codigo, Desenho, DuasVerdades, Mimica, QuemSouEu, Quiz, Roda, Stop as StopJogo, valida } from "../public/js/features/festa.js";
+import { BOT, Forca, Lig4, Memoria, Sorteios, Velha, resultadoLig4, resultadoVelha } from "../public/js/features/tabuleiro.js";
 import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, SINAIS, Sinais, validar as validarReacao } from "../public/js/features/reacoes.js";
-import { BARALHOS, Daily, EstadoJogos, Poker, Retro, daily, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
+import { BARALHOS, Daily, EstadoJogos, Poker, Retro, compacto, daily, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
 import { LinkTailscale, MENSAGENS, escolherPorta, interpretarFalha, lerEstado, urlDe } from "../desktop/tailscale.js";
 import { ehDaRede, ehIpTailscale } from "../src/rede.js";
 import { RoomRegistry, Participant } from "../src/rooms.js";
@@ -511,6 +513,12 @@ server.close();
   assert.equal(x11({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-0" }), null, "Wayland sem XWayland: fica nativo");
   assert.equal(x11({ XDG_SESSION_TYPE: "x11", DISPLAY: ":0" }), null, "X11: nada a fazer");
   assert.equal(argsParaX11({ plataforma: "win32", env: { DISPLAY: ":0", WAYLAND_DISPLAY: "w" }, argv }), null, "fora do Linux, nada");
+  // Reabrir sem sair do processo: no AppImage, sair desmonta /tmp/.mount_* e
+  // a cópia reaberta não subia ("Cannot mount AppImage").
+  assert.equal(modoDeReabrir({ temExecve: true }), "execve", "com execve (Electron 44): o mesmo processo vira o novo");
+  assert.equal(modoDeReabrir({ temExecve: false }), "reabrir");
+  const main = (await import("node:fs")).readFileSync(new URL("../desktop/main.js", import.meta.url), "utf8");
+  assert.ok(/modoDeReabrir\(\) === "execve"[\s\S]{0,80}process\.execve\(process\.execPath/.test(main), "o main.js usa o execve antes de qualquer janela");
   assert.deepEqual(opcoesDeExibicao({ plataforma: "linux" }), [["gtk-version", "3"]]);
   assert.deepEqual(opcoesDeExibicao({ plataforma: "win32", env: {} }), [], "fora do Linux, nada");
   assert.equal(precisaSemSandbox({ plataforma: "win32", env: appimage, ler: ubuntu2404 }), false);
@@ -518,7 +526,7 @@ server.close();
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: appimage, execPath: "/tmp/.mount_x/vcall" }), appimage.APPIMAGE, "AppImage registra o próprio arquivo");
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/opt/Vcall/vcall" }), null, ".deb/.rpm/pacman já têm .desktop");
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/home/ana/vcall/vcall" }), "/home/ana/vcall/vcall", ".tar.gz registra onde está");
-  ok("Linux: sandbox e link vcall:// certos no Fedora, Arch, Ubuntu 24.04 e Debian");
+  ok("Linux: sandbox, link vcall:// e XWayland sem perder o AppImage, no Fedora, Arch, Ubuntu 24.04 e Debian");
 }
 
 /* ------------------------------------------------------------------ *
@@ -929,6 +937,427 @@ server.close();
 }
 
 /* ------------------------------------------------------------------ *
+ * Jogos de festa e de tabuleiro: segredo que não vaza, placar que soma
+ * uma vez, vez que passa sozinha e o computador que não perde na velha
+ * ------------------------------------------------------------------ */
+{
+  let sementeJ = 11;
+  const sorte = () => ((sementeJ = (sementeJ * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  /** Uma mesa de jogo: N estados que se falam fora de ordem e com repetição. */
+  function mesa(ids) {
+    const nos = ids.map((id) => new EstadoJogos({ eu: id }));
+    const fila = [];
+    for (const n of nos) n.on("enviar", (lote) => nos.forEach((m) => m !== n && fila.push([m, lote])));
+    const entregar = () => {
+      while (fila.length) {
+        const [m, lote] = fila.splice(Math.floor(sorte() * fila.length), 1)[0];
+        m.aplicar(lote);
+        if (sorte() < 0.3) m.aplicar(lote);
+      }
+    };
+    const igual = () => {
+      const s0 = JSON.stringify([...nos[0].mapa].sort());
+      for (const n of nos) assert.equal(JSON.stringify([...n.mapa].sort()), s0, "estados iguais");
+    };
+    const pessoas = ids.map((id) => ({ id, nome: id[0].toUpperCase() + id.slice(1) }));
+    return { nos, entregar, igual, pessoas };
+  }
+  let relogio = 1_000_000;
+  const agora = () => relogio;
+
+  /* Desenha e Adivinha */
+  {
+    const { nos, entregar, igual, pessoas } = mesa(["ana", "bia", "caio"]);
+    const dz = nos.map((n, i) => new Desenho(n, { nome: () => pessoas[i].nome, agora }));
+    // eventos efêmeros (traços, palpites) entre todos
+    dz.forEach((d, i) => d.on("evento", (ev) => dz.forEach((o, k) => k !== i && o.receber(nos[i].eu, JSON.parse(JSON.stringify(ev))))));
+    dz[0].comecar(pessoas);
+    entregar();
+    const r = dz[1].r;
+    assert.equal(r.fase, "escolhendo");
+    const desenhista = dz.findIndex((d) => d.eu === r.de);
+    const outros = [0, 1, 2].filter((i) => i !== desenhista);
+    assert.equal(dz[desenhista].opcoes().length, 3);
+    assert.ok(dz[desenhista].escolher("Guarda-chuva", "Objeto"));
+    entregar();
+    for (const n of nos) assert.ok(!JSON.stringify(n.instantaneo()).toLowerCase().includes("chuva"), "a palavra não sai do computador de quem desenha");
+    assert.equal(dz[outros[0]].formaVisivel(), "______-_____");
+    // traço
+    const t = dz[desenhista].iniciarTraco("#e53935", 10, 100, 100);
+    dz[desenhista].estenderTraco(t, 120, 130);
+    dz[desenhista].estenderTraco(t, 150, 170);
+    dz[desenhista].terminarTraco(t);
+    await espera(250);
+    assert.deepEqual(dz[outros[1]].tracos.get(t).p, [100, 100, 120, 130, 150, 170], "o traço chega inteiro");
+    // alguém de fora tentando desenhar é ignorado
+    dz[outros[0]].receber(nos[outros[1]].eu, { tipo: "trc", n: r.n, id: "falso", c: "#e53935", e: 4, p: [1, 2] });
+    assert.ok(!dz[outros[0]].tracos.has("falso"), "só quem desenha mexe na tela");
+    // palpites
+    let quase = 0;
+    dz[outros[1]].on("conversa", () => (quase = dz[outros[1]].conversa.filter((c) => c.tipo === "quase").length));
+    assert.equal(dz[outros[1]].chutar("guarda chuvo"), "errou");
+    assert.equal(quase, 1, "quem desenha avisa: está quase");
+    relogio += 20_000;
+    assert.equal(dz[outros[0]].chutar("guarda  CHUVA"), "acertou");
+    entregar();
+    assert.equal(dz[outros[0]].chutar("de novo"), "nada", "quem acertou não chuta mais");
+    relogio += 30_000;
+    dz[desenhista].manter(pessoas);
+    entregar();
+    assert.ok(nos.every((n) => n.ler("dz/dica")?.l?.length === 1), "uma letra de dica com metade do tempo");
+    assert.equal(dz[outros[1]].chutar("guarda-chuva"), "acertou");
+    entregar();
+    dz[desenhista].manter(pessoas); // todos acertaram: encerra
+    entregar();
+    assert.equal(dz[outros[0]].fase(), "revelada");
+    assert.equal(nos[outros[0]].ler("dz/fim").palavra, "Guarda-chuva");
+    const pts = dz[0].pontosDaVez();
+    assert.ok(pts[nos[outros[0]].eu] > pts[nos[outros[1]].eu], "quem acertou antes ganha mais");
+    assert.equal(pts[nos[desenhista].eu], 120, "quem desenha ganha por acerto");
+    dz[desenhista].manter(pessoas); // começa a contar a pausa da revelação
+    relogio += 7000;
+    dz[desenhista].manter(pessoas);
+    entregar();
+    assert.equal(dz[2].r.fase, "escolhendo");
+    assert.notEqual(dz[2].r.de, nos[desenhista].eu, "a vez passa");
+    assert.equal(nos[1].ler("dz/placar").pts[nos[desenhista].eu], 120);
+    // 1 volta = 3 vezes; com 2 voltas, 6
+    igual();
+  }
+
+  /* Mímica */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia"]);
+    const mm = nos.map((n, i) => new Mimica(n, { nome: () => pessoas[i].nome, agora }));
+    mm[1].comecar(pessoas);
+    entregar();
+    const ator = mm.findIndex((m) => m.eu === m.r.de);
+    const outro = 1 - ator;
+    mm[ator].escolher("tocar violão", "Ação");
+    entregar();
+    assert.ok(!JSON.stringify(nos[outro].instantaneo()).includes("violão"));
+    relogio += 10_000;
+    mm[ator].acertou(nos[outro].eu, "B");
+    entregar();
+    assert.equal(nos[outro].ler("mm/fim").palavra, "tocar violão");
+    const p = mm[outro].pontosDaVez();
+    assert.ok(p[nos[outro].eu] > 100 && p[nos[ator].eu] === 75);
+  }
+
+  /* Stop */
+  {
+    const { nos, entregar, igual, pessoas } = mesa(["ana", "bia", "caio"]);
+    const st = nos.map((n, i) => new StopJogo(n, { nome: () => pessoas[i].nome, agora }));
+    st[0].configurar({ cats: ["nome", "animal", "cor"] });
+    st[0].novaRodada(pessoas);
+    entregar();
+    const L = st[2].r.letra;
+    assert.ok(/^[A-Z]$/.test(L));
+    const resp = [
+      { nome: `${L}ucas`, animal: `${L}eão`, cor: `${L}ilás` },
+      { nome: `${L}ucas`, animal: `${L}ontra`, cor: "Quase" }, // Q nunca é sorteado
+      { nome: `${L}eandro`, animal: `${L}xyz`, cor: "" },
+    ];
+    resp.forEach((r, i) => Object.entries(r).forEach(([c, v]) => st[i].escrever(c, v)));
+    assert.ok(!st[1].podeParar(), "com resposta de outra letra, não dá para gritar STOP");
+    assert.ok(st[0].podeParar());
+    for (const n of nos) assert.ok(![...n.com("st/a/")].length, "ninguém vê nada antes do STOP");
+    st[0].gritarStop();
+    entregar();
+    entregar();
+    assert.equal([...nos[1].com("st/a/")].length, 3, "com o STOP, todos publicam");
+    st[0].escrever("cor", "mudou depois");
+    // vetos: duas pessoas anulam o animal inventado do Caio
+    st[0].vetar("caio", "animal");
+    st[1].vetar("caio", "animal");
+    entregar();
+    const v = st[2].vista(pessoas);
+    const por = Object.fromEntries(v.jogadores.map((j) => [j.id, j]));
+    assert.equal(por.ana.celulas.nome.pontos, 5, "nome repetido vale 5");
+    assert.equal(por.caio.celulas.nome.pontos, 10, "nome único vale 10");
+    assert.equal(por.caio.celulas.animal.pontos, 0, "anulado pela maioria vale 0");
+    assert.equal(por.bia.celulas.cor.pontos, 0, "outra letra vale 0");
+    assert.equal(por.caio.celulas.cor.pontos, 0, "em branco vale 0");
+    st[1].novaRodada(pessoas);
+    entregar();
+    assert.equal(nos[0].ler("st/placar").pts.ana, por.ana.pontos, "o placar soma a rodada anterior");
+    assert.notEqual(st[0].r.letra, L, "não repete a letra");
+    igual();
+  }
+
+  /* Quiz */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia"]);
+    const qz = nos.map((n, i) => new Quiz(n, { nome: () => pessoas[i].nome, agora }));
+    qz[0].configurar({ qtd: 5, tempo: 20 });
+    qz[0].comecar();
+    entregar();
+    assert.equal(qz[1].vista(pessoas).fase, "preparar");
+    relogio += 3000;
+    const p = qz[1].pergunta();
+    assert.equal(p.opcoes.length, 4);
+    relogio += 2000;
+    assert.ok(qz[0].responder(p.certa));
+    assert.ok(!qz[0].responder((p.certa + 1) % 4), "uma resposta por pergunta");
+    relogio += 8000;
+    assert.ok(qz[1].responder((p.certa + 1) % 4));
+    entregar();
+    const vi = qz[1].vista(pessoas);
+    assert.equal(vi.fase, "revelada", "todos responderam: revela");
+    assert.equal(vi.placar[0].id, "ana");
+    assert.equal(vi.placar[0].total, 950, "certo em 2 s de 20: 950");
+    assert.equal(vi.placar[1].total, 0);
+    qz[0].manter(pessoas);
+    relogio += 6500;
+    qz[0].manter(pessoas);
+    entregar();
+    assert.equal(qz[1].passo().k, 1, "o líder passa para a próxima");
+  }
+
+  /* Roda */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia", "caio"]);
+    const rp = nos.map((n, i) => new Roda(n, { nome: () => pessoas[i].nome, agora }));
+    rp[0].proxima("prefere", pessoas);
+    entregar();
+    rp[0].votar(0);
+    rp[1].votar(1);
+    entregar();
+    for (const n of nos) assert.ok(![...n.com("rp/val/")].length, "voto escondido até revelar");
+    rp[2].votar(0);
+    entregar();
+    rp.forEach((r) => r.manter(pessoas));
+    entregar();
+    entregar();
+    const v = rp[1].vista(pessoas);
+    assert.equal(v.fase, "revelada");
+    assert.deepEqual(v.lados.map((l) => l.length), [2, 1]);
+    rp[1].proxima("quem", pessoas);
+    entregar();
+    rp[0].votar("bia");
+    rp[1].votar("bia");
+    rp[2].votar("ana");
+    entregar();
+    rp[0].revelar();
+    entregar();
+    entregar();
+    assert.deepEqual(rp[2].vista(pessoas).ranking.map((x) => [x.nome, x.n]), [["Bia", 2], ["Ana", 1]]);
+  }
+
+  /* Duas verdades */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia", "caio"]);
+    const dv = nos.map((n, i) => new DuasVerdades(n, { nome: () => pessoas[i].nome, agora }));
+    dv[0].publicar(["Já morei no Japão", "Toco piano", "Tenho 3 gatos"], 2);
+    dv[1].publicar(["A", "B", "C"], 0);
+    entregar();
+    assert.ok(!JSON.stringify(nos[2].instantaneo()).includes('"i":'), "a mentira não está no estado");
+    dv[2].proxima(pessoas);
+    entregar();
+    const vez = dv[2].vez();
+    const autor = dv.findIndex((d) => d.eu === vez.de);
+    const mentira = dv[autor].minha.i;
+    const outros = [0, 1, 2].filter((i) => i !== autor);
+    dv[outros[0]].votar(mentira);
+    dv[outros[1]].votar((mentira + 1) % 3);
+    entregar();
+    assert.ok(dv[autor].revelar(pessoas));
+    entregar();
+    const vi = dv[outros[1]].vista(pessoas);
+    assert.equal(vi.mentira, mentira);
+    const pl = nos[0].ler("dv/placar").pts;
+    assert.equal(pl[nos[outros[0]].eu], 100);
+    assert.equal(pl[nos[autor].eu], 50);
+  }
+
+  /* Palavras-código */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia", "caio", "duda"]);
+    const pc = nos.map((n, i) => new Codigo(n, { nome: () => pessoas[i].nome, agora }));
+    pc[0].novoJogo();
+    pc[0].sortearTimes(pessoas);
+    entregar();
+    const j = pc[1].jogo();
+    assert.equal(j.palavras.length, 25);
+    assert.equal([...j.chave].filter((c) => c === "x").length, 1);
+    assert.ok(!JSON.stringify(nos[1].instantaneo()).includes(j.chave), "a chave não fica à vista");
+    const vez = pc[0].vez().time;
+    const mestre = pc.find((p) => p.meuTime().time === vez && p.meuTime().mestre);
+    const agente = pc.find((p) => p.meuTime().time === vez && !p.meuTime().mestre);
+    assert.ok(!agente.apontar(0), "sem dica não aponta");
+    assert.ok(mestre.darDica("bicho", 2));
+    entregar();
+    assert.ok(agente.vista(pessoas).cartas.every((c) => c.cor === null), "o agente não vê as cores");
+    assert.ok(mestre.vista(pessoas).cartas.every((c) => c.cor), "o mestre vê");
+    const minha = [...j.chave].findIndex((c) => c === vez);
+    agente.apontar(minha);
+    entregar();
+    assert.equal(pc[3].vez().time, vez, "acertou: continua");
+    const neutra = [...j.chave].findIndex((c) => c === "n");
+    agente.apontar(neutra);
+    entregar();
+    assert.notEqual(pc[3].vez().time, vez, "neutra: passa a vez");
+    const outroMestre = pc.find((p) => p.meuTime().time !== vez && p.meuTime().mestre);
+    const outroAgente = pc.find((p) => p.meuTime().time !== vez && !p.meuTime().mestre);
+    outroMestre.darDica("tudo", 0);
+    entregar();
+    outroAgente.apontar(j.chave.indexOf("x"));
+    entregar();
+    const fim = pc[0].vista(pessoas);
+    assert.equal(fim.vencedor, vez, "quem acha a bomba perde");
+  }
+
+  /* Velha e Lig 4 */
+  {
+    assert.deepEqual(resultadoVelha("xxx o o  ").vencedor, 1);
+    assert.equal(resultadoVelha("xoxxoxoxo").fim, true);
+    // o computador nunca perde da velha (200 partidas contra jogadas ao acaso)
+    const { nos } = mesa(["ana"]);
+    const v = new Velha(nos[0], { agora });
+    for (let k = 0; k < 200; k += 1) {
+      let t = "         ";
+      let vez = k % 2 ? 1 : 2; // às vezes o humano começa
+      const bot = 2;
+      while (!resultadoVelha(t).fim) {
+        const livres = [...t].map((c, i) => (c === " " ? i : -1)).filter((i) => i >= 0);
+        const livre = vez === bot ? v.jogadaDoBot(t, bot) : livres[Math.floor(sorte() * livres.length)];
+        t = v.aplicar(t, livre, vez).t;
+        vez = vez === 1 ? 2 : 1;
+      }
+      assert.notEqual(resultadoVelha(t).vencedor, 1, `o computador perdeu: ${t}`);
+    }
+    // duas pessoas
+    const m = mesa(["ana", "bia"]);
+    const jv = m.nos.map((n, i) => new Velha(n, { nome: () => m.pessoas[i].nome, agora }));
+    jv[0].sentar(1);
+    m.entregar();
+    jv[1].sentar(2);
+    m.entregar();
+    assert.ok(!jv[1].jogar(4), "não é a vez dela");
+    for (const [q, i] of [[0, 0], [1, 4], [0, 1], [1, 5], [0, 2]]) {
+      assert.ok(jv[q].jogar(i));
+      m.entregar();
+    }
+    const fim = jv[1].vista(m.pessoas);
+    assert.equal(fim.vencedor, 1);
+    assert.deepEqual(fim.placar.map((p) => [p.nome, p.vitorias]), [["Ana", 1]]);
+    jv[1].revanche();
+    m.entregar();
+    assert.equal(jv[0].vista(m.pessoas).p1.id, "bia", "revanche troca os lados");
+    // Lig 4: a peça cai, quatro na diagonal ganha, e o computador bloqueia
+    const lg = new Lig4(nos[0], { agora });
+    let t = " ".repeat(42);
+    t = lg.aplicar(t, 3, 1).t;
+    t = lg.aplicar(t, 3, 2).t;
+    assert.equal(t[35 + 3], "x");
+    assert.equal(t[28 + 3], "o");
+    let bloqueio = " ".repeat(42);
+    for (const c of [0, 1, 2]) bloqueio = lg.aplicar(bloqueio, c, 1).t;
+    assert.equal(lg.jogadaDoBot(bloqueio, 2), 3, "bloqueia a linha de três");
+    let ganha = bloqueio;
+    for (const c of [0, 1, 2]) ganha = lg.aplicar(ganha, c, 2).t;
+    assert.equal(lg.jogadaDoBot(ganha, 2), 3, "e ganha quando pode (antes de bloquear)");
+    let diag = " ".repeat(42);
+    for (const [c, q] of [[0, 1], [1, 2], [1, 1], [2, 2], [2, 2], [2, 1], [3, 2], [3, 2], [3, 2], [3, 1]]) diag = lg.aplicar(diag, c, q).t;
+    assert.equal(resultadoLig4(diag).vencedor, 1, "diagonal");
+  }
+
+  /* Forca */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia"]);
+    const fc = nos.map((n, i) => new Forca(n, { nome: () => pessoas[i].nome, agora }));
+    assert.ok(fc[0].propor("Pão de Açúcar", "Lugar"));
+    entregar();
+    assert.ok(!JSON.stringify(nos[1].instantaneo()).includes("Açúcar"));
+    assert.ok(!fc[0].chutar("a"), "quem escolheu não joga");
+    fc[1].chutar("ã");
+    entregar();
+    let v = fc[0].vista();
+    assert.equal(v.posicoes.filter((p) => p.aberta && p.ch !== " ").length, 3, "o A abre Ã, A e Á");
+    for (const l of "PODECUR") fc[1].chutar(l);
+    entregar();
+    assert.equal(fc[0].vista().fase, "ganhou");
+    fc[0].nova();
+    entregar();
+    for (const l of "KWYZQX") fc[1].chutar(l);
+    entregar();
+    v = fc[1].vista();
+    if (!compacto(fc[1].jogo().palavra).match(/[kwyzqx]/)) assert.equal(v.fase, "perdeu");
+  }
+
+  /* Memória */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia"]);
+    const mem = nos.map((n, i) => new Memoria(n, { nome: () => pessoas[i].nome, agora, espera: 10 }));
+    mem[0].comecar(pessoas, 12);
+    entregar();
+    const j = mem[0].jogo();
+    const daVez = mem.findIndex((m) => m.eu === mem[0].daVez().id);
+    const outro = 1 - daVez;
+    assert.ok(!mem[outro].virar(0), "fora da vez não vira");
+    const a = 0;
+    const b = j.cartas.indexOf(j.cartas[0], 1);
+    mem[daVez].virar(a);
+    entregar();
+    mem[daVez].virar(b);
+    entregar();
+    assert.equal(mem[outro].vista(pessoas).jogadores.find((x) => x.id === nos[daVez].eu).pares, 1);
+    assert.equal(mem[outro].daVez().id, nos[daVez].eu, "par: continua a vez");
+    const c = j.cartas.findIndex((x, i) => i !== a && i !== b);
+    const d = j.cartas.findIndex((x, i) => i !== a && i !== b && x !== j.cartas[c]);
+    mem[daVez].virar(c);
+    mem[daVez].virar(d);
+    entregar();
+    assert.equal(mem[outro].vista(pessoas).cartas.filter((x) => x.aberta).length, 2, "errou: as duas aparecem");
+    await espera(150);
+    entregar();
+    assert.equal(mem[outro].daVez().id, nos[outro].eu, "e a vez passa");
+  }
+
+  /* Sorteios */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia"]);
+    const rl = nos.map((n, i) => new Sorteios(n, { nome: () => pessoas[i].nome, agora }));
+    rl[0].girar(pessoas);
+    entregar();
+    const g = rl[1].vista(pessoas).giro;
+    assert.ok(["Ana", "Bia"].includes(g.opcoes[g.alvo]));
+    rl[1].rolar(3);
+    rl[0].moeda();
+    entregar();
+    assert.equal(rl[0].vista(pessoas).dados.valores.length, 3);
+    relogio += 5000;
+    assert.equal(rl[1].vista(pessoas).historico.length, 3);
+  }
+
+  /* Quem sou eu */
+  {
+    const { nos, entregar, pessoas } = mesa(["ana", "bia", "caio"]);
+    const qs = nos.map((n, i) => new QuemSouEu(n, { nome: () => pessoas[i].nome, agora }));
+    qs[0].sortear(pessoas);
+    entregar();
+    const v = qs[1].vista(pessoas);
+    assert.equal(v.cartas.find((c) => c.eu).quem, null, "a minha carta fica escondida");
+    assert.ok(v.cartas.filter((c) => !c.eu).every((c) => c.quem), "as dos outros aparecem");
+    qs[0].marcar("bia", "acertou");
+    entregar();
+    assert.ok(qs[1].vista(pessoas).cartas.find((c) => c.eu).quem, "acertou: a dela aparece para ela");
+  }
+
+  // Duas pessoas sentam ao mesmo tempo, cada uma num lado: as duas ficam.
+  {
+    const m = mesa(["ana", "bia"]);
+    const lg = m.nos.map((n, i) => new Lig4(n, { nome: () => m.pessoas[i].nome, agora }));
+    lg[0].sentar(1);
+    lg[1].sentar(2);
+    m.entregar();
+    const v = lg[0].vista(m.pessoas);
+    assert.deepEqual([v.p1?.id, v.p2?.id], ["ana", "bia"], "lugares em chaves separadas não se apagam");
+  }
+  ok("jogos de festa e tabuleiro: palavra, resposta e voto só saem na hora; placar, vez e computador certos");
+}
+
+/* ------------------------------------------------------------------ *
  * Reações: combo sem inundar a rede, chuva só com várias pessoas, sinais
  * que vencem sozinhos e dado de fora conferido
  * ------------------------------------------------------------------ */
@@ -1009,7 +1438,14 @@ server.close();
   const sprite = readFileSync(new URL("../public/vendor/emoji.svg", import.meta.url), "utf8");
   const ids = [...REACOES, ...SINAIS].map((x) => x.id);
   assert.equal(new Set(ids).size, ids.length, "ids repetidos");
-  for (const x of [...REACOES, ...SINAIS]) assert.ok(sprite.includes(`id="e-${x.emoji}"`), `falta o emoji ${x.emoji} no sprite`);
+  for (const x of REACOES) assert.ok(sprite.includes(`id="e-${x.emoji}"`), `falta o emoji ${x.emoji} no sprite`);
+  // Fora das reações, nada de emoji: sinais, jogos e cartas usam os ícones do app.
+  const icones = readFileSync(new URL("../public/vendor/icons.svg", import.meta.url), "utf8");
+  const { JOGOS } = await import("../public/js/features/jogos.js");
+  const { CARTAS_MEMORIA } = await import("../public/js/features/bancos.js");
+  const nomes = [...SINAIS.map((x) => x.icone), ...Object.values(JOGOS).map((j) => j.icone), ...CARTAS_MEMORIA, "thumbs-up", "heart", "party-popper", "laugh", "coffee", "flame"];
+  for (const n of nomes) assert.ok(icones.includes(`id="i-${n}"`), `falta o ícone ${n} no sprite`);
+  assert.ok(CARTAS_MEMORIA.length >= 15, "pares suficientes para o tabuleiro difícil");
   for (const novo of Object.values(DO_ANTIGO)) assert.ok(REACOES.some((r) => r.id === novo), "reação antiga sem par novo");
   ok("reações: combo em poucas mensagens e igual dos dois lados, chuva só com 3 pessoas, sinais que vencem, dado de fora conferido");
 }

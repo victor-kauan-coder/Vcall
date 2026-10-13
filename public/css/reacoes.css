@@ -141,6 +141,26 @@
   box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.45);
   animation: sinalEntra 320ms var(--ease-out);
 }
+.sinal .icon {
+  color: var(--accent);
+}
+.sinal--sim .icon {
+  color: var(--ok);
+}
+.sinal--nao .icon,
+.sinal--semaudio .icon {
+  color: var(--danger);
+}
+.placarItem .icon {
+  color: var(--text-muted);
+}
+.placarItem--sim .icon {
+  color: var(--ok);
+}
+.placarItem--nao .icon,
+.placarItem--semaudio .icon {
+  color: var(--danger);
+}
 .sinal span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -164,7 +184,27 @@
   }
 }
 /* Em quadrinho pequeno (faixa lateral, balão), só o emoji. */
-.tile__sinais.is-compacta .sinal span {
+.tile__sinais.is-compacta .sinal .icon {
+  color: var(--accent);
+}
+.sinal--sim .icon {
+  color: var(--ok);
+}
+.sinal--nao .icon,
+.sinal--semaudio .icon {
+  color: var(--danger);
+}
+.placarItem .icon {
+  color: var(--text-muted);
+}
+.placarItem--sim .icon {
+  color: var(--ok);
+}
+.placarItem--nao .icon,
+.placarItem--semaudio .icon {
+  color: var(--danger);
+}
+.sinal span {
   display: none;
 }
 .tile__sinais.is-compacta .sinal {

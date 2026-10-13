@@ -39,17 +39,18 @@ export const REACOES = [
 ];
 
 /**
- * Sinais que ficam no quadrinho. `dura` em ms (0 = até a pessoa tirar).
+ * Sinais que ficam no quadrinho, com os ícones do app (Lucide). `dura` em
+ * ms (0 = até a pessoa tirar).
  * `grupo`: só um sinal de cada grupo por pessoa (Sim tira o Não).
  */
 export const SINAIS = [
-  { id: "sim", emoji: "check-mark-button", nome: "Sim", grupo: "voto", dura: 90_000 },
-  { id: "nao", emoji: "cross-mark", nome: "Não", grupo: "voto", dura: 90_000 },
-  { id: "devagar", emoji: "turtle", nome: "Mais devagar", grupo: "ritmo", dura: 45_000 },
-  { id: "rapido", emoji: "rabbit-face", nome: "Mais rápido", grupo: "ritmo", dura: 45_000 },
-  { id: "repete", emoji: "repeat-button", nome: "Pode repetir?", grupo: "pedido", dura: 30_000 },
-  { id: "semaudio", emoji: "muted-speaker", nome: "Não estou ouvindo", grupo: "pedido", dura: 30_000 },
-  { id: "javolto", emoji: "hot-beverage", nome: "Já volto", grupo: "ausente", dura: 0 },
+  { id: "sim", icone: "check", nome: "Sim", grupo: "voto", dura: 90_000 },
+  { id: "nao", icone: "x", nome: "Não", grupo: "voto", dura: 90_000 },
+  { id: "devagar", icone: "turtle", nome: "Mais devagar", grupo: "ritmo", dura: 45_000 },
+  { id: "rapido", icone: "rabbit", nome: "Mais rápido", grupo: "ritmo", dura: 45_000 },
+  { id: "repete", icone: "repeat", nome: "Pode repetir?", grupo: "pedido", dura: 30_000 },
+  { id: "semaudio", icone: "volume-x", nome: "Não estou ouvindo", grupo: "pedido", dura: 30_000 },
+  { id: "javolto", icone: "coffee", nome: "Já volto", grupo: "ausente", dura: 0 },
 ];
 
 /** Reações do protocolo antigo (pelo servidor), para quem ainda manda assim. */

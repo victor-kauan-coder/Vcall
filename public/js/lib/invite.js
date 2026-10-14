@@ -71,6 +71,35 @@ export function linkDoAplicativo(linkDaSalaHttp) {
   return `vcall://join?u=${encodeURIComponent(linkDaSalaHttp)}`;
 }
 
+/** Pacote do aplicativo Android (android/app/build.gradle, applicationId). */
+export const PACOTE_ANDROID = "com.vcall.app";
+
+/**
+ * Endereço `intent://` do Chrome no Android: abre o aplicativo Vcall direto
+ * na sala; sem o aplicativo instalado, o próprio navegador segue para
+ * `linkDaSalaHttp` (S.browser_fallback_url). O app só aceita HTTPS (ou o
+ * servidor no próprio aparelho), então link http de rede local fica no
+ * navegador.
+ */
+export function linkIntentAndroid(linkDaSalaHttp) {
+  if (!linkDaSalaHttp) return null;
+  let url;
+  try {
+    url = new URL(linkDaSalaHttp);
+  } catch {
+    return null;
+  }
+  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) return null;
+  const u = encodeURIComponent(linkDaSalaHttp);
+  return `intent://join?u=${u}#Intent;scheme=vcall;package=${PACOTE_ANDROID};S.browser_fallback_url=${u};end`;
+}
+
+/** Android (celular ou tablet), onde existe o aplicativo Vcall. */
+export function ehAndroid(ua = "") {
+  return /Android/i.test(ua);
+}
+
 /** Mensagem pronta para o WhatsApp, com o link na própria linha. */
 export function linkWhatsApp(link, { nomeSala = "" } = {}) {
   if (!link) return null;

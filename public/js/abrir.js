@@ -2,7 +2,11 @@
  * abrir.js — a página do convite (/abrir#sala).
  *
  * 1. Dentro do próprio aplicativo de mesa: vai direto para a sala.
- * 2. No celular: não existe app de mesa; vai direto para a sala no navegador.
+ * 2. No Android: abre o aplicativo Vcall direto na sala (intent://). Sem o
+ *    aplicativo instalado, o Chrome segue sozinho para a sala no navegador;
+ *    nos outros navegadores, se nada abrir em 2,5 s, vamos nós para lá.
+ *    Dentro do próprio app Android (window.VcallAndroid), direto para a sala.
+ * 2b. iPhone e afins: não há aplicativo; vai direto para a sala no navegador.
  * 3. No computador: tenta abrir o aplicativo (vcall://). Se a página perde o
  *    foco logo em seguida, o aplicativo abriu e esta aba pode ser fechada. Se
  *    nada acontecer, os botões continuam ali: entrar pelo navegador ou baixar.
@@ -11,7 +15,7 @@
  * Brave, Opera). No Firefox um esquema desconhecido troca a página por uma
  * tela de erro; lá, abrir o aplicativo é sempre pelo botão.
  */
-import { ehCelular, linkDaSala, linkDoAplicativo, salaDoFragmento } from "./lib/invite.js";
+import { ehAndroid, ehCelular, linkDaSala, linkDoAplicativo, linkIntentAndroid, salaDoFragmento } from "./lib/invite.js";
 
 const $ = (s) => document.querySelector(s);
 const titulo = $("#titulo");
@@ -38,9 +42,33 @@ if (!sala) {
   abrirApp.href = app;
 
   const celular = ehCelular(navigator.userAgent, navigator.maxTouchPoints > 1);
-  const dentroDoApp = !!window.vcallDesktop;
+  const dentroDoApp = !!window.vcallDesktop || !!window.VcallAndroid;
+  const intent = !dentroDoApp && ehAndroid(navigator.userAgent) ? linkIntentAndroid(destino) : null;
 
-  if (dentroDoApp || celular) {
+  if (intent) {
+    abrirApp.href = intent;
+    spinner.hidden = false;
+    titulo.textContent = "Abrindo o Vcall…";
+    texto.textContent = "A chamada abre no aplicativo. Sem ele, segue aqui pelo navegador.";
+    let saiu = false;
+    const marcar = () => {
+      if (document.visibilityState === "hidden") saiu = true;
+    };
+    document.addEventListener("visibilitychange", marcar);
+    window.addEventListener("pagehide", () => (saiu = true));
+    // Na hora, ainda dentro da navegação que veio do toque no link: o Chrome
+    // só abre aplicativo sem perguntar quando o pedido nasce de um toque.
+    location.href = intent;
+    setTimeout(() => {
+      spinner.hidden = true;
+      if (saiu) {
+        titulo.textContent = "Chamada aberta no aplicativo";
+        texto.textContent = "Se o Vcall não apareceu, use os botões abaixo.";
+      } else {
+        location.replace(destino);
+      }
+    }, 2500);
+  } else if (dentroDoApp || celular) {
     location.replace(destino);
   } else {
     let abriu = false;

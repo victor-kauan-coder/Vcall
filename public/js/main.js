@@ -3083,7 +3083,7 @@ on($("#whatsappBtn"), "click", () => {
     });
     return;
   }
-  window.open(linkWhatsApp(link, { nomeSala: app.roomName || "" }), "_blank", "noopener");
+  window.open(linkWhatsApp(link), "_blank", "noopener");
 });
 
 on($("#copyLinkBtn"), "click", () => copy(roomLink(), "Link copiado"));

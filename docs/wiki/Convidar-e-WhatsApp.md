@@ -22,6 +22,11 @@ A mensagem leva um **link curto**, `https://…/c/ABC123` (o código da sala).
 No WhatsApp ele vira um **cartão**, como o de um vídeo do Instagram: a imagem
 da marca, o nome da chamada, quem chamou e "Toque para entrar".
 
+A mensagem é **só o link**, sem texto junto: assim o WhatsApp mostra só o
+cartão, sem o endereço escrito, como um Reels do Instagram. Embaixo do cartão
+aparece só o domínio. Se você escrever algo antes do link, o WhatsApp volta a
+mostrar o endereço inteiro: mande o texto numa mensagem separada.
+
 ![Cartão do convite](https://raw.githubusercontent.com/victor-kauan-coder/Vcall/main/public/assets/convite.jpg)
 
 O cartão só aparece com o link público (Cloudflare), porque o WhatsApp

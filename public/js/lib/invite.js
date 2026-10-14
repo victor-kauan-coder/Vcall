@@ -100,11 +100,15 @@ export function ehAndroid(ua = "") {
   return /Android/i.test(ua);
 }
 
-/** Mensagem pronta para o WhatsApp, com o link na própria linha. */
-export function linkWhatsApp(link, { nomeSala = "" } = {}) {
+/**
+ * Abre o WhatsApp com SÓ o link na mensagem. Mensagem que é só um link vira
+ * só o cartão (imagem, título, "Toque para entrar" e o domínio), sem o
+ * endereço escrito, como um Reels do Instagram. Com texto junto, o WhatsApp
+ * mostra o endereço inteiro. O nome da chamada já vai no cartão.
+ */
+export function linkWhatsApp(link) {
   if (!link) return null;
-  const titulo = nomeSala ? `Entra na chamada “${nomeSala}” no Vcall:` : "Entra na minha chamada no Vcall:";
-  return `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
+  return `https://wa.me/?text=${encodeURIComponent(link)}`;
 }
 
 /** Celular ou tablet: lá não existe o aplicativo de mesa. */

@@ -1,5 +1,10 @@
 # Novidades da 3.11
 
+## 3.11.3: convite só com o cartão
+
+- **Enviar pelo WhatsApp** manda só o link: aparece só o cartão, sem o
+  endereço escrito (como um Reels do Instagram).
+
 ## 3.11.2: o convite abre o app no celular
 
 - Tocar no convite no Android abre a chamada **direto no aplicativo Vcall**.

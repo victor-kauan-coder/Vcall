@@ -1031,7 +1031,27 @@ try {
     await noDock(a);
     await a.click("#inviteBtn");
     const convite = await a.inputValue("#appLink");
-    check("o convite do WhatsApp é o link /abrir", convite.includes(`/abrir#${sala}`), convite);
+    check("o convite do WhatsApp é o link curto /c/CODIGO", /\/c\/[A-Z0-9]{6}$/.test(convite), convite);
+
+    // O que o WhatsApp lê: a prévia da chamada, com imagem em endereço absoluto.
+    const previa = await (await fetch(convite, { headers: { "User-Agent": "WhatsApp/2.23", "X-Forwarded-Proto": "https", "X-Forwarded-Host": "rio-azul.trycloudflare.com" } })).text();
+    const img = /og:image" content="([^"]+)"/.exec(previa)?.[1] || "";
+    check(
+      "o link curto traz a prévia do WhatsApp (título, descrição, imagem grande em https)",
+      /og:title" content="[^"]+· Vcall"/.test(previa) && /Toque para entrar/.test(previa) && img === "https://rio-azul.trycloudflare.com/assets/convite.jpg" && previa.includes('summary_large_image'),
+      img,
+    );
+    const imagem = await fetch(`${BASE}/assets/convite.jpg`);
+    check("a imagem da prévia existe e é leve (o WhatsApp despreza imagem grande)", imagem.ok && Number(imagem.headers.get("content-length")) < 300_000, imagem.headers.get("content-length"));
+    const viaCurto = await browser.newContext({ userAgent: "Mozilla/5.0 (Linux; Android 14) Mobile" });
+    const pcurto = await viaCurto.newPage();
+    await pcurto.goto(convite);
+    await pcurto.waitForURL(`**/#${sala}`, { timeout: 5000 }).catch(() => {});
+    check("tocar no link curto leva para a chamada", pcurto.url().endsWith(`/#${sala}`), pcurto.url());
+    await pcurto.goto(`${BASE}/c/ZZZZZZ`);
+    const encerrado = await pcurto.textContent("#titulo");
+    check("link curto de chamada que acabou diz que acabou", /encerrada/i.test(encerrado || ""), encerrado);
+    await viaCurto.close();
     await p.close();
     await a.context().close();
   }

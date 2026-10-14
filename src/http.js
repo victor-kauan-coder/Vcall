@@ -16,6 +16,7 @@ import { config } from "./config.js";
 import { iceConfiguration } from "./ice.js";
 import { VERSION } from "./version.js";
 import { ehDaRede } from "./rede.js";
+import { ROTA_CURTA, origemPublica, paginaDoConvite } from "./convite.js";
 import { log } from "./logger.js";
 
 /**
@@ -304,6 +305,28 @@ export function createHttpServer({
       }
       res.writeHead(200, { ...SEC, "Content-Type": MIME[".json"], "Cache-Control": "no-store" });
       return res.end(method === "HEAD" ? undefined : JSON.stringify(corpo));
+    }
+
+    /*
+     * Link curto do convite: /c/CODIGO. A página é a do /abrir, com a prévia
+     * desta chamada (nome, quem chamou, imagem da marca) para o WhatsApp
+     * mostrar o cartão no lugar do link comprido. Ver src/convite.js.
+     */
+    const curto = ROTA_CURTA.exec(pathname);
+    if (curto) {
+      let sala = registry?.byCode(curto[1]) || null;
+      // "Na minha rede" não existe para quem chega pelo link público.
+      if (sala && sala.visibility === "rede" && !daRede(req)) sala = null;
+      let html;
+      try {
+        html = assets ? assets.get("/abrir.html").toString("utf8") : await fsp.readFile(path.join(publicDir, "abrir.html"), "utf8");
+      } catch {
+        res.writeHead(404, SEC);
+        return res.end();
+      }
+      const corpo = paginaDoConvite(html, { sala, origem: origemPublica(req), codigo: curto[1].toUpperCase() });
+      res.writeHead(200, { ...SEC, "Content-Type": MIME[".html"], "Cache-Control": "no-store" });
+      return res.end(method === "HEAD" ? undefined : corpo);
     }
 
     /** Resolve um código curto (VC-XXXXXX) no id longo da sala. */

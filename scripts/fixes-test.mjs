@@ -24,6 +24,9 @@ import { argsParaX11, executavelParaRegistrar, modoDeReabrir, namespacesDisponiv
 import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
 import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/assinatura.js";
 import { maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
+import { reabrirDepois, trocarAppImage } from "../desktop/appimage.js";
+import { ROTA_CURTA, origemPublica, paginaDoConvite } from "../src/convite.js";
+import { linkCurto } from "../public/js/lib/invite.js";
 import { tipoDoCodigo } from "../public/js/ui/tela-erro.js";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, writeFileSync as gravar } from "node:fs";
@@ -934,6 +937,59 @@ server.close();
   const semLogin = new RedeVcall({ achar: async () => "tailscale", rodar: async () => ({ stdout: JSON.stringify({ BackendState: "NeedsLogin" }) }) });
   assert.deepEqual(await semLogin.listar(), { disponivel: false, motivo: "deslogado", computadores: [] });
   ok("rede Tailscale: sala \"Na minha rede\" só para a tailnet, varredura dos computadores com Vcall, dados de fora limpos");
+}
+
+/* ------------------------------------------------------------------ *
+ * Link curto do convite: prévia do WhatsApp por chamada, dado de fora
+ * escapado, imagem em endereço absoluto
+ * ------------------------------------------------------------------ */
+{
+  const html = '<head>\n<!-- prévia:início -->\n<title>x</title>\n<!-- prévia:fim -->\n</head>';
+  const sala = { id: "Ab3_dE-fGh1JkLmN0pQr", name: 'Planning "da" <Ana>', host: { profile: { name: "Ana & Bia" } } };
+  const req = { headers: { host: "rio-azul.trycloudflare.com", "x-forwarded-proto": "https" } };
+  const p = paginaDoConvite(html, { sala, origem: origemPublica(req), codigo: "AB3XYZ" });
+  assert.ok(p.includes('og:title" content="Planning &quot;da&quot; &lt;Ana&gt; · Vcall"'), "nome da sala escapado");
+  assert.ok(p.includes("Ana &amp; Bia te chamou"), "quem chamou, escapado");
+  assert.ok(p.includes('og:image" content="https://rio-azul.trycloudflare.com/assets/convite.jpg"'), "imagem em endereço absoluto");
+  assert.ok(p.includes('name="vcall-sala" content="Ab3_dE-fGh1JkLmN0pQr"'));
+  assert.ok(!p.includes("<title>x</title>"), "a prévia genérica sai");
+  const fim = paginaDoConvite(html, { sala: null, origem: null, codigo: "ZZZZZZ" });
+  assert.ok(fim.includes("Chamada encerrada") && fim.includes('vcall-convite" content="encerrado"') && !fim.includes("vcall-sala"));
+  assert.equal(origemPublica({ headers: { host: 'x"><script>' } }), null, "Host estranho não entra na página");
+  assert.equal(origemPublica({ headers: { host: "localhost:3000" }, socket: {} }), "http://localhost:3000");
+  assert.ok(ROTA_CURTA.test("/c/AB3XYZ") && !ROTA_CURTA.test("/c/../x") && !ROTA_CURTA.test("/c/AB3XYZ/x"));
+  assert.equal(linkCurto("https://rio-azul.trycloudflare.com/#Ab3_dE-fGh1JkLmN0pQr", "ab3xyz"), "https://rio-azul.trycloudflare.com/c/AB3XYZ");
+  assert.equal(linkCurto("https://rio-azul.trycloudflare.com/#Ab3_dE-fGh1JkLmN0pQr", ""), "https://rio-azul.trycloudflare.com/abrir#Ab3_dE-fGh1JkLmN0pQr", "sem código, o convite de sempre");
+  ok("convite curto: /c/CODIGO com a prévia da chamada no WhatsApp, tudo escapado");
+}
+
+/* ------------------------------------------------------------------ *
+ * Atualizar o AppImage no Linux: antes o arquivo era apagado e salvo com
+ * outro nome (o atalho do menu quebrava) e a versão nova abria com a antiga
+ * ainda viva (e se fechava). Agora: mesmo caminho, e só reabre depois.
+ * ------------------------------------------------------------------ */
+if (process.platform === "linux") {
+  const { mkdtempSync: mk, writeFileSync: escreve, readFileSync: le, existsSync: existe, readdirSync } = await import("node:fs");
+  const { spawn: sp } = await import("node:child_process");
+  const dir = mk(juntar(tmpdir(), "vcall-appimage-"));
+  const atual = juntar(dir, "Vcall-3.7.7-x86_64.AppImage");
+  const marca = juntar(dir, "abriu.txt");
+  escreve(atual, "#!/bin/sh\necho velho >> " + marca + "\n", { mode: 0o755 });
+  const novo = juntar(dir, "baixado.AppImage");
+  escreve(novo, "#!/bin/sh\necho \"novo $APPIMAGE\" >> " + marca + "\n");
+  // O "Vcall antigo" ainda está rodando: um processo que demora a sair.
+  const velho = sp("sleep", ["1.2"]);
+  assert.equal(trocarAppImage({ novo, atual }), atual, "o caminho não muda (atalhos continuam valendo)");
+  assert.ok(le(atual, "utf8").includes("novo"), "o arquivo foi trocado");
+  assert.deepEqual(readdirSync(dir).filter((f) => f.endsWith(".AppImage")).sort(), ["Vcall-3.7.7-x86_64.AppImage", "baixado.AppImage"], "nada com outro nome, nenhum resto");
+  reabrirDepois({ pid: velho.pid, exe: atual, env: { ...process.env, APPIMAGE: "/tmp/.mount_x/velho" } });
+  await espera(500);
+  assert.ok(!existe(marca), "não abre enquanto o antigo ainda está vivo (a trava de instância única fecharia a nova)");
+  await new Promise((r) => velho.on("exit", r));
+  await espera(900);
+  assert.equal(le(marca, "utf8").trim(), "novo", "abre a versão nova depois que a antiga sai, sem o APPIMAGE do processo velho");
+  assert.throws(() => trocarAppImage({ novo, atual: "relativo/Vcall.AppImage" }), /inválido/);
+  ok("atualização do AppImage: mesmo arquivo, atalho intacto, reabre só depois que a versão antiga fecha");
 }
 
 /* ------------------------------------------------------------------ *

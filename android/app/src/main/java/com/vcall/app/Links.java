@@ -22,6 +22,8 @@ final class Links {
 
     /** Mesma regra de public/js/lib/invite.js (ID_SALA). */
     private static final Pattern SALA = Pattern.compile("^[A-Za-z0-9_-]{16,64}$");
+    /** Convite curto (/c/CODIGO): a página do servidor descobre a sala pelo código. */
+    private static final Pattern CURTO = Pattern.compile("^/c/[A-Za-z0-9]{4,12}/?$");
     private static final Pattern CANDIDATO = Pattern.compile(
             "(vcall://\\S+|https?://\\S+|[A-Za-z0-9.-]+\\.trycloudflare\\.com\\S*)", Pattern.CASE_INSENSITIVE);
 
@@ -75,6 +77,8 @@ final class Links {
         String base = esquema + "://" + host + porta + "/";
         String fragmento = uri.getRawFragment();
         if (fragmento != null && SALA.matcher(fragmento).matches()) return base + "#" + fragmento;
+        String caminho = uri.getRawPath();
+        if (caminho != null && CURTO.matcher(caminho).matches()) return base + caminho.substring(1).replaceAll("/$", "");
         return base;
     }
 }

@@ -38,7 +38,7 @@ import { pedirPermissoes, revisarPermissoes } from "./ui/permissions.js";
 import { escolherCompartilhamento } from "./ui/sharesheet.js";
 import { profileSection } from "./ui/profile-editor.js";
 import { Dashboard, copy, linkFor } from "./ui/dashboard.js";
-import { linkAbrir, linkWhatsApp } from "./lib/invite.js";
+import { linkCurto, linkWhatsApp } from "./lib/invite.js";
 import { installMotion, magnifyDock, playIntro, signal, swap, stagger } from "./ui/motion.js";
 import { MiniCall } from "./ui/minicall.js";
 import { watchHandsFree } from "./ui/handsfree.js";
@@ -2885,12 +2885,13 @@ function syncAppLink() {
 }
 
 /**
- * O convite para mensageiros: a página /abrir (https, clicável no WhatsApp)
- * sobre o endereço público quando o túnel está de pé, ou sobre o atual.
+ * O convite para mensageiros: o link curto /c/CODIGO (https, clicável e com
+ * o cartão da chamada no WhatsApp) sobre o endereço público quando o túnel
+ * está de pé, ou sobre o atual. Sem o código da sala ainda, o /abrir#sala.
  */
 function inviteLink() {
   const base = (host.url && host.linkPublico(roomLink())) || host.linkTailscale(roomLink()) || roomLink();
-  return linkAbrir(base);
+  return linkCurto(base, app.roomCode);
 }
 
 /**

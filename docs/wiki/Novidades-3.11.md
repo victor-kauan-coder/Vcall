@@ -1,5 +1,14 @@
 # Novidades da 3.11
 
+## 3.11.1: convite curto e atualização no Linux
+
+- **Convite curto** (`/c/ABC123`): no WhatsApp aparece um cartão com a imagem
+  da marca, o nome da chamada e "Toque para entrar".
+  → [Convidar e WhatsApp](Convidar-e-WhatsApp)
+- **Atualizar o AppImage** troca o arquivo no mesmo lugar e reabre depois que
+  a versão antiga fecha: o app não some mais e o atalho do menu continua
+  valendo. → [Solução de problemas](Solucao-de-problemas#atualizar-no-linux)
+
 ## O AppImage abre no Wayland
 
 No Fedora, no Ubuntu com GNOME e no KDE, o AppImage aberto pelo menu não

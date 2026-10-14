@@ -46,6 +46,19 @@ ladrilho sumia. Agora a última imagem é repetida enquanto a tela está parada.
 - **Tela preta:** atualize os drivers de vídeo e confira se o `pipewire` está
   rodando (`systemctl --user status pipewire`).
 
+## Atualizar no Linux
+
+**Até a 3.11.0, "Reiniciar e atualizar" no AppImage fechava o Vcall e ele não
+voltava**, e o atalho do menu parava de funcionar: o arquivo era apagado e a
+versão nova salva com outro nome, e ela abria cedo demais e se fechava. Na
+3.11.1 o arquivo é trocado no mesmo lugar e a versão nova só abre depois que
+a antiga fecha. Quem está numa versão anterior baixa a 3.11.1 uma última vez
+em [Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest);
+dali em diante a atualização é pelo próprio app.
+
+Se a pasta do AppImage não aceitar escrita (por exemplo, `/opt`), o Vcall
+avisa nas Configurações e aponta a página de download.
+
 ## O AppImage não abre
 
 **"Cannot mount AppImage" no Wayland (Fedora, Ubuntu GNOME, KDE), até a

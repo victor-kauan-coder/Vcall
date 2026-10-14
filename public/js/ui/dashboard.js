@@ -400,7 +400,9 @@ export class Dashboard {
   }
 
   async #enterByCode(raw) {
-    const code = String(raw || "").trim().toUpperCase();
+    // Aceita o código ou o link curto colado inteiro (https://…/c/ABC123).
+    const doLink = /\/c\/([A-Za-z0-9]{4,12})/.exec(String(raw || ""));
+    const code = (doLink ? doLink[1] : String(raw || "")).trim().toUpperCase();
     if (code.length < 4) {
       toast("Digite o código de 6 caracteres da sala.", { tone: "info" });
       return;

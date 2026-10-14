@@ -24,8 +24,10 @@ final class Links {
     private static final Pattern SALA = Pattern.compile("^[A-Za-z0-9_-]{16,64}$");
     /** Convite curto (/c/CODIGO): a página do servidor descobre a sala pelo código. */
     private static final Pattern CURTO = Pattern.compile("^/c/[A-Za-z0-9]{4,12}/?$");
+    /** Convite pelo encurtador (desktop/encurtador.js): is.gd/AbC123, tinyurl.com/abc. */
+    private static final Pattern ENCURTADO = Pattern.compile("^/[A-Za-z0-9_-]{3,40}/?$");
     private static final Pattern CANDIDATO = Pattern.compile(
-            "(vcall://\\S+|https?://\\S+|[A-Za-z0-9.-]+\\.trycloudflare\\.com\\S*)", Pattern.CASE_INSENSITIVE);
+            "(vcall://\\S+|https?://\\S+|(?:is\\.gd|tinyurl\\.com)/[A-Za-z0-9_-]+|[A-Za-z0-9.-]+\\.trycloudflare\\.com\\S*)", Pattern.CASE_INSENSITIVE);
 
     static String paraSala(String texto) {
         if (texto == null) return null;
@@ -78,7 +80,14 @@ final class Links {
         String fragmento = uri.getRawFragment();
         if (fragmento != null && SALA.matcher(fragmento).matches()) return base + "#" + fragmento;
         String caminho = uri.getRawPath();
+        if (ehEncurtador(host))
+            return caminho != null && ENCURTADO.matcher(caminho).matches() ? base + caminho.substring(1).replaceAll("/$", "") : null;
         if (caminho != null && CURTO.matcher(caminho).matches()) return base + caminho.substring(1).replaceAll("/$", "");
         return base;
+    }
+
+    /** Os encurtadores que o app de mesa usa no convite. Redirecionam para o túnel. */
+    static boolean ehEncurtador(String host) {
+        return host != null && (host.equalsIgnoreCase("is.gd") || host.equalsIgnoreCase("tinyurl.com"));
     }
 }

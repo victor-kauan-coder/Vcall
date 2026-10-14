@@ -22,10 +22,18 @@ A mensagem leva um **link curto**, `https://…/c/ABC123` (o código da sala).
 No WhatsApp ele vira um **cartão**, como o de um vídeo do Instagram: a imagem
 da marca, o nome da chamada, quem chamou e "Toque para entrar".
 
-A mensagem é **só o link**, sem texto junto: assim o WhatsApp mostra só o
-cartão, sem o endereço escrito, como um Reels do Instagram. Embaixo do cartão
-aparece só o domínio. Se você escrever algo antes do link, o WhatsApp volta a
-mostrar o endereço inteiro: mande o texto numa mensagem separada.
+A mensagem é **só o link**, sem texto junto, e o link vai **encurtado**:
+em vez de `palavra-palavra-palavra.trycloudflare.com/c/ABC123`, aparece
+`is.gd/AbC123`. Tocar nele leva ao convite de sempre, com o mesmo cartão e
+abrindo o app no Android.
+
+- O encurtador é o [is.gd](https://is.gd) (grátis, sem cadastro); se ele não
+  responder, o [TinyURL](https://tinyurl.com). Se nenhum responder, o convite
+  segue com o endereço do túnel.
+- Só o convite da chamada é encurtado. O encurtador fica sabendo o endereço
+  do túnel e o código da sala, que é o mesmo que já vai na mensagem.
+- O WhatsApp sempre mostra o link escrito em mensagens comuns; só esconde em
+  vídeos de parceiros (Instagram, YouTube). Encurtar é o que deixa ele curto.
 
 ![Cartão do convite](https://raw.githubusercontent.com/victor-kauan-coder/Vcall/main/public/assets/convite.jpg)
 

@@ -46,6 +46,7 @@ import { ehIpTailscale as ehIpTailscaleNavegador } from "../public/js/core/stats
 import { clientIp } from "../src/signaling.js";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
+import { criarEncurtador } from "../desktop/encurtador.js";
 
 let passou = 0;
 const ok = (nome) => {
@@ -969,6 +970,35 @@ server.close();
     assert.ok(ehAndroid("Mozilla/5.0 (Linux; Android 14) Mobile") && !ehAndroid("Mozilla/5.0 (iPhone)"));
   }
   ok("convite curto: /c/CODIGO com a prévia da chamada no WhatsApp, tudo escapado");
+}
+
+{
+  const convite = "https://rio-azul-casa.trycloudflare.com/c/AB3XYZ";
+  const pedidos = [];
+  const resposta = (texto, ok = true) => ({ ok, text: async () => texto });
+  // is.gd fora do ar: cai no TinyURL. Só pergunta uma vez por convite.
+  let enc = criarEncurtador({
+    fetch: async (u) => (pedidos.push(u), u.startsWith("https://is.gd/") ? resposta("Error", false) : resposta("https://tinyurl.com/2abc9xy\n")),
+  });
+  assert.equal(await enc(convite), "https://tinyurl.com/2abc9xy");
+  assert.equal(await enc(convite), "https://tinyurl.com/2abc9xy");
+  assert.equal(pedidos.length, 2, "cache: o mesmo convite não é encurtado de novo");
+  assert.ok(pedidos[0].includes(encodeURIComponent(convite)));
+  enc = criarEncurtador({ fetch: async () => resposta("https://is.gd/AbC123") });
+  assert.equal(await enc(convite), "https://is.gd/AbC123");
+  // Só o convite do túnel: não é um encurtador aberto.
+  assert.equal(await enc("https://exemplo.com/c/AB3XYZ"), null);
+  assert.equal(await enc("https://rio-azul-casa.trycloudflare.com/#sala"), null);
+  // Resposta estranha (HTML, outro domínio) não vira convite.
+  enc = criarEncurtador({ fetch: async () => resposta("<html>https://golpe.example/x</html>") });
+  assert.equal(await enc(convite), null);
+  // Sem rede: fica o link do túnel, e tenta de novo depois.
+  let falhas = 0;
+  enc = criarEncurtador({ fetch: async () => (falhas++, Promise.reject(new Error("offline"))) });
+  assert.equal(await enc(convite), null);
+  assert.equal(await enc(convite), null);
+  assert.equal(falhas, 4);
+  ok("encurtador: is.gd com TinyURL de reserva, só o convite do túnel, resposta conferida");
 }
 
 /* ------------------------------------------------------------------ *

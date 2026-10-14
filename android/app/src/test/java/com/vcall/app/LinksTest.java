@@ -27,6 +27,14 @@ public class LinksTest {
     }
 
     @Test
+    public void conviteEncurtado() {
+        assertEquals("https://is.gd/AbC123", Links.paraSala("https://is.gd/AbC123"));
+        assertEquals("https://is.gd/AbC123", Links.paraSala("is.gd/AbC123"));
+        assertEquals("https://tinyurl.com/abc-12", Links.paraSala("https://tinyurl.com/abc-12/"));
+        assertNull("página do próprio encurtador não é convite", Links.paraSala("https://is.gd/create.php?x=1"));
+    }
+
+    @Test
     public void mensagemDoWhatsApp() {
         String msg = "Entra na minha chamada no Vcall:\n" + CERTO + ".";
         assertEquals(CERTO, Links.paraSala(msg));

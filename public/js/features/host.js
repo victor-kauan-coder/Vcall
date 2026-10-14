@@ -141,6 +141,15 @@ export class HostPanel extends Emitter {
     return corpo;
   }
 
+  /** Link curto do convite público, ou null (fica o do túnel). */
+  async encurtar(u) {
+    try {
+      return (await this.#chamar("encurtar", { params: { u } })).url || null;
+    } catch {
+      return null;
+    }
+  }
+
   async status() {
     const r = await this.#chamar("status");
     this.estado = r.estado;

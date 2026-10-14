@@ -2873,6 +2873,7 @@ function openInvite() {
 function syncAppLink() {
   const box = $("#appLinkBox");
   if (!box) return;
+  encurtarConvite();
   $("#appLink").value = inviteLink() || "";
   const local = /^http:\/\/(127\.|localhost)/.test(inviteLink() || "");
   $("#appLinkHint").textContent = local
@@ -2891,7 +2892,27 @@ function syncAppLink() {
  */
 function inviteLink() {
   const base = (host.url && host.linkPublico(roomLink())) || host.linkTailscale(roomLink()) || roomLink();
-  return linkCurto(base, app.roomCode);
+  const longo = linkCurto(base, app.roomCode);
+  return encurtados.get(longo) || longo;
+}
+
+/**
+ * No app de mesa, com o túnel de pé: troca o convite do túnel pelo link do
+ * encurtador (is.gd/AbC123), que é o que aparece escrito no WhatsApp. Sem
+ * resposta, o convite segue com o endereço do túnel.
+ */
+const encurtados = new Map();
+const encurtando = new Set();
+function encurtarConvite() {
+  const longo = inviteLink();
+  if (!host.disponivel || !host.url || encurtados.has(longo) || encurtando.has(longo) || !/^https:\/\/[^/]+\.trycloudflare\.com\/c\//.test(longo)) return;
+  encurtando.add(longo);
+  host.encurtar(longo).then((curto) => {
+    encurtando.delete(longo);
+    if (!curto) return;
+    encurtados.set(longo, curto);
+    syncAppLink();
+  });
 }
 
 /**

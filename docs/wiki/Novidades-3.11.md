@@ -1,5 +1,10 @@
 # Novidades da 3.11
 
+## 3.11.4: convite encurtado
+
+- O convite pelo link público vai encurtado (`is.gd/AbC123`), com o mesmo
+  cartão no WhatsApp. Colar o link curto no app do Android também funciona.
+
 ## 3.11.3: convite só com o cartão
 
 - **Enviar pelo WhatsApp** manda só o link: aparece só o cartão, sem o

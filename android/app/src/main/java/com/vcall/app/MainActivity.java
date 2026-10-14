@@ -161,6 +161,8 @@ public class MainActivity extends Activity {
                     && alvo.getHost() != null && alvo.getHost().equals(atual.getHost())
                     && alvo.getPort() == atual.getPort();
             if (mesmaOrigem) return false;
+            // Convite encurtado (is.gd): o encurtador manda para o túnel da chamada.
+            if (req.isRedirect() && Links.ehEncurtador(atual.getHost()) && esquema.equals("https")) return false;
             abrirFora(alvo);
             return true;
         }

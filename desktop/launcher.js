@@ -31,6 +31,7 @@ import { attachSignaling } from "../src/signaling.js";
 import { RoomRegistry } from "../src/rooms.js";
 import { config } from "../src/config.js";
 import { Tunnel } from "./tunnel.js";
+import { criarEncurtador } from "./encurtador.js";
 import { assets } from "./assets.js";
 import { argumentosDaJanela, liberarPermissoes, liberarPermissoesDaOrigem, usarPerfil } from "./perfil.js";
 import { acharNavegador, perfilPara } from "./navegador.js";
@@ -284,6 +285,7 @@ export async function main() {
   const registry = new RoomRegistry();
   let tunnel = null;
   let porta = config.port;
+  const encurtar = criarEncurtador();
 
   const control = hostControl({
     token: TOKEN,
@@ -322,6 +324,13 @@ export async function main() {
         tunnel = tunnel || new Tunnel(porta);
         const publico = await tunnel.start();
         return { estado: "pronto", url: publico };
+      },
+
+      /** Convite curto (is.gd) para o WhatsApp. Só o convite deste túnel. */
+      encurtar: async (url) => {
+        const u = url.searchParams.get("u") || "";
+        if (!tunnel?.url || !u.startsWith(`${tunnel.url}/c/`)) return { code: 400, erro: "não é o convite deste túnel" };
+        return { url: await encurtar(u) };
       },
 
       "tunnel/fechar": async () => {

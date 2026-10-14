@@ -34,7 +34,9 @@ O link é **clicável** (links `vcall://` não são). Ao clicar:
   Vcall?" e a chamada abre no aplicativo;
 - **no computador sem o Vcall:** a página oferece **Entrar pelo navegador** ou
   **Baixar o Vcall**;
-- **no celular:** vai direto para a chamada no navegador.
+- **no Android com o app Vcall:** a chamada abre direto no aplicativo, sem
+  perguntar nada;
+- **no Android sem o app, no iPhone:** vai direto para a chamada no navegador.
 
 ![Página do convite](imagens/abrir.png)
 

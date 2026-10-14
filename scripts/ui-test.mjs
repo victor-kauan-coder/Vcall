@@ -1022,9 +1022,19 @@ try {
     );
     const cel = await browser.newContext({ userAgent: "Mozilla/5.0 (Linux; Android 14) Mobile" });
     const pc = await cel.newPage();
-    await pc.goto(`${BASE}/abrir#${sala}`);
-    await pc.waitForURL(`**/#${sala}`, { timeout: 5000 }).catch(() => {});
-    check("no celular, /abrir vai direto para a sala no navegador", pc.url().endsWith(`/#${sala}`));
+    let intent = "";
+    pc.on("request", (r) => {
+      if (r.url().startsWith("intent://")) intent = r.url();
+    });
+    await pc.goto(`${BASE}/abrir#${sala}`, { waitUntil: "domcontentloaded" });
+    await pc.waitForURL(`**/#${sala}`, { timeout: 8000 }).catch(() => {});
+    check(
+      "no Android, o convite abre o aplicativo (intent:// com volta para o navegador)",
+      intent.startsWith("intent://join?u=") && intent.includes(encodeURIComponent(`/#${sala}`)), // o resto (#Intent;package=…) não vai na requisição; está no fixes-test
+      intent,
+    );
+    await pc.waitForURL(`**/#${sala}`, { timeout: 8000 }).catch(() => {});
+    check("no Android sem o aplicativo, /abrir segue para a sala no navegador", pc.url().endsWith(`/#${sala}`));
     await cel.close();
 
     const a = await participante("Alice", sala);
@@ -1046,7 +1056,7 @@ try {
     const viaCurto = await browser.newContext({ userAgent: "Mozilla/5.0 (Linux; Android 14) Mobile" });
     const pcurto = await viaCurto.newPage();
     await pcurto.goto(convite);
-    await pcurto.waitForURL(`**/#${sala}`, { timeout: 5000 }).catch(() => {});
+    await pcurto.waitForURL(`**/#${sala}`, { timeout: 8000 }).catch(() => {});
     check("tocar no link curto leva para a chamada", pcurto.url().endsWith(`/#${sala}`), pcurto.url());
     await pcurto.goto(`${BASE}/c/ZZZZZZ`);
     const encerrado = await pcurto.textContent("#titulo");

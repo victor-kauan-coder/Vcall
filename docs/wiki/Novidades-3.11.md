@@ -1,5 +1,10 @@
 # Novidades da 3.11
 
+## 3.11.2: o convite abre o app no celular
+
+- Tocar no convite no Android abre a chamada **direto no aplicativo Vcall**.
+  Sem o app instalado, segue para a chamada no navegador, como antes.
+
 ## 3.11.1: convite curto e atualização no Linux
 
 - **Convite curto** (`/c/ABC123`): no WhatsApp aparece um cartão com a imagem

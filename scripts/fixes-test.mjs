@@ -26,7 +26,7 @@ import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/ass
 import { maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
 import { reabrirDepois, trocarAppImage } from "../desktop/appimage.js";
 import { ROTA_CURTA, origemPublica, paginaDoConvite } from "../src/convite.js";
-import { linkCurto } from "../public/js/lib/invite.js";
+import { ehAndroid, linkCurto, linkIntentAndroid } from "../public/js/lib/invite.js";
 import { tipoDoCodigo } from "../public/js/ui/tela-erro.js";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, writeFileSync as gravar } from "node:fs";
@@ -960,6 +960,15 @@ server.close();
   assert.ok(ROTA_CURTA.test("/c/AB3XYZ") && !ROTA_CURTA.test("/c/../x") && !ROTA_CURTA.test("/c/AB3XYZ/x"));
   assert.equal(linkCurto("https://rio-azul.trycloudflare.com/#Ab3_dE-fGh1JkLmN0pQr", "ab3xyz"), "https://rio-azul.trycloudflare.com/c/AB3XYZ");
   assert.equal(linkCurto("https://rio-azul.trycloudflare.com/#Ab3_dE-fGh1JkLmN0pQr", ""), "https://rio-azul.trycloudflare.com/abrir#Ab3_dE-fGh1JkLmN0pQr", "sem código, o convite de sempre");
+  {
+    const sala = "https://rio-azul.trycloudflare.com/#Ab3_dE-fGh1JkLmN0pQr";
+    const u = encodeURIComponent(sala);
+    assert.equal(linkIntentAndroid(sala), `intent://join?u=${u}#Intent;scheme=vcall;package=com.vcall.app;S.browser_fallback_url=${u};end`);
+    assert.equal(linkIntentAndroid("http://192.168.0.10:3000/#Ab3_dE-fGh1JkLmN0pQr"), null, "http de rede local: o app recusa, fica no navegador");
+    assert.ok(linkIntentAndroid("http://localhost:3000/#Ab3_dE-fGh1JkLmN0pQr"));
+    assert.equal(linkIntentAndroid("lixo"), null);
+    assert.ok(ehAndroid("Mozilla/5.0 (Linux; Android 14) Mobile") && !ehAndroid("Mozilla/5.0 (iPhone)"));
+  }
   ok("convite curto: /c/CODIGO com a prévia da chamada no WhatsApp, tudo escapado");
 }
 

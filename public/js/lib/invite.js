@@ -37,6 +37,21 @@ export function linkAbrir(linkDaSala) {
 }
 
 /** Link direto da sala (sem a página /abrir), para entrar pelo navegador. */
+/**
+ * O convite curto: https://host/c/CODIGO. Com ele o WhatsApp mostra o cartão
+ * da chamada (imagem, nome, "toque para entrar") em vez do link comprido.
+ * Sem código, ou num endereço que só abre neste computador, fica o /abrir.
+ */
+export function linkCurto(linkDaSala, codigo) {
+  try {
+    const url = new URL(linkDaSala);
+    if (!/^[A-Z0-9]{4,12}$/i.test(String(codigo || ""))) return linkAbrir(linkDaSala);
+    return `${url.origin}/c/${String(codigo).toUpperCase()}`;
+  } catch {
+    return null;
+  }
+}
+
 export function linkDaSala(origem, sala) {
   if (!salaDoFragmento(sala)) return null;
   try {

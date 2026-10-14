@@ -18,8 +18,17 @@ Clique em **Convidar**, no canto de cima.
    (a primeira vez baixa o `cloudflared`, uma vez só).
 2. Clique em **Enviar pelo WhatsApp**. O WhatsApp abre com a mensagem pronta.
 
-A mensagem leva um link `https://…/abrir#sala`. No WhatsApp ele é **clicável**
-(links `vcall://` não são). Ao clicar:
+A mensagem leva um **link curto**, `https://…/c/ABC123` (o código da sala).
+No WhatsApp ele vira um **cartão**, como o de um vídeo do Instagram: a imagem
+da marca, o nome da chamada, quem chamou e "Toque para entrar".
+
+![Cartão do convite](https://raw.githubusercontent.com/victor-kauan-coder/Vcall/main/public/assets/convite.jpg)
+
+O cartão só aparece com o link público (Cloudflare), porque o WhatsApp
+precisa abrir o endereço para montar a prévia. Pelo Tailscale o link funciona
+igual, sem cartão. O link de uma chamada que já acabou avisa que ela acabou.
+
+O link é **clicável** (links `vcall://` não são). Ao clicar:
 
 - **no computador com o Vcall instalado:** o navegador pergunta "Abrir o
   Vcall?" e a chamada abre no aplicativo;

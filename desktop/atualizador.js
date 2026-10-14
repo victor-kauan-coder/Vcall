@@ -26,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import electronUpdater from "electron-updater";
 
+import { reabrirDepois, trocarAppImage } from "./appimage.js";
 import { confere, nomeNaRelease, sha512DoArquivo } from "./assinatura.js";
 import { REPO, conferir, maisNova, modoDeInstalacao } from "./atualizacao.js";
 
@@ -41,6 +42,8 @@ let registrar = () => {};
 let modo = "manual";
 /** Versão baixada E conferida. Só ela pode ser instalada. */
 let conferida = null;
+/** O arquivo baixado da versão conferida (o AppImage é instalado por nós). */
+let baixado = null;
 let estado = { fase: "parado", atual: app.getVersion(), versao: null, progresso: 0, erro: null, url: PAGINA, modo };
 
 function mudar(parcial) {
@@ -80,6 +83,7 @@ async function conferirDownload(ev) {
       throw new Error("a assinatura não confere");
     }
     conferida = ev.version;
+    baixado = ev.downloadedFile;
     registrar("atualizacao-pronta", { versao: ev.version, pacote: nome });
     mudar({ fase: "pronta" });
   } catch (err) {
@@ -128,10 +132,31 @@ export async function verificar() {
 
 export const estadoAtual = () => estado;
 
+/**
+ * AppImage: troca o arquivo no mesmo lugar e, se `reabrir`, abre de novo
+ * depois que este processo terminar (ver desktop/appimage.js). Não usa a
+ * instalação do electron-updater, que renomeava o arquivo e reabria cedo
+ * demais: o app fechava e o atalho do menu quebrava.
+ */
+function instalarAppImage(reabrir) {
+  try {
+    const exe = trocarAppImage({ novo: baixado, atual: process.env.APPIMAGE });
+    registrar("atualizacao-appimage", { versao: conferida, arquivo: exe, reabrir });
+    if (reabrir) reabrirDepois({ exe });
+    app.quit();
+    return true;
+  } catch (err) {
+    registrar("atualizacao-appimage-falhou", { m: String(err?.message || err) });
+    mudar({ fase: "erro", erro: `não deu para trocar o arquivo do Vcall (${err?.code === "EACCES" ? "sem permissão na pasta" : err?.message || err}); baixe a versão nova na página de download` });
+    return false;
+  }
+}
+
 /** "Reiniciar e atualizar": só com uma versão conferida. */
 export function instalar() {
   if (!conferida || modo === "manual") return false;
   registrar("atualizacao-instalando", { versao: conferida, quando: "agora" });
+  if (process.env.APPIMAGE && baixado) return instalarAppImage(true);
   // isSilent: sem as telas do instalador; isForceRunAfter: abre o Vcall de novo.
   autoUpdater.quitAndInstall(true, true);
   return true;
@@ -145,6 +170,7 @@ export function instalar() {
 export function aoFechar() {
   if (!conferida || modo !== "sozinho") return false;
   registrar("atualizacao-instalando", { versao: conferida, quando: "ao fechar" });
+  if (process.env.APPIMAGE && baixado) return instalarAppImage(false);
   autoUpdater.quitAndInstall(true, false);
   return true;
 }

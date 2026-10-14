@@ -20,6 +20,13 @@ public class LinksTest {
     }
 
     @Test
+    public void conviteCurtoContinuaCurto() {
+        String curto = "https://rio-azul-casa.trycloudflare.com/c/AB3XYZ";
+        assertEquals(curto, Links.paraSala("Entra na chamada no Vcall:\n" + curto));
+        assertEquals(curto, Links.paraSala(curto + "/"));
+    }
+
+    @Test
     public void mensagemDoWhatsApp() {
         String msg = "Entra na minha chamada no Vcall:\n" + CERTO + ".";
         assertEquals(CERTO, Links.paraSala(msg));

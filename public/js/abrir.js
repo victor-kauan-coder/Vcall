@@ -20,11 +20,15 @@ const spinner = $("#spinner");
 const abrirApp = $("#abrirApp");
 const noNavegador = $("#noNavegador");
 
-const sala = salaDoFragmento(location.hash);
+// Link curto (/c/CODIGO): o servidor já pôs o id da sala numa <meta>.
+const sala = salaDoFragmento(location.hash) || salaDoFragmento(document.querySelector('meta[name="vcall-sala"]')?.content || "");
+const encerrado = !!document.querySelector('meta[name="vcall-convite"][content="encerrado"]');
 
 if (!sala) {
-  titulo.textContent = "Link incompleto";
-  texto.textContent = "Este convite não traz o código da sala. Peça o link de novo para quem te convidou.";
+  titulo.textContent = encerrado ? "Chamada encerrada" : "Link incompleto";
+  texto.textContent = encerrado
+    ? "Este convite não está mais ativo. Peça um link novo para quem te chamou."
+    : "Este convite não traz o código da sala. Peça o link de novo para quem te convidou.";
   abrirApp.hidden = true;
   noNavegador.textContent = "Ir para o início";
 } else {

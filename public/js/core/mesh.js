@@ -10,6 +10,7 @@
 import { Emitter } from "../lib/emitter.js";
 import { deviceToken, hostKeyFor, sessionToken } from "../lib/identity.js";
 import { Peer } from "./peer.js";
+import { Rele } from "./rele.js";
 import { StatsMonitor } from "./stats.js";
 import { VoiceActivity } from "./vad.js";
 
@@ -49,6 +50,7 @@ export class Mesh extends Emitter {
 
     this.vad = new VoiceActivity();
     this.stats = new StatsMonitor(() => this.peers.values());
+    this.rele = new Rele(this);
 
     this.#wireSignaling();
     this.#wireMedia();
@@ -119,6 +121,7 @@ export class Mesh extends Emitter {
 
   leave() {
     this.stats.stop();
+    this.rele.stop();
     this.vad.stop();
     for (const peer of this.peers.values()) peer.close();
     this.peers.clear();
@@ -155,6 +158,7 @@ export class Mesh extends Emitter {
 
       for (const p of m.peers) this.#addPeer(p);
       this.stats.start();
+      this.rele.start();
       this.trackSelfAudio();
       this.room = this.room || m.room?.id;
       this.roomInfo = m.room || null;
@@ -274,8 +278,16 @@ export class Mesh extends Emitter {
 
     peer.on("signal", (d) => this.signaling.signal(info.id, d));
     peer.on("media", ({ role, stream, live }) => {
-      if (role === "mic" && stream) this.vad.track(info.id, stream);
-      this.emit("media", { id: info.id, role, stream, live });
+      this.#guardar(this.#direta, info.id, role, { stream, live });
+      this.#emitirMidia(info.id, role, { sempre: true });
+    });
+    // Trilha de OUTRA pessoa que este par repassa (core/rele.js).
+    peer.on("repasse", ({ de, role, stream, live }) => {
+      if (de === this.selfId) return;
+      const porAjudante = this.#repassada.get(de) || new Map();
+      this.#repassada.set(de, porAjudante);
+      this.#guardar(porAjudante, info.id, role, stream ? { stream, live } : null);
+      this.#emitirMidia(de, role, { sempre: true });
     });
     peer.on("state", (state) => this.emit("peer-connection", { id: info.id, state }));
     peer.on("restarting", (i) => this.emit("peer-connection", { id: info.id, state: "restarting", ...i }));
@@ -326,8 +338,63 @@ export class Mesh extends Emitter {
     this.states.delete(id);
     this.vad.untrack(id);
     this.stats.forget(id);
+    this.rele.esquecer(id);
+    this.#direta.delete(id);
+    this.#repassada.delete(id);
+    this.#emitida.delete(id);
+    for (const porAjudante of this.#repassada.values()) porAjudante.delete(id);
+    for (const de of this.#repassada.keys()) for (const role of ["mic", "cam", "screen", "screenAudio"]) this.#emitirMidia(de, role);
     this.emit("peer-removed", { id });
     this.#ajustarCameras();
+  }
+
+  /* ---------------------------------------------------------------- *
+   * De onde vem cada trilha: direto da pessoa ou por um ajudante (rele.js)
+   * ---------------------------------------------------------------- */
+
+  /** id -> papel -> { stream, live } recebido direto da pessoa. */
+  #direta = new Map();
+  /** de -> ajudante -> papel -> { stream, live } repassado por um terceiro. */
+  #repassada = new Map();
+  /** id -> papel -> o que a interface recebeu por último. */
+  #emitida = new Map();
+
+  #guardar(mapa, id, role, valor) {
+    const porPapel = mapa.get(id) || {};
+    if (valor) porPapel[role] = valor;
+    else delete porPapel[role];
+    mapa.set(id, porPapel);
+  }
+
+  /** O ajudante que entrega (id, papel), ou null para a conexão direta. */
+  fonteDe(id, role) {
+    return this.rele.fonte(id, role, {
+      repassada: (h) => this.#repassada.get(id)?.get(h)?.[role],
+      direta: this.#direta.get(id)?.[role],
+    });
+  }
+
+  /**
+   * Entrega à interface a trilha da fonte escolhida. A interface não sabe de
+   * relé: ela continua recebendo "media" de (id, papel), e só o stream muda.
+   */
+  #emitirMidia(id, role, { sempre = false } = {}) {
+    if (!this.peers.has(id)) return;
+    const h = this.fonteDe(id, role);
+    const atual = (h ? this.#repassada.get(id)?.get(h)?.[role] : this.#direta.get(id)?.[role]) || null;
+    const emitida = this.#emitida.get(id)?.[role];
+    if (!atual && !emitida) return;
+    // Reavaliação sem mudança não incomoda a interface; evento da própria trilha passa sempre.
+    if (!sempre && emitida && atual && emitida.stream === atual.stream && emitida.live === atual.live) return;
+    this.#guardar(this.#emitida, id, role, atual ? { ...atual } : { stream: null, live: false });
+    if (role === "mic" && atual?.stream) this.vad.track(id, atual.stream);
+    this.emit("media", { id, role, stream: atual?.stream || null, live: !!atual?.live, via: h });
+  }
+
+  /** O relé mudou de plano: confere a fonte de tudo que já chegou. */
+  reavaliarMidia() {
+    const ids = new Set([...this.#direta.keys(), ...this.#repassada.keys()]);
+    for (const id of ids) for (const role of ["mic", "cam", "screen", "screenAudio"]) this.#emitirMidia(id, role);
   }
 
   #onPeerData(from, raw, channel) {
@@ -352,6 +419,14 @@ export class Mesh extends Emitter {
       // As mesmas regras que o servidor aplicava (src/protocol.js).
       const text = typeof msg.text === "string" ? msg.text.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, 2000).trim() : "";
       if (text) this.emit("chat", { id: from, name: this.profiles.get(from)?.name || "Convidado", text, at: Date.now() });
+      return;
+    }
+    if (msg?.type === "rede") {
+      this.rele.receber(from, msg);
+      return;
+    }
+    if (msg?.type === "slots") {
+      this.peers.get(from)?.receberSlots(msg.slots);
       return;
     }
     // "Não estou vendo o seu vídeo": a câmera para de ser enviada a este par.

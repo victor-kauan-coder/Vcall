@@ -1544,6 +1544,56 @@ if (process.platform === "linux") {
   ok("reações: combo em poucas mensagens e igual dos dois lados, chuva só com 3 pessoas, sinais que vencem, dado de fora conferido");
 }
 
+/*
+ * Servidor TURN pelas configurações do app de mesa. No app instalado não há
+ * .env para editar: sem isto, quem estava no 4G ou na rede da empresa não
+ * tinha como ganhar um TURN. A senha nunca volta para a página.
+ */
+{
+  const { definirTurnLocal, iceConfiguration, normalizarTurnLocal } = await import("../src/ice.js");
+  const { lerTurn, salvarTurn, visaoDoTurn } = await import("../desktop/turn.js");
+  const { readFileSync, statSync } = await import("node:fs");
+  const arquivo = juntar(mkdtempSync(juntar(tmpdir(), "vcall-turn-")), "turn.json");
+
+  assert.equal(normalizarTurnLocal({ tipo: "api", url: "http://inseguro.exemplo/x" }), null, "link de provedor só em https");
+  assert.equal(normalizarTurnLocal({ tipo: "segredo", urls: "https://nao-e-turn", segredo: "s" }), null, "endereço tem de ser turn:/turns:");
+  assert.equal(normalizarTurnLocal({ tipo: "fixo", urls: "turn:a.exemplo:3478", usuario: "u" }), null, "sem senha não vale");
+  assert.deepEqual(
+    normalizarTurnLocal({ tipo: "segredo", urls: "turn:a.exemplo:3478, turns:a.exemplo:5349?transport=tcp  javascript:x", segredo: " s3 " }),
+    { tipo: "segredo", urls: ["turn:a.exemplo:3478", "turns:a.exemplo:5349?transport=tcp"], segredo: "s3" },
+    "lista separada por vírgula, lixo fora",
+  );
+
+  // Coturn próprio: as credenciais saem por HMAC, com validade, e o segredo não vai junto.
+  let r = salvarTurn(arquivo, { tipo: "segredo", urls: "turn:a.exemplo:3478", segredo: "segredo-de-teste" });
+  assert.ok(r.ok, r.erro);
+  assert.deepEqual(r.turn, { tipo: "segredo", urls: ["turn:a.exemplo:3478"], usuario: "", temSegredo: true }, "a página só fica sabendo que há um segredo");
+  assert.ok(!JSON.stringify(visaoDoTurn(lerTurn(arquivo))).includes("segredo-de-teste"), "o segredo nunca volta para a página");
+  if (process.platform !== "win32") assert.equal(statSync(arquivo).mode & 0o077, 0, "turn.json só legível pelo dono");
+  let ice = await iceConfiguration();
+  const turn = ice.iceServers.find((s) => [].concat(s.urls).some((u) => u.startsWith("turn")));
+  assert.ok(ice.hasTurn && turn, "o /ice passa a ter TURN");
+  assert.match(turn.username, /^\d+:vcall$/, "usuário é a validade");
+  const { createHmac } = await import("node:crypto");
+  assert.equal(turn.credential, createHmac("sha1", "segredo-de-teste").update(turn.username).digest("base64"), "senha é o HMAC do coturn");
+  assert.equal(ice.turnMode, "app:segredo");
+
+  // Salvar de novo com o campo secreto vazio mantém o segredo; trocar de tipo pede o novo.
+  r = salvarTurn(arquivo, { tipo: "segredo", urls: "turns:b.exemplo:5349", segredo: "" });
+  assert.ok(r.ok && lerTurn(arquivo).segredo === "segredo-de-teste", "campo vazio mantém o segredo salvo");
+  assert.ok(salvarTurn(arquivo, { tipo: "fixo", urls: "turn:b.exemplo:3478", usuario: "ana", senha: "" }).erro, "outro tipo sem senha é recusado");
+  assert.equal(lerTurn(arquivo).tipo, "segredo", "e o que estava salvo continua");
+
+  // Desligar volta ao que estiver no ambiente (aqui: só STUN).
+  r = salvarTurn(arquivo, { tipo: "nenhum" });
+  assert.deepEqual(r.turn, { tipo: "nenhum" });
+  assert.equal(JSON.parse(readFileSync(arquivo, "utf8")).tipo, "nenhum");
+  ice = await iceConfiguration();
+  assert.equal(ice.hasTurn, false, "desligado, o /ice volta a não ter TURN");
+  definirTurnLocal(null);
+  ok("TURN nas configurações do app: validado, salvo só para o dono, segredo que não volta à página, HMAC igual ao do coturn");
+}
+
 console.log(`\n${passou} blocos de verificação passaram.`);
 process.exit(0);
 

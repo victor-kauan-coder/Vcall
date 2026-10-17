@@ -46,7 +46,7 @@ function emptySample() {
   return {
     outbound: { screen: null, cam: null, mic: null },
     inbound: { screen: null, cam: null, mic: null },
-    transport: { rtt: null, availableOutgoing: null, availableIncoming: null, localType: null, remoteType: null },
+    transport: { rtt: null, availableOutgoing: null, availableIncoming: null, localType: null, remoteType: null, bytesReceived: null },
     quality: "unknown",
     score: 0,
   };
@@ -130,6 +130,12 @@ export class StatsMonitor extends Emitter {
    * Um medidor de verdade (sondagem ativa em banda) só se valer a pena.
    */
   #uplinkEma = 0;
+
+  /** Subida estimada desta máquina, em bps (0 enquanto não há medida). */
+  get subida() {
+    return this.#uplinkEma;
+  }
+
   #uplink() {
     let total = 0;
     for (const amostra of this.samples.values()) {
@@ -280,6 +286,9 @@ export class StatsMonitor extends Emitter {
         sample.transport.rtt = r.currentRoundTripTime != null ? r.currentRoundTripTime * 1000 : null;
         sample.transport.availableOutgoing = r.availableOutgoingBitrate ?? null;
         sample.transport.availableIncoming = r.availableIncomingBitrate ?? null;
+        // Tudo que chega pelo par escolhido (RTP, RTCP, canais de dados): o
+        // vigia de conexão congelada (core/rele.js) olha se isto ainda cresce.
+        sample.transport.bytesReceived = r.bytesReceived ?? null;
         const local = byId.get(r.localCandidateId);
         const remoto = byId.get(r.remoteCandidateId);
         sample.transport.localType = local?.candidateType ?? null;

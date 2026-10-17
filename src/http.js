@@ -161,7 +161,13 @@ function cacheControl(ext, pathname) {
   if (pathname.startsWith("/vendor/") || pathname.startsWith("/assets/")) {
     return config.dev ? "no-cache" : "public, max-age=604800";
   }
-  return config.dev ? "no-cache" : "public, max-age=3600";
+  /*
+   * O código do app (js/, css/) é sempre revalidado: o ETag responde 304 sem
+   * corpo, então custa só a ida e volta. Com uma hora de cache, quem abria o
+   * app logo depois de atualizar recebia o index.html novo com o main.js da
+   * versão anterior guardado — e os jogos novos simplesmente não apareciam.
+   */
+  return "no-cache";
 }
 
 /**

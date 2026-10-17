@@ -362,6 +362,32 @@ try {
       await caixa.uncheck();
       await espera(500);
     }
+
+    // Configurações › Servidor TURN: salvar pela tela vale no /ice, e o segredo não volta.
+    const blocoTurn = win.locator("#settingsModal [data-turn]");
+    const temTurn = await blocoTurn.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    check("as configurações têm 'Servidor TURN'", temTurn);
+    if (temTurn) {
+      await blocoTurn.locator("select").selectOption("segredo");
+      await blocoTurn.locator('input[aria-label="Endereços do servidor"]').fill("turn:turn.exemplo.com:3478, turns:turn.exemplo.com:5349?transport=tcp");
+      await blocoTurn.locator('input[aria-label="Segredo"]').fill("segredo-do-desktop-test");
+      await blocoTurn.locator("button", { hasText: "Salvar" }).click();
+      await espera(800);
+      const r = await win.evaluate(async () => {
+        const t = sessionStorage.getItem("vcall:host-token");
+        const visao = await (await fetch(`/__host/turn/config?t=${t}`)).json();
+        const ice = await (await fetch("/ice", { cache: "no-store" })).json();
+        return { visao, ice };
+      });
+      const turnNoIce = r.ice.iceServers.find((s) => [].concat(s.urls).some((u) => String(u).startsWith("turns:turn.exemplo.com")));
+      check("salvar o TURN pela tela vale no /ice (credencial temporária)", r.ice.hasTurn && !!turnNoIce?.credential, r.ice.turnMode);
+      check("o segredo do TURN não volta para a página", !JSON.stringify(r.visao).includes("segredo-do-desktop-test") && r.visao.temSegredo === true);
+      await blocoTurn.locator("select").selectOption("nenhum");
+      await blocoTurn.locator("button", { hasText: "Salvar" }).click();
+      await espera(600);
+      const desligado = await win.evaluate(async () => (await (await fetch("/ice", { cache: "no-store" })).json()).hasTurn);
+      check("desligar o TURN pela tela tira ele do /ice", desligado === false);
+    }
     await win.keyboard.press("Escape");
     const invalido = await win.evaluate(async () => {
       const t = sessionStorage.getItem("vcall:host-token");

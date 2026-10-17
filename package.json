@@ -1,6 +1,6 @@
 {
   "name": "vcall",
-  "version": "3.11.4",
+  "version": "3.12.0",
   "private": true,
   "type": "module",
   "description": "Salas de vídeo P2P criptografadas fim a fim, com canvas colaborativo infinito, painel de chamadas ativas e aplicativo desktop.",
@@ -10,7 +10,7 @@
     "dev": "node --watch server.js",
     "vendor": "node scripts/vendor.mjs",
     "check": "node --check server.js && node scripts/features-test.mjs && node scripts/host-test.mjs && node scripts/security-test.mjs && node scripts/fixes-test.mjs && node scripts/check.mjs",
-    "test": "node scripts/check.mjs && node scripts/fixes-test.mjs && node scripts/e2e.mjs && node scripts/ui-test.mjs && node scripts/proxy-test.mjs",
+    "test": "node scripts/check.mjs && node scripts/fixes-test.mjs && node scripts/e2e.mjs && node scripts/ui-test.mjs && node scripts/rele-test.mjs && node scripts/turn-test.mjs && node scripts/proxy-test.mjs",
     "doctor": "node scripts/doctor.mjs",
     "desktop": "electron desktop/main.js",
     "desktop:dev": "NODE_ENV=development electron desktop/main.js",
@@ -25,6 +25,8 @@
     "test:fixes": "node scripts/fixes-test.mjs",
     "test:ui": "node scripts/ui-test.mjs",
     "test:e2e": "node scripts/e2e.mjs",
+    "test:rele": "node scripts/rele-test.mjs",
+    "test:turn": "node scripts/turn-test.mjs",
     "test:desktop": "node scripts/desktop-test.mjs"
   },
   "dependencies": {

@@ -215,6 +215,11 @@ export class HostPanel extends Emitter {
     return this.#chamar("rede/config", { params: sempre == null ? null : { sempre: sempre ? "1" : "0" } });
   }
 
+  /** Servidor TURN do app: sem argumento só lê; com `config`, salva. */
+  async configTurn(config = null) {
+    return this.#chamar("turn/config", { params: config });
+  }
+
   async fecharTailscale() {
     await this.#chamar("tailscale/fechar").catch(() => {});
     this.ts = { estado: "parado", url: null, habilitar: null, erro: null };

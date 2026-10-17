@@ -1360,6 +1360,123 @@ function blocoDaRede() {
   return bloco;
 }
 
+/**
+ * "Servidor TURN" nas configurações do app de mesa. Sem ele, quem está atrás
+ * de 4G com CGNAT, Wi-Fi de empresa ou faculdade às vezes não conecta. No app
+ * instalado não há .env: a escolha fica guardada aqui (desktop/turn.js) e
+ * vale para todos que entram nas chamadas deste computador.
+ */
+function blocoDoTurn() {
+  const tipo = el("select.input", { "aria-label": "Tipo de servidor TURN" }, [
+    el("option", { value: "nenhum", text: "Nenhum (só conexão direta)" }),
+    el("option", { value: "api", text: "Link de um provedor (Metered, Xirsys…)" }),
+    el("option", { value: "segredo", text: "Meu servidor coturn (segredo compartilhado)" }),
+    el("option", { value: "fixo", text: "Usuário e senha" }),
+  ]);
+  const url = el("input.input.mono", { type: "url", placeholder: "https://SEUAPP.metered.live/api/v1/turn/credentials?apiKey=…", "aria-label": "Link do provedor" });
+  const urls = el("input.input.mono", { type: "text", placeholder: "turn:turn.exemplo.com:3478, turns:turn.exemplo.com:5349?transport=tcp", "aria-label": "Endereços do servidor" });
+  const usuario = el("input.input", { type: "text", placeholder: "Usuário", "aria-label": "Usuário", autocomplete: "off" });
+  const senha = el("input.input", { type: "password", placeholder: "Senha", "aria-label": "Senha", autocomplete: "new-password" });
+  const segredo = el("input.input", { type: "password", placeholder: "Segredo (static-auth-secret)", "aria-label": "Segredo", autocomplete: "new-password" });
+  const salvar = el("button.btn.btn--primary", { type: "button", text: "Salvar" });
+  const testar = el("button.btn", { type: "button", text: "Testar" });
+  const dica = el("div.field__hint", { text: "O TURN só entra quando a conexão direta não fecha. A voz e o vídeo continuam criptografados." });
+  const linhas = {
+    api: el("div.stack", {}, [url]),
+    segredo: el("div.stack", {}, [urls, segredo]),
+    fixo: el("div.stack", {}, [usuario, senha]),
+  };
+  const bloco = el("div.stack", { "data-turn": "" }, [tipo, linhas.api, linhas.segredo, linhas.fixo, el("div.row", {}, [salvar, testar]), dica]);
+
+  let salvo = { tipo: "nenhum" };
+  const mostrar = () => {
+    const t = tipo.value;
+    linhas.api.hidden = t !== "api";
+    linhas.segredo.hidden = t !== "segredo" && t !== "fixo";
+    segredo.hidden = t !== "segredo";
+    linhas.fixo.hidden = t !== "fixo";
+    // Os endereços servem aos dois modos com servidor próprio: ficam no mesmo lugar.
+    if (t === "fixo") linhas.segredo.after(linhas.fixo);
+    testar.disabled = t === "nenhum";
+  };
+  const preencher = (v) => {
+    salvo = v || { tipo: "nenhum" };
+    tipo.value = salvo.tipo;
+    urls.value = (salvo.urls || []).join(", ");
+    usuario.value = salvo.usuario || "";
+    url.placeholder = salvo.host ? `Salvo: ${salvo.host} (cole outro link para trocar)` : url.placeholder;
+    senha.placeholder = salvo.temSegredo && salvo.tipo === "fixo" ? "Senha salva (deixe vazio para manter)" : "Senha";
+    segredo.placeholder = salvo.temSegredo && salvo.tipo === "segredo" ? "Segredo salvo (deixe vazio para manter)" : "Segredo (static-auth-secret)";
+    mostrar();
+  };
+  tipo.addEventListener("change", mostrar);
+  salvar.addEventListener("click", async () => {
+    salvar.disabled = true;
+    try {
+      const v = await host.configTurn({
+        tipo: tipo.value,
+        url: url.value.trim(),
+        urls: urls.value.trim(),
+        usuario: usuario.value.trim(),
+        senha: senha.value,
+        segredo: segredo.value,
+      });
+      url.value = senha.value = segredo.value = "";
+      preencher(v);
+      toast(v.tipo === "nenhum" ? "Servidor TURN desligado." : "Servidor TURN salvo. Vale a partir da próxima chamada.", { tone: "ok" });
+    } catch (err) {
+      toast(err.message || "Não consegui salvar.", { tone: "warn" });
+    }
+    salvar.disabled = false;
+  });
+  testar.addEventListener("click", async () => {
+    testar.disabled = true;
+    dica.textContent = "Testando: pedindo um caminho de repasse ao servidor…";
+    const r = await testarTurn();
+    dica.textContent = r.ok
+      ? `Funcionando: o servidor entregou um caminho de repasse (${r.endereco}) em ${r.ms} ms.`
+      : r.motivo;
+    testar.disabled = false;
+  });
+  host.configTurn().then(preencher).catch(() => (dica.textContent = "Não consegui ler a configuração do TURN."));
+  mostrar();
+  return bloco;
+}
+
+/**
+ * Testa o TURN que está valendo agora (o que o /ice entrega): pede um
+ * candidato "relay" de verdade. Se ele vem, o servidor autenticou e alocou um
+ * caminho de repasse — é o que uma chamada vai usar quando precisar.
+ */
+async function testarTurn({ limiteMs = 8000 } = {}) {
+  let cfg;
+  try {
+    cfg = await (await fetch("/ice", { cache: "no-store" })).json();
+  } catch {
+    return { ok: false, motivo: "Não consegui ler a configuração de conexão." };
+  }
+  const servidores = (cfg.iceServers || []).filter((s) => [].concat(s.urls).some((u) => /^turns?:/i.test(u)));
+  if (!servidores.length) return { ok: false, motivo: "Nenhum servidor TURN está valendo. Salve a configuração antes de testar (ou confira o link do provedor)." };
+  const inicio = performance.now();
+  const pc = new RTCPeerConnection({ iceServers: servidores, iceTransportPolicy: "relay" });
+  try {
+    pc.createDataChannel("teste");
+    const achou = new Promise((resolve) => {
+      pc.addEventListener("icecandidate", ({ candidate }) => {
+        if (candidate?.type === "relay" || / typ relay /.test(candidate?.candidate || "")) resolve(candidate);
+        if (!candidate) resolve(null);
+      });
+      setTimeout(() => resolve(null), limiteMs);
+    });
+    await pc.setLocalDescription(await pc.createOffer());
+    const c = await achou;
+    if (!c) return { ok: false, motivo: "O servidor não respondeu com um caminho de repasse. Confira endereço, portas (3478, 5349 e 49152–65535/UDP) e a senha ou segredo." };
+    return { ok: true, endereco: c.address || c.candidate.split(" ")[4], ms: Math.round(performance.now() - inicio) };
+  } finally {
+    pc.close();
+  }
+}
+
 function blocoDeAtualizacao() {
   const api = window.vcallDesktop?.atualizacao;
   if (!api) return blocoDeAtualizacaoSoAviso();
@@ -3311,6 +3428,7 @@ function openSettings({ naRecepcao = false } = {}) {
     section("Aparência", [themeRowDeConfiguracoes(), seletorDePaletas()]);
     if (host.disponivel) section("Atualizações", [blocoDeAtualizacao()]);
     if (host.disponivel) section("Rede Tailscale", [blocoDaRede()]);
+    if (host.disponivel) section("Servidor TURN", [blocoDoTurn()]);
     $("#settingsModal").showModal();
     animarEntradaDoDialogo($("#settingsModal"));
     return;
@@ -3603,6 +3721,7 @@ function openSettings({ naRecepcao = false } = {}) {
       about.textContent = "Não foi possível consultar a versão.";
     });
   if (host.disponivel) section("Rede Tailscale", [blocoDaRede()]);
+  if (host.disponivel) section("Servidor TURN", [blocoDoTurn()]);
   section("Sobre esta versão", [
     about,
     el("div.field__hint", {
@@ -3862,6 +3981,7 @@ window.vcall = {
   },
   setFocoVoz,
   setModoJogo,
+  testarTurn,
   jogosEstado,
   jogos: jogosLogicas,
 };

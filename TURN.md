@@ -47,6 +47,18 @@ servidor: **Metered Open Relay**, 20 GB grátis por mês.
 
 ---
 
+## No app instalado: Configurações › Servidor TURN
+
+No app de computador (Windows e Linux) não há `.env` para editar. Abra
+**Configurações › Servidor TURN**, escolha o tipo (link de provedor como o da
+Metered, seu coturn com segredo, ou usuário e senha), salve e toque em
+**Testar**. A configuração fica na pasta do app (`turn.json`), vale por cima do
+ambiente e é entregue no `/ice` a todos que entram nas chamadas deste
+computador, inclusive pelo link público. O resto deste guia (criar a conta na
+Metered, montar o coturn) vale igual.
+
+---
+
 ## Os quatro modos do servidor
 
 O Vcall detecta sozinho, pelo que estiver no ambiente:

@@ -131,6 +131,26 @@ try {
   check("Alice recebe quadros de vídeo de Bruno", fa.frames > 0, `${fa.frames} quadros, ${fa.bytes} B`);
   check("Bruno recebe quadros de vídeo de Alice", fb.frames > 0, `${fb.frames} quadros, ${fb.bytes} B`);
 
+  /* -- 4b. voz: RED negociado e áudio chegando --------------------- */
+  const voz = (page) =>
+    page.evaluate(async () => {
+      const peer = [...window.vcall.mesh.peers.values()][0];
+      const sender = peer.tx.mic.sender;
+      let enviados = 0;
+      (await sender.getStats()).forEach((r) => {
+        if (r.type === "outbound-rtp" && r.kind === "audio") enviados += r.packetsSent || 0;
+      });
+      // As estatísticas do Chrome dizem "opus" mesmo com RED por fora; o
+      // codec em uso é o primeiro dos parâmetros negociados.
+      const mime = sender.getParameters().codecs?.[0]?.mimeType || "";
+      const fmtp = peer.pc.remoteDescription.sdp.split("\r\n").filter((l) => /^a=fmtp:\d+ .*useinbandfec/.test(l));
+      return { mime, enviados, fmtp: fmtp[0] || "" };
+    });
+  const [va, vb] = await Promise.all([voz(a.page), voz(b.page)]);
+  check("voz com redundância (RED) nos dois sentidos", /red/i.test(va.mime) && /red/i.test(vb.mime), `${va.mime} / ${vb.mime}`);
+  check("voz com FEC e DTX pedidos ao Opus", /usedtx=1/.test(va.fmtp) && /usedtx=1/.test(vb.fmtp), va.fmtp);
+  check("pacotes de voz saindo", va.enviados > 0 && vb.enviados > 0, `${va.enviados} / ${vb.enviados}`);
+
   /* -- 5. ladrilhos remotos montados ------------------------------ */
   const tileIds = (page) =>
     page.evaluate(() => [...document.querySelectorAll(".tile")].map((n) => n.dataset.tile));

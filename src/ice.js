@@ -123,6 +123,93 @@ async function remoteServers() {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Modo do app de mesa — Configurações › Servidor TURN
+ *
+ * No app instalado não há .env para editar (o servidor vem dentro do pacote).
+ * A pessoa escolhe o TURN nas configurações; desktop/main.js guarda em disco
+ * e entrega aqui. Vale por cima do ambiente, e pode mudar com o app aberto.
+ * ------------------------------------------------------------------ */
+
+let local = null;
+let localCache = { chave: "", at: 0, servers: null };
+
+const urlTurn = (u) => typeof u === "string" && u.length <= 256 && /^(turns?|stuns?):[^\s]+$/i.test(u.trim());
+
+/**
+ * Confere o que veio das configurações. Devolve a configuração limpa, ou null
+ * (desligado ou inválido — nesse caso vale o que estiver no ambiente).
+ *
+ *   { tipo: "api", url }                      link de provedor (Metered, Xirsys…)
+ *   { tipo: "segredo", urls, segredo }        coturn próprio com use-auth-secret
+ *   { tipo: "fixo", urls, usuario, senha }    usuário e senha fixos
+ */
+export function normalizarTurnLocal(c) {
+  if (!c || typeof c !== "object") return null;
+  const texto = (v, max = 512) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const lista = (v) =>
+    (Array.isArray(v) ? v : String(v || "").split(/[,\s]+/))
+      .map((u) => String(u).trim())
+      .filter(urlTurn)
+      .slice(0, 8);
+  if (c.tipo === "api") {
+    const url = texto(c.url, 1024);
+    try {
+      if (new URL(url).protocol !== "https:") return null;
+    } catch {
+      return null;
+    }
+    return { tipo: "api", url };
+  }
+  if (c.tipo === "segredo") {
+    const urls = lista(c.urls);
+    const segredo = texto(c.segredo);
+    return urls.length && segredo ? { tipo: "segredo", urls, segredo } : null;
+  }
+  if (c.tipo === "fixo") {
+    const urls = lista(c.urls);
+    const usuario = texto(c.usuario, 256);
+    const senha = texto(c.senha, 256);
+    return urls.length && usuario && senha ? { tipo: "fixo", urls, usuario, senha } : null;
+  }
+  return null;
+}
+
+export function definirTurnLocal(c) {
+  local = normalizarTurnLocal(c);
+  localCache = { chave: "", at: 0, servers: null };
+  return local;
+}
+
+async function serversLocais() {
+  if (local.tipo === "fixo") return [{ urls: local.urls, username: local.usuario, credential: local.senha }];
+  if (local.tipo === "segredo") {
+    const username = `${Math.floor(Date.now() / 1000) + ice.ttl}:vcall`;
+    return [{ urls: local.urls, username, credential: createHmac("sha1", local.segredo).update(username).digest("base64") }];
+  }
+  // Link de provedor: mesma regra do modo REST — reusa por metade da validade.
+  if (localCache.chave === local.url && localCache.servers && Date.now() - localCache.at < (ice.ttl * 1000) / 2) {
+    return localCache.servers;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(local.url, { signal: controller.signal });
+    if (!res.ok) {
+      log.warn("o provedor de TURN das configurações recusou o pedido", { status: res.status });
+      return localCache.servers;
+    }
+    const servers = normalizeServers(await res.json());
+    if (servers?.length) localCache = { chave: local.url, at: Date.now(), servers };
+    return servers;
+  } catch (err) {
+    log.warn("falha ao falar com o provedor de TURN das configurações", { err: String(err?.name || err) });
+    return localCache.servers;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 
 /**
@@ -132,7 +219,10 @@ async function remoteServers() {
 export async function iceConfiguration() {
   const iceServers = ice.stun.length ? [{ urls: ice.stun }] : [];
 
-  if (turnMode === "cloudflare" || turnMode === "api") {
+  if (local) {
+    const servers = await serversLocais();
+    if (servers) iceServers.push(...servers);
+  } else if (turnMode === "cloudflare" || turnMode === "api") {
     const servers = await remoteServers();
     if (servers) iceServers.push(...servers);
   } else if (turnMode === "secret") {
@@ -149,7 +239,7 @@ export async function iceConfiguration() {
     (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => String(u).startsWith("turn")),
   );
 
-  return { ...base, iceServers, hasTurn, turnMode };
+  return { ...base, iceServers, hasTurn, turnMode: local ? `app:${local.tipo}` : turnMode };
 }
 
 /** Uma linha no arranque dizendo o que está configurado. */

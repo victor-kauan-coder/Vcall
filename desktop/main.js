@@ -30,6 +30,8 @@ import { RoomRegistry } from "../src/rooms.js";
 import { hostControl } from "./guard.js";
 import { Tunnel } from "./tunnel.js";
 import { LinkTailscale } from "./tailscale.js";
+import { lerTurn, salvarTurn, visaoDoTurn } from "./turn.js";
+import { definirTurnLocal } from "../src/ice.js";
 import { RedeVcall } from "./rede.js";
 import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
@@ -74,6 +76,9 @@ function gravarPrefRede(pref) {
     registrar("rede-pref-falhou", { erro: String(err?.message || err) });
   }
 }
+/* "Servidor TURN" das configurações (desktop/turn.js). */
+const arquivoTurn = () => path.join(app.getPath("userData"), "turn.json");
+
 /** Destino pedido por link antes de a janela existir. */
 let pendente = null;
 /** Origens de salas de outras pessoas que o usuário abriu por convite. */
@@ -159,6 +164,7 @@ function escutar(server, porta) {
 async function subirServidor() {
   const registry = new RoomRegistry();
   let porta = 0;
+  definirTurnLocal(lerTurn(arquivoTurn()));
 
   const control = hostControl({
     token: TOKEN,
@@ -212,6 +218,14 @@ async function subirServidor() {
           return { estado: linkTs.state, url: null, habilitar: linkTs.habilitar };
         }
         return { estado: "pronto", url: await ligarTailscale() };
+      },
+
+      // Servidor TURN: sem parâmetros só lê; com `tipo`, salva e já vale para a próxima chamada.
+      "turn/config": async (url) => {
+        const q = url.searchParams;
+        if (!q.has("tipo")) return visaoDoTurn(lerTurn(arquivoTurn()));
+        const r = salvarTurn(arquivoTurn(), Object.fromEntries(["tipo", "url", "urls", "usuario", "senha", "segredo"].map((k) => [k, q.get(k) || ""])));
+        return r.erro ? { code: 400, erro: r.erro } : r.turn;
       },
 
       // "Sempre disponível na rede": lê ou muda (e já liga ou desliga o link).

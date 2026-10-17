@@ -31,7 +31,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { jitter } from "../lib/util.js";
-import { applyProfile, cameraParaSala, preferCodecs, PROFILES, screenCodecPreference } from "./tuning.js";
+import { ajustarOpus, applyProfile, cameraParaSala, preferCodecs, preferRed, PROFILES, screenCodecPreference } from "./tuning.js";
 
 /** Ordem canônica das linhas de mídia. Não altere sem versionar o protocolo. */
 export const ROLES = ["mic", "cam", "screen", "screenAudio"];
@@ -154,6 +154,8 @@ export class Peer extends Emitter {
       }
       // Preferência de codec por linha: tela pede VP9/AV1, câmera fica no padrão.
       preferCodecs(this.tx.screen, screenCodecPreference(this.peerCount));
+      // Voz com redundância: um pacote perdido volta no seguinte.
+      preferRed(this.tx.mic);
     }
 
     // Canais de dados: existem antes de qualquer oferta, nos dois lados.
@@ -391,8 +393,11 @@ export class Peer extends Emitter {
         if (this.#ignoreOffer) return; // o impolido mantém a própria oferta
 
         this.#settingRemoteAnswer = description.type === "answer";
+        // FEC, DTX e estéreo do Opus: pedidos na descrição remota, que é a
+        // que configura o nosso encoder (tuning.js, ajustarOpus).
+        const sdp = ajustarOpus(description.sdp, (mid) => this.#midRole.get(String(mid)));
         // No lado educado, isto desfaz implicitamente a oferta local pendente.
-        await this.pc.setRemoteDescription(description);
+        await this.pc.setRemoteDescription({ type: description.type, sdp });
         this.#settingRemoteAnswer = false;
 
         await this.#drainCandidates();
@@ -450,6 +455,7 @@ export class Peer extends Emitter {
       // A oferta chegou como sendrecv/recvonly; precisamos poder enviar.
       if (t.direction !== "sendrecv") t.direction = "sendrecv";
       if (role === "screen") preferCodecs(t, screenCodecPreference(this.peerCount));
+      if (role === "mic") preferRed(t);
     }
 
     if (adoptedAny) {

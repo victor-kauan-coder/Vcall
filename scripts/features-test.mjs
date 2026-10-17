@@ -277,3 +277,36 @@ for (const n of [1, 2, 4, 8, 16]) {
   anterior = b.screen;
 }
 console.log("✓ rede: o orçamento da malha cabe no enlace medido, com ou sem gente na sala");
+
+/* -- voz: FEC, DTX e estéreo pedidos ao Opus de quem envia -- */
+const { ajustarOpus } = await import("../public/js/core/tuning.js");
+const sdpRemoto = [
+  "v=0",
+  "o=- 1 2 IN IP4 127.0.0.1",
+  "s=-",
+  "t=0 0",
+  "m=audio 9 UDP/TLS/RTP/SAVPF 63 111",
+  "a=mid:0",
+  "a=rtpmap:63 red/48000/2",
+  "a=fmtp:63 111/111",
+  "a=rtpmap:111 opus/48000/2",
+  "a=fmtp:111 minptime=10;useinbandfec=1",
+  "m=video 9 UDP/TLS/RTP/SAVPF 96",
+  "a=mid:1",
+  "a=rtpmap:96 VP8/90000",
+  "m=audio 9 UDP/TLS/RTP/SAVPF 111",
+  "a=mid:3",
+  "a=rtpmap:111 opus/48000/2",
+  "",
+].join("\r\n");
+const papeis = { 0: "mic", 1: "cam", 3: "screenAudio" };
+const ajustado = ajustarOpus(sdpRemoto, (mid) => papeis[mid]);
+const fmtps = ajustado.split("\r\n").filter((l) => l.startsWith("a=fmtp:111"));
+assert.equal(fmtps.length, 2, "cada linha de áudio tem o seu fmtp do Opus");
+assert.equal(fmtps[0], "a=fmtp:111 minptime=10;useinbandfec=1;usedtx=1;stereo=0", "microfone: FEC + DTX, o resto preservado");
+assert.match(fmtps[1], /stereo=1;sprop-stereo=1;maxaveragebitrate=128000/, "áudio da tela: estéreo e taxa alta");
+assert.match(fmtps[1], /usedtx=0/, "áudio da tela sem DTX");
+assert.ok(ajustado.includes("a=fmtp:63 111/111"), "a linha do RED fica intacta");
+assert.ok(ajustado.includes("a=rtpmap:96 VP8/90000\r\n"), "o vídeo fica intacto");
+assert.equal(ajustarOpus(sdpRemoto, () => undefined), sdpRemoto, "sem papel conhecido, nada muda");
+console.log("✓ voz: FEC e DTX no microfone, estéreo no áudio da tela, o resto da descrição intacto");

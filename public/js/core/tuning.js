@@ -129,6 +129,97 @@ export function preferCodecs(transceiver, mimes) {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Voz
+ * ------------------------------------------------------------------ */
+
+/**
+ * Redundância de áudio (RED, RFC 2198) na linha do microfone.
+ *
+ * Cada pacote leva junto uma cópia do quadro anterior. Um pacote perdido na
+ * rede é reconstruído pelo seguinte, sem esperar reenvio — é o que segura a
+ * voz inteira em Wi-Fi ruim e 4G, e é o que o Meet usa. Custa o dobro de uma
+ * banda que já é pequena (voz é ~40 kbps), e só enquanto a pessoa fala: com
+ * DTX ligado, quem está calado não manda quase nada.
+ *
+ * Opus continua na lista logo atrás: quem não fala RED negocia Opus puro.
+ */
+export function preferRed(transceiver) {
+  if (typeof transceiver?.setCodecPreferences !== "function") return false;
+  let caps = null;
+  try {
+    caps = RTCRtpReceiver.getCapabilities?.("audio") || null;
+  } catch {
+    caps = null;
+  }
+  if (!caps) return false;
+  const red = caps.codecs.filter((c) => /^audio\/red$/i.test(c.mimeType));
+  const opus = caps.codecs.filter((c) => /^audio\/opus$/i.test(c.mimeType));
+  if (!red.length || !opus.length) return false;
+  const rest = caps.codecs.filter((c) => !red.includes(c) && !opus.includes(c));
+  try {
+    transceiver.setCodecPreferences([...red, ...opus, ...rest]);
+    return true;
+  } catch (err) {
+    console.debug("[tuning] RED recusado", err?.name || err);
+    return false;
+  }
+}
+
+/**
+ * O que cada linha de áudio pede ao Opus de quem envia para nós.
+ *
+ * Os parâmetros do `a=fmtp` do Opus dizem como a outra ponta deve codificar
+ * o que manda para cá. Por isso são escritos na descrição REMOTA, antes do
+ * setRemoteDescription: é ela que configura o nosso encoder.
+ *
+ *   microfone    FEC dentro do próprio Opus (perda isolada some sem ninguém
+ *                notar) e DTX (silêncio vira um pacote a cada 400 ms em vez
+ *                de 50 por segundo). Numa sala cheia quase todos estão calados
+ *                — com DTX, cada pessoa a mais custa quase nada de banda.
+ *   tela         música e vídeo: estéreo de verdade (o padrão do navegador é
+ *                mono) e taxa alta. Sem DTX, que corta o fim das notas.
+ */
+export const OPUS_POR_PAPEL = {
+  mic: { useinbandfec: 1, usedtx: 1, stereo: 0 },
+  screenAudio: { useinbandfec: 1, usedtx: 0, stereo: 1, "sprop-stereo": 1, maxaveragebitrate: 128000 },
+};
+
+/**
+ * Reescreve os `a=fmtp` do Opus de uma descrição SDP, seção por seção,
+ * conforme o papel de cada linha (`papelDoMid`: mid -> papel). Linhas sem
+ * papel conhecido ficam como vieram.
+ */
+export function ajustarOpus(sdp, papelDoMid) {
+  if (typeof sdp !== "string" || !sdp.includes("opus/48000")) return sdp;
+  const fim = sdp.includes("\r\n") ? "\r\n" : "\n";
+  const [cabeca, ...secoes] = sdp.split(`${fim}m=`);
+  const novas = secoes.map((s) => {
+    const mid = /(?:^|\n)a=mid:(\S+)/.exec(s)?.[1];
+    const pedir = OPUS_POR_PAPEL[papelDoMid(mid)];
+    const pt = /(?:^|\n)a=rtpmap:(\d+) opus\/48000/i.exec(s)?.[1];
+    if (!pedir || !pt) return s;
+    const linhas = s.split(fim);
+    const i = linhas.findIndex((l) => l.startsWith(`a=fmtp:${pt} `));
+    const params = new Map();
+    if (i >= 0) {
+      for (const par of linhas[i].slice(`a=fmtp:${pt} `.length).split(";")) {
+        const [k, v] = par.split("=");
+        if (k?.trim()) params.set(k.trim(), (v ?? "").trim());
+      }
+    }
+    for (const [k, v] of Object.entries(pedir)) params.set(k, String(v));
+    const linha = `a=fmtp:${pt} ${[...params].map(([k, v]) => `${k}=${v}`).join(";")}`;
+    if (i >= 0) linhas[i] = linha;
+    else {
+      const r = linhas.findIndex((l) => l.startsWith(`a=rtpmap:${pt} `));
+      linhas.splice(r + 1, 0, linha);
+    }
+    return linhas.join(fim);
+  });
+  return [cabeca, ...novas].join(`${fim}m=`);
+}
+
 /**
  * Ordem de preferência para conteúdo de tela.
  * VP9 vence por larga margem em texto — o mesmo quadro custa cerca de metade

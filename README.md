@@ -29,19 +29,22 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Windows 10/11 | `VcallSetup-3.11.4.exe` |
-| Fedora, openSUSE, RHEL | `Vcall-3.11.4-x86_64.rpm` |
-| Arch, Manjaro, EndeavourOS | `Vcall-3.11.4-x64.pacman` |
-| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.11.4-amd64.deb` |
-| Qualquer Linux | `Vcall-3.11.4-x86_64.AppImage` ou `.tar.gz` |
+| Windows 10/11 | `VcallSetup-3.12.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.12.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.12.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.12.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.12.0-x86_64.AppImage` ou `.tar.gz` |
 
 Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
-o que mudou na **[3.11.4](docs/release/v3.11.4.md)**.
+o que mudou na **[3.12.0](docs/release/v3.12.0.md)**.
 
 ## Recursos
 
 - Vídeo, voz e tela ponto a ponto, até 16 pessoas, sem conta e sem limite de tempo
+- **Voz que aguenta rede ruim**: redundância (RED), FEC e DTX no Opus
+- **Relé**: se a conexão direta entre duas pessoas cai, uma terceira repassa; quem tem internet fraca manda o vídeo uma vez só, para um computador forte da sala
+- **Servidor TURN nas configurações** do app, com botão Testar, para quem está no 4G ou na rede da empresa
 - Compartilhar **uma janela** ou a tela inteira, com nitidez ou fluidez
 - Canvas colaborativo infinito e anotação sobre a tela
 - **Jogos**: Desenha e Adivinha, Stop!, Quiz, Mímica, Quem sou eu?, Roda de perguntas, Duas verdades e uma mentira, Palavras-código, Jogo da velha, Lig 4, Forca, Jogo da memória, Roleta e dados, e os de equipe (Planning Poker, Retrospectiva, Daily)

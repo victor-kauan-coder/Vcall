@@ -22,6 +22,7 @@
 - [Segurança e privacidade](Seguranca-e-privacidade)
 
 **Projeto**
+- [Novidades da 3.12](Novidades-3.12)
 - [Novidades da 3.11](Novidades-3.11)
 - [Novidades da 3.10](Novidades-3.10)
 - [Novidades da 3.9](Novidades-3.9)

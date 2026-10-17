@@ -50,3 +50,31 @@ repassa, como qualquer participante da chamada.
   receber nada, ela é refeita.
 - Continuam valendo os reinícios automáticos e, com servidor TURN configurado, a
   passagem por ele quando a conexão direta não fecha (veja `TURN.md`).
+
+## Servidor TURN
+
+Quando duas pessoas não conseguem conexão direta (4G com CGNAT, Wi-Fi de
+empresa, faculdade ou hotel), um servidor TURN repassa a chamada. A mídia
+continua criptografada: ele não tem as chaves. Ele só entra quando a conexão
+direta não fecha, e resolve também a chamada a dois, onde o relé não tem a
+quem pedir ajuda.
+
+No app de computador: **Configurações › Servidor TURN**.
+
+1. Escolha o tipo:
+   - **Link de um provedor**: crie uma conta grátis na
+     [Metered](https://www.metered.ca/tools/openrelay/) (20 GB por mês), crie
+     uma credencial e cole o link
+     `https://SEUAPP.metered.live/api/v1/turn/credentials?apiKey=…`.
+   - **Meu servidor coturn**: os endereços (`turn:` e `turns:`) e o segredo
+     (`static-auth-secret`). Como montar um de graça: [TURN.md](https://github.com/victor-kauan-coder/Vcall/blob/main/TURN.md).
+   - **Usuário e senha**: para servidores que só têm isso.
+2. **Salvar** e depois **Testar**. "Funcionando" quer dizer que o servidor
+   autenticou e entregou um caminho de repasse.
+
+A senha e o segredo ficam só neste computador (no arquivo `turn.json` da pasta
+do app) e não voltam para a tela. Para trocar, salve de novo; com o campo vazio,
+o que estava salvo continua.
+
+Rodando o servidor pelo código (`npm start`), use as variáveis do `.env` em vez
+disso: veja `TURN.md`.

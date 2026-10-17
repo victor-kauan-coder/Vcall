@@ -39,6 +39,12 @@ jobs:
         run: node scripts/ui-test.mjs
       - name: Atrás de um túnel HTTPS
         run: node scripts/proxy-test.mjs
+      - name: Relé — três navegadores, a sala se ajuda
+        run: node scripts/rele-test.mjs
+      - name: Chamada só pelo TURN (coturn de verdade)
+        run: |
+          sudo apt-get update && sudo apt-get install -y coturn
+          node scripts/turn-test.mjs
 
   app-de-mesa:
     runs-on: ubuntu-latest

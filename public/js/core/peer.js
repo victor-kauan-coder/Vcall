@@ -183,7 +183,11 @@ export class Peer extends Emitter {
       // Uma renegociação pode zerar os parâmetros do encoder no Chrome.
       // Reaplicar ao voltar para "stable" é o que impede a tela de degradar
       // silenciosamente depois de alguém entrar ou sair da sala.
-      if (pc.signalingState === "stable") this.emit("stable");
+      if (pc.signalingState === "stable") {
+        this.emit("stable");
+        // Linhas de repasse ganham mid na negociação: agora dá para contar de quem são.
+        this.#publicarSlots();
+      }
     });
 
     // Anexa o que já estiver ligado localmente.
@@ -212,10 +216,10 @@ export class Peer extends Emitter {
     // e precisa reanexar o que já estava ligado localmente.
     this.#lastLocal = local;
     await Promise.all([
-      this.#setTrack("mic", local.mic, PROFILES.mic),
-      this.#setTrack("cam", local.cam, this.#perfilCamera()),
-      this.#setTrack("screen", local.screen, local.screenProfile || PROFILES.screenText),
-      this.#setTrack("screenAudio", local.screenAudio, PROFILES.screenAudio),
+      this.#setTrack("mic", local.mic, this.#perfil("mic", local)),
+      this.#setTrack("cam", local.cam, this.#perfil("cam", local)),
+      this.#setTrack("screen", local.screen, this.#perfil("screen", local)),
+      this.#setTrack("screenAudio", local.screenAudio, this.#perfil("screenAudio", local)),
     ]);
   }
 
@@ -255,10 +259,10 @@ export class Peer extends Emitter {
   /** Reaplica os perfis — usado depois de cada negociação concluída. */
   async retune(local = {}) {
     await Promise.all([
-      applyProfile(this.tx.mic?.sender, PROFILES.mic),
-      applyProfile(this.tx.cam?.sender, this.#perfilCamera()),
-      applyProfile(this.tx.screen?.sender, local.screenProfile || PROFILES.screenText),
-      applyProfile(this.tx.screenAudio?.sender, PROFILES.screenAudio),
+      applyProfile(this.tx.mic?.sender, this.#perfil("mic", local)),
+      applyProfile(this.tx.cam?.sender, this.#perfil("cam", local)),
+      applyProfile(this.tx.screen?.sender, this.#perfil("screen", local)),
+      applyProfile(this.tx.screenAudio?.sender, this.#perfil("screenAudio", local)),
     ]);
   }
 
@@ -268,6 +272,7 @@ export class Peer extends Emitter {
       maxBitrate,
       maxFramerate,
       scaleResolutionDownBy,
+      active: !this.#viaRele.has("screen"),
     });
   }
 
@@ -308,7 +313,200 @@ export class Peer extends Emitter {
   }
 
   #perfilCamera() {
-    return { ...PROFILES.camera, ...cameraParaSala(this.peerCount), active: !this.#camPausada };
+    return { ...PROFILES.camera, ...cameraParaSala(this.peerCount), active: !this.#camPausada && !this.#viaRele.has("cam") };
+  }
+
+  /** O perfil de cada linha própria, já com o envio direto desligado se ela vai pelo relé. */
+  #perfil(role, local = this.#lastLocal) {
+    if (role === "cam") return this.#perfilCamera();
+    const base =
+      role === "mic" ? PROFILES.mic : role === "screen" ? local?.screenProfile || PROFILES.screenText : PROFILES.screenAudio;
+    return this.#viaRele.has(role) ? { ...base, active: false } : base;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Relé (core/rele.js)
+   *
+   * Um terceiro participante pode repassar a mídia de alguém para esta
+   * conexão: quando o caminho direto entre os dois caiu, ou quando quem envia
+   * tem pouca subida para mandar uma cópia a cada pessoa. O repasse usa linhas
+   * EXTRAS, só de envio, criadas por quem repassa. As quatro linhas próprias
+   * continuam intocadas.
+   * ---------------------------------------------------------------- */
+
+  /** Papéis próprios que este par recebe pelo relé (o envio direto fica desligado). */
+  #viaRele = new Set();
+
+  async rotearPorRele(papeis) {
+    const novo = new Set(papeis);
+    const mudou = ROLES.filter((r) => novo.has(r) !== this.#viaRele.has(r));
+    if (!mudou.length) return;
+    this.#viaRele = novo;
+    await Promise.all(mudou.map((r) => applyProfile(this.tx[r]?.sender, this.#perfil(r))));
+  }
+
+  get viaRele() {
+    return [...this.#viaRele];
+  }
+
+  /** Lado de quem repassa: "de:papel" -> transceiver só de envio. */
+  #slots = new Map();
+  /** Linhas de repasse que ficaram sem uso, prontas para outra origem. */
+  #livres = { audio: [], video: [] };
+  /** transceiver -> perfil aplicado por último (evita setParameters a cada volta). */
+  #perfilSlot = new WeakMap();
+  #slotsPublicados = "";
+
+  /**
+   * O que repassar para este par: Map "de:papel" -> { track, perfil }.
+   * Idempotente — mesh/rele chama a cada volta. Linhas que sobram são
+   * esvaziadas e guardadas para reaproveitar, sem renegociar.
+   */
+  async definirRepasse(desejado) {
+    if (!this.pc || this.#closed) return;
+    // Linhas novas pedem uma oferta; o lado educado só oferta depois da primeira negociação.
+    for (const [chave, t] of [...this.#slots]) {
+      if (desejado.has(chave)) continue;
+      this.#slots.delete(chave);
+      try {
+        await t.sender.replaceTrack(null);
+      } catch {
+        /* conexão fechando */
+      }
+      this.#livres[t.receiver.track.kind]?.push(t);
+    }
+    for (const [chave, { track, perfil }] of desejado) {
+      if (!this.pc || this.#closed) return;
+      let t = this.#slots.get(chave);
+      if (!t) {
+        const papel = chave.slice(chave.lastIndexOf(":") + 1);
+        const kind = ROLE_KIND[papel];
+        if (!kind) continue;
+        t = this.#livres[kind].pop();
+        if (!t) {
+          if (!this.#mayOffer) continue;
+          try {
+            t = this.pc.addTransceiver(kind, { direction: "sendonly" });
+          } catch {
+            continue;
+          }
+          if (kind === "audio") preferRed(t);
+        }
+        this.#slots.set(chave, t);
+      }
+      if (t.sender.track !== (track || null)) {
+        try {
+          await t.sender.replaceTrack(track || null);
+        } catch {
+          continue;
+        }
+        this.#perfilSlot.delete(t);
+      }
+      const json = JSON.stringify(perfil);
+      if (track && this.#perfilSlot.get(t) !== json && (await applyProfile(t.sender, perfil))) this.#perfilSlot.set(t, json);
+    }
+    this.#publicarSlots();
+  }
+
+  get repassando() {
+    return [...this.#slots.keys()];
+  }
+
+  /** Conta ao outro lado de quem é cada linha de repasse (só as que já têm mid). */
+  #publicarSlots(forcar = false) {
+    const mapa = {};
+    for (const [chave, t] of this.#slots) {
+      if (t.mid == null) continue;
+      const i = chave.lastIndexOf(":");
+      mapa[t.mid] = { de: chave.slice(0, i), role: chave.slice(i + 1) };
+    }
+    const json = JSON.stringify(mapa);
+    if (!forcar && json === this.#slotsPublicados) return;
+    this.#slotsPublicados = json;
+    // Pelos dois caminhos: a sinalização pode estar caída, e o canal pode não ter aberto.
+    this.emit("signal", { slots: mapa });
+    this.sendBoard({ type: "slots", slots: mapa });
+  }
+
+  /** Lado de quem recebe: mid -> { de, role }. */
+  #slotMapa = new Map();
+  /** mid -> MediaStream da trilha repassada. */
+  #repasseStreams = new Map();
+  #wiredRepasse = new WeakSet();
+
+  receberSlots(mapa) {
+    if (!mapa || typeof mapa !== "object") return;
+    const novo = new Map();
+    for (const [mid, s] of Object.entries(mapa)) {
+      if (typeof s?.de !== "string" || s.de.length > 64 || !ROLES.includes(s.role)) continue;
+      novo.set(String(mid), { de: s.de, role: s.role });
+    }
+    const mudaram = [];
+    for (const [mid, antigo] of this.#slotMapa) {
+      const n = novo.get(mid);
+      if (n && n.de === antigo.de && n.role === antigo.role) continue;
+      this.#repasseStreams.delete(mid);
+      this.emit("repasse", { de: antigo.de, role: antigo.role, stream: null, track: null, live: false });
+    }
+    for (const [mid, n] of novo) {
+      const antigo = this.#slotMapa.get(mid);
+      if (!antigo || antigo.de !== n.de || antigo.role !== n.role) mudaram.push(mid);
+    }
+    this.#slotMapa = novo;
+    if (!mudaram.length) return;
+    for (const t of this.pc?.getTransceivers() || []) {
+      const mid = t.mid != null ? String(t.mid) : null;
+      if (mid && mudaram.includes(mid) && t.receiver?.track) this.#adotarRepasse(mid, t.receiver.track);
+    }
+    this.#claimPendingTracks();
+  }
+
+  #adotarRepasse(mid, track) {
+    if (!this.#slotMapa.has(mid)) return;
+    let stream = this.#repasseStreams.get(mid);
+    if (!stream) {
+      stream = new MediaStream();
+      this.#repasseStreams.set(mid, stream);
+    }
+    for (const old of stream.getTracks()) if (old !== track) stream.removeTrack(old);
+    if (!stream.getTracks().includes(track)) stream.addTrack(track);
+    const publicar = (live) => {
+      const s = this.#slotMapa.get(mid);
+      if (s && this.#repasseStreams.get(mid)) this.emit("repasse", { de: s.de, role: s.role, stream: this.#repasseStreams.get(mid), track, live });
+    };
+    if (!this.#wiredRepasse.has(track)) {
+      this.#wiredRepasse.add(track);
+      track.addEventListener("unmute", () => publicar(true));
+      track.addEventListener("mute", () => publicar(false));
+    }
+    publicar(!track.muted);
+  }
+
+  /** Esquece tudo do relé que pertencia ao RTCPeerConnection descartado. */
+  #limparRepasse() {
+    for (const s of this.#slotMapa.values()) this.emit("repasse", { de: s.de, role: s.role, stream: null, track: null, live: false });
+    this.#slotMapa.clear();
+    this.#repasseStreams.clear();
+    this.#slots.clear();
+    this.#livres = { audio: [], video: [] };
+    this.#slotsPublicados = "";
+  }
+
+  /**
+   * Reinício de ICE pedido de fora: a rede mudou (Wi-Fi -> 4G, cabo saiu) ou
+   * a conexão parou de receber bytes sem o navegador perceber. Com a conexão
+   * ainda de pé, a mídia segue pelo caminho velho até o novo ficar pronto.
+   */
+  reiniciarIce({ silencioso = false } = {}) {
+    if (this.#closed || !this.pc || !this.#mayOffer) return false;
+    if (!silencioso) this.emit("restarting", { attempt: this.#restarts + 1 });
+    try {
+      this.pc.restartIce();
+      this.#armRestartWatchdog();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /* ---------------------------------------------------------------- *
@@ -354,8 +552,13 @@ export class Peer extends Emitter {
   }
 
   /** Processa uma mensagem de sinalização vinda deste par. */
-  async handleSignal({ description, candidate, roles, rebuild, resync }) {
+  async handleSignal({ description, candidate, roles, rebuild, resync, slots }) {
     if (this.#closed) return;
+
+    if (slots) {
+      this.receberSlots(slots);
+      if (!description && !candidate) return;
+    }
 
     // A sinalização do outro lado caiu e voltou (reanimar): a nossa última
     // oferta pode ter ido para o vazio.
@@ -485,6 +688,10 @@ export class Peer extends Emitter {
   #onTrack(ev) {
     const { track, transceiver } = ev;
     const mid = String(transceiver.mid ?? "");
+    if (this.#slotMapa.has(mid)) {
+      this.#adotarRepasse(mid, track);
+      return;
+    }
     const role = this.#midRole.get(mid);
 
     if (!role) {
@@ -651,6 +858,7 @@ export class Peer extends Emitter {
     // Estado que pertencia à conexão anterior. Mantê-lo faria o novo
     // RTCPeerConnection herdar mids e candidatos que não existem mais.
     this.#midRole.clear();
+    this.#limparRepasse();
     this.#pendingCandidates = [];
     this.#pendingTracks = [];
     this.remote = { mic: null, cam: null, screen: null, screenAudio: null };

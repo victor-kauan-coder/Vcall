@@ -15,6 +15,7 @@
 - [Reações e sinais](Reacoes-e-sinais)
 - [Jogos e voz](Jogos-e-voz)
 - [Moderação e sala de espera](Moderacao-e-sala-de-espera)
+- [Conexão, voz e relé](Conexao-e-rele)
 
 **Ajuda**
 - [Solução de problemas](Solucao-de-problemas)

@@ -59,6 +59,18 @@ dali em diante a atualização é pelo próprio app.
 Se a pasta do AppImage não aceitar escrita (por exemplo, `/opt`), o Vcall
 avisa nas Configurações e aponta a página de download.
 
+**.deb e .rpm: até a 3.12.0, "Reiniciar e atualizar" travava o Vcall** ("não
+está respondendo") enquanto o sistema pedia a senha e instalava, e o app podia
+cair. Na 3.12.1 o Vcall fecha primeiro, o sistema pede a senha, instala e o
+Vcall abre de novo. Quem está na 3.12.0 ou antes instala a 3.12.1 uma vez à
+mão, com o Vcall fechado:
+
+- Fedora: `sudo dnf install ./Vcall-3.12.1-x86_64.rpm`
+- Ubuntu, Debian: `sudo apt install ./Vcall-3.12.1-amd64.deb`
+
+Se a atualização não entrar, o motivo fica em `~/.config/vcall/logs/vcall.log`
+(procure `atualizacao-pacote`: código 126 é a senha cancelada).
+
 ## O AppImage não abre
 
 **"Cannot mount AppImage" no Wayland (Fedora, Ubuntu GNOME, KDE), até a

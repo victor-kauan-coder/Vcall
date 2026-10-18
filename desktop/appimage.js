@@ -20,8 +20,28 @@
  *      de verdade (a trava some junto) e só então abre o AppImage.
  */
 import { spawn as spawnReal } from "node:child_process";
-import { accessSync, chmodSync, constants, copyFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { accessSync, chmodSync, constants, copyFileSync, existsSync, renameSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
+
+/*
+ * O processo que espera o Vcall sair nasce dele, e herda os arquivos que o
+ * Chromium deixou abertos sem fechar-ao-executar: app.asar, os .pak, o
+ * icudtl.dat, o snapshot do V8 — todos de dentro da montagem do AppImage
+ * ANTIGO. Passados adiante para a versão nova, eles seguravam aquela
+ * montagem para sempre: o processo FUSE da versão velha não saía e os 160 MB
+ * do arquivo já trocado continuavam ocupando o disco. Visto num teste com o
+ * AppImage montado de verdade (/proc/<pid>/fd da versão nova apontando para
+ * /tmp/.mount_Vcall.<velho>/).
+ *
+ * Fechar fd acima de 9 precisa do bash (no dash, `exec 34>&-` vira "rode o
+ * programa 34" e mata o script). Sem bash, segue sem fechar — como antes.
+ */
+const FECHAR_HERDADOS = 'for f in /proc/$$/fd/*; do n=${f##*/}; [ "$n" -gt 2 ] 2>/dev/null && eval "exec $n>&-" 2>/dev/null; done; ';
+
+/** O shell do processo de espera, e o trecho que fecha o que veio herdado. */
+export function interpretador(existe = existsSync) {
+  return existe("/bin/bash") ? { sh: "/bin/bash", fechar: FECHAR_HERDADOS } : { sh: "/bin/sh", fechar: "" };
+}
 
 /** Variáveis que o AppImage em execução põe no ambiente e que a cópia nova define sozinha. */
 const DO_APPIMAGE = ["APPIMAGE", "APPDIR", "ARGV0", "OWD"];
@@ -55,10 +75,11 @@ export function trocarAppImage({ novo, atual, fs = { accessSync, chmodSync, copy
  * Abre `exe` assim que o processo `pid` terminar. O `sh` fica solto (não é
  * filho de quem está fechando), então sobrevive à saída do Vcall.
  */
-export function reabrirDepois({ pid = process.pid, exe, env = process.env, spawn = spawnReal }) {
+export function reabrirDepois({ pid = process.pid, exe, env = process.env, spawn = spawnReal, existe = existsSync }) {
   const limpo = { ...env };
   for (const k of DO_APPIMAGE) delete limpo[k];
-  const filho = spawn("/bin/sh", ["-c", 'while kill -0 "$1" 2>/dev/null; do sleep 0.3; done; exec "$2"', "vcall-reabrir", String(pid), exe], {
+  const { sh, fechar } = interpretador(existe);
+  const filho = spawn(sh, ["-c", `${fechar}while kill -0 "$1" 2>/dev/null; do sleep 0.3; done; exec "$2"`, "vcall-reabrir", String(pid), exe], {
     detached: true,
     stdio: "ignore",
     env: limpo,

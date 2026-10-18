@@ -1030,6 +1030,88 @@ if (process.platform === "linux") {
   ok("atualização do AppImage: mesmo arquivo, atalho intacto, reabre só depois que a versão antiga fecha");
 }
 
+/*
+ * O processo que reabre o app nascia herdando os arquivos abertos do Vcall
+ * antigo (app.asar, .pak de dentro da montagem velha) e os passava para a
+ * versão nova: a montagem do AppImage antigo nunca era desmontada e o arquivo
+ * trocado seguia ocupando o disco. Agora o bash fecha tudo acima do 2.
+ */
+if (process.platform === "linux") {
+  const { interpretador } = await import("../desktop/appimage.js");
+  const { mkdtempSync: mk, writeFileSync: escreve, readFileSync: le, openSync } = await import("node:fs");
+  const { spawn: sp } = await import("node:child_process");
+  assert.equal(interpretador(() => false).sh, "/bin/sh", "sem bash, sh");
+  assert.equal(interpretador(() => false).fechar, "", "e sem o laço que o dash não entende");
+  assert.ok(interpretador(() => true).fechar.includes("exec $n>&-"));
+  const dir = mk(juntar(tmpdir(), "vcall-fd-"));
+  const herdado = juntar(dir, "app.asar");
+  escreve(herdado, "velho");
+  const marca = juntar(dir, "fds.txt");
+  const exe = juntar(dir, "Vcall.AppImage");
+  escreve(exe, `#!/bin/sh\nls -l /proc/$$/fd > ${marca}\n`, { mode: 0o755 });
+  const fd = openSync(herdado, "r");
+  // Como o Chromium: um arquivo aberto sem fechar-ao-executar chega ao filho.
+  const comHerdado = (cmd, args, o) => sp(cmd, args, { ...o, stdio: ["ignore", "ignore", "ignore", fd] });
+  reabrirDepois({ pid: 999999, exe, env: process.env, spawn: comHerdado });
+  await espera(1200);
+  const fds = le(marca, "utf8");
+  assert.ok(!fds.includes(herdado), `a versão nova não pode receber os arquivos da antiga:\n${fds}`);
+  ok("reabrir o AppImage não passa adiante os arquivos abertos da versão antiga");
+}
+
+/*
+ * .deb e .rpm: o electron-updater instalava com pkexec de forma síncrona, com
+ * a janela aberta e congelada ("não está respondendo"), trocando /opt/Vcall
+ * com o Chromium rodando. Agora o app fecha antes, e um processo à parte pede
+ * a senha, instala, anota o resultado e reabre.
+ */
+if (process.platform === "linux") {
+  const { acharComando, comandoDeInstalacao, instalarPacoteDepois } = await import("../desktop/pacote.js");
+  const { mkdtempSync: mk, writeFileSync: escreve, readFileSync: le, existsSync: existe } = await import("node:fs");
+  const { spawn: sp } = await import("node:child_process");
+
+  const so = (...nomes) => (n) => (nomes.includes(n) ? `/usr/bin/${n}` : null);
+  assert.deepEqual(comandoDeInstalacao({ tipo: "rpm", arquivo: "/c/v.rpm", achar: so("dnf", "rpm") }), ["/usr/bin/dnf", "install", "-y", "--nogpgcheck", "/c/v.rpm"], "Fedora: dnf");
+  assert.equal(comandoDeInstalacao({ tipo: "rpm", arquivo: "/c/v.rpm", achar: so("zypper", "rpm") })[0], "/usr/bin/zypper", "openSUSE: zypper");
+  assert.deepEqual(comandoDeInstalacao({ tipo: "rpm", arquivo: "/c/v.rpm", achar: so("rpm") }), ["/usr/bin/rpm", "-U", "--replacepkgs", "/c/v.rpm"]);
+  assert.deepEqual(comandoDeInstalacao({ tipo: "deb", arquivo: "/c/v.deb", achar: so("apt-get", "dpkg") }), ["/usr/bin/apt-get", "install", "-y", "--allow-downgrades", "/c/v.deb"], "Ubuntu: apt-get resolve dependências");
+  assert.deepEqual(comandoDeInstalacao({ tipo: "deb", arquivo: "/c/v.deb", achar: so("dpkg") }), ["/usr/bin/dpkg", "-i", "/c/v.deb"]);
+  assert.equal(comandoDeInstalacao({ tipo: "pacman", arquivo: "/c/v", achar: so("pacman") }), null);
+  assert.throws(() => instalarPacoteDepois({ tipo: "rpm", arquivo: "/c/v.rpm", exe: "/x", log: "/l", root: false, achar: so("dnf"), spawn: () => ({}) }), /pkexec/, "sem pkexec não fecha o app à toa");
+  assert.equal(acharComando("sh"), existe("/usr/bin/sh") ? "/usr/bin/sh" : "/bin/sh");
+
+  const rodar = async ({ codigoSenha }) => {
+    const dir = mk(juntar(tmpdir(), "vcall-pacote-"));
+    const marca = juntar(dir, "ordem.txt");
+    const log = juntar(dir, "vcall.log");
+    const falso = (nome, corpo) => {
+      escreve(juntar(dir, nome), `#!/bin/sh\n${corpo}\n`, { mode: 0o755 });
+      return juntar(dir, nome);
+    };
+    falso("pkexec", `echo "senha $*" >> ${marca}; [ ${codigoSenha} = 0 ] || exit ${codigoSenha}; exec "$@"`);
+    falso("dnf", `echo "dnf $*" >> ${marca}`);
+    const exe = falso("vcall", `echo abriu >> ${marca}`);
+    const achar = (n) => (["pkexec", "dnf"].includes(n) ? juntar(dir, n) : null);
+    const velho = sp("sleep", ["1"]);
+    const { comando } = instalarPacoteDepois({ pid: velho.pid, tipo: "rpm", arquivo: "/tmp/Vcall-3.12.0.rpm", exe, log, root: false, achar });
+    assert.equal(comando[0], juntar(dir, "pkexec"), "a senha é pedida pelo pkexec");
+    await espera(400);
+    assert.ok(!existe(marca), "nada roda com o Vcall ainda aberto");
+    await new Promise((r) => velho.on("exit", r));
+    await espera(1200);
+    return { ordem: le(marca, "utf8").trim().split("\n"), log: JSON.parse(le(log, "utf8").trim()) };
+  };
+  let r = await rodar({ codigoSenha: 0 });
+  assert.deepEqual(r.ordem, [`senha ${r.ordem[0].split(" ")[1]} install -y --nogpgcheck /tmp/Vcall-3.12.0.rpm`, "dnf install -y --nogpgcheck /tmp/Vcall-3.12.0.rpm", "abriu"], "depois de sair: senha, instala, reabre");
+  assert.equal(r.log.evento, "atualizacao-pacote");
+  assert.equal(r.log.codigo, 0, "o resultado fica no registro do app");
+  r = await rodar({ codigoSenha: 126 });
+  assert.deepEqual(r.ordem.slice(-1), ["abriu"], "senha cancelada: o Vcall abre de novo (na versão antiga)");
+  assert.ok(!r.ordem.some((l) => l.startsWith("dnf")), "e nada é instalado");
+  assert.equal(r.log.codigo, 126);
+  ok(".deb/.rpm: instala depois que o Vcall fecha, com pkexec, anota o resultado e sempre reabre");
+}
+
 /* ------------------------------------------------------------------ *
  * Jogos de festa e de tabuleiro: segredo que não vaza, placar que soma
  * uma vez, vez que passa sozinha e o computador que não perde na velha

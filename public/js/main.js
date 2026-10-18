@@ -1509,7 +1509,7 @@ function blocoDeAtualizacao() {
       pronta:
         s.modo === "sozinho"
           ? `Versão ${s.versao} pronta. Ela é instalada quando você fechar o Vcall — ou agora, reiniciando.`
-          : `Versão ${s.versao} pronta. Para instalar, o sistema vai pedir a sua senha.`,
+          : `Versão ${s.versao} pronta. Ao reiniciar, o Vcall fecha, o sistema pede a sua senha para instalar e o Vcall abre de novo na versão nova.`,
       atual: `Você está na versão mais recente (${s.atual}).`,
       aviso: `Versão ${s.versao} disponível. Você está na ${s.atual}. Esta instalação não se atualiza sozinha: baixe pelo site.`,
       erro: `Não deu para atualizar agora (${s.erro}). Versão instalada: ${s.atual}.`,

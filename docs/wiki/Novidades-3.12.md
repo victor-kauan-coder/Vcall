@@ -1,5 +1,14 @@
 # Novidades da 3.12
 
+## 3.12.1: atualizar no Linux sem travar
+
+- **.deb e .rpm:** "Reiniciar e atualizar" fecha o Vcall primeiro; depois o
+  sistema pede a senha, instala e abre o Vcall de novo. Antes a instalação
+  rodava com a janela aberta e congelada ("não está respondendo") e trocava os
+  arquivos do app com ele aberto.
+- **AppImage:** a versão nova não carrega mais os arquivos abertos da antiga;
+  a versão velha sai de vez e o espaço em disco é liberado.
+
 ## Voz que aguenta rede ruim
 
 Cada pacote de voz leva uma cópia do anterior (RED), o Opus corrige perdas

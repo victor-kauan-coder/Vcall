@@ -10,8 +10,9 @@
  *   - Windows e AppImage: ao fechar o Vcall, em silêncio; da próxima vez que a
  *     pessoa abre, já está na versão nova. Ou na hora, pelo botão
  *     "Reiniciar e atualizar" das configurações.
- *   - .deb, .rpm e pacman: só pelo botão, porque o sistema pede a senha de
- *     administrador para instalar um pacote.
+ *   - .deb e .rpm: só pelo botão, porque o sistema pede a senha de
+ *     administrador. O Vcall fecha, o sistema pede a senha, instala e o Vcall
+ *     abre de novo (desktop/pacote.js) — nada roda com a janela congelada.
  *   - .tar.gz e fora do pacote: só avisa e aponta a página de download.
  *
  * O download e a troca de arquivos ficam com o electron-updater. A instalação
@@ -27,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import electronUpdater from "electron-updater";
 
 import { reabrirDepois, trocarAppImage } from "./appimage.js";
+import { instalarPacoteDepois } from "./pacote.js";
 import { confere, nomeNaRelease, sha512DoArquivo } from "./assinatura.js";
 import { REPO, conferir, maisNova, modoDeInstalacao } from "./atualizacao.js";
 
@@ -152,11 +154,36 @@ function instalarAppImage(reabrir) {
   }
 }
 
+/**
+ * .deb e .rpm: fecha o Vcall e deixa um processo à parte pedir a senha,
+ * instalar e reabrir (ver desktop/pacote.js). Não usa o quitAndInstall do
+ * electron-updater, que instalava com a janela aberta e congelada.
+ */
+function instalarPacote(reabrir) {
+  try {
+    const { comando } = instalarPacoteDepois({
+      tipo: tipoDoPacote(),
+      arquivo: baixado,
+      exe: process.execPath,
+      reabrir,
+      log: path.join(app.getPath("logs"), "vcall.log"),
+    });
+    registrar("atualizacao-pacote-agendada", { versao: conferida, comando: comando.join(" "), reabrir });
+    app.quit();
+    return true;
+  } catch (err) {
+    registrar("atualizacao-pacote-falhou", { m: String(err?.message || err) });
+    mudar({ fase: "erro", erro: `não deu para instalar daqui (${err?.message || err}); baixe a versão nova na página de download` });
+    return false;
+  }
+}
+
 /** "Reiniciar e atualizar": só com uma versão conferida. */
 export function instalar() {
   if (!conferida || modo === "manual") return false;
   registrar("atualizacao-instalando", { versao: conferida, quando: "agora" });
   if (process.env.APPIMAGE && baixado) return instalarAppImage(true);
+  if (process.platform === "linux" && baixado) return instalarPacote(true);
   // isSilent: sem as telas do instalador; isForceRunAfter: abre o Vcall de novo.
   autoUpdater.quitAndInstall(true, true);
   return true;

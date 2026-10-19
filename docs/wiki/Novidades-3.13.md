@@ -1,5 +1,15 @@
 # Novidades da 3.13
 
+## 3.13.1: o Quiz com a cara do QuizzV
+
+- Com perguntas do QuizzV, o painel de jogos usa a paleta do app (fundo
+  azul-ardósia, cartões neutros, destaque laranja) e o logo do QuizzV no
+  lobby, nas perguntas, na contagem, no pódio e no QR.
+- As alternativas viram cartões com a letra num círculo, como no app; a
+  página do celular segue o mesmo visual.
+- Correção: na página do celular, a alternativa certa não aparece mais
+  esmaecida depois da revelação.
+
 ## Quiz pelo celular (QuizzV)
 
 Em **Jogos › Quiz › Usar um quiz do meu QuizzV**, o Vcall mostra um QR. O

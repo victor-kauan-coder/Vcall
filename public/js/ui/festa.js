@@ -19,6 +19,7 @@ import { CORES_LAPIS, ESPESSURAS, MODOS_RODA, TELA, TIMES } from "../features/fe
 import { CATEGORIAS_STOP, MIMICAS, PALAVRAS, PERSONAGENS } from "../features/bancos.js";
 import { ranking } from "../features/jogos.js";
 import { Vista, abertura, ajuste, anelTempo, botao, campo, faixa, placar, podio, rosto, seletor, sincronizar, trocar } from "./jogos-comum.js";
+import { logoQuizzv, marcaQuizzv } from "./quizzv-marca.js";
 
 const nomeDe = (pessoas, id, eu, padrao = "Alguém") => (id === eu ? "Você" : pessoas.find((p) => p.id === id)?.nome || padrao);
 
@@ -654,6 +655,26 @@ function valida(resposta, letra) {
 
 const CORES_QUIZ = ["vermelho", "azul", "amarelo", "verde", "roxo"];
 
+/*
+ * Identidade do QuizzV: quando as perguntas vêm de um quiz do QuizzV, o Quiz
+ * mostra a marca do app de onde vieram (logo, nome e as cores azul e laranja).
+ */
+/** Troca o ícone do selo (abertura, pódio) pelo logo do QuizzV. */
+function comLogoNoSelo(no) {
+  no.querySelector(".jg-selo")?.replaceChildren(logoQuizzv({ tamanho: 40 }));
+  return no;
+}
+/** Botão com o logo do QuizzV no lugar do ícone. */
+function botaoQuizzv(texto, opcoes) {
+  const b = botao(texto, { ...opcoes, icone: "smartphone" });
+  b.querySelector("svg.icon")?.replaceWith(logoQuizzv({ tamanho: 18 }));
+  return b;
+}
+/** "um quiz do QuizzV · de Fulano" logo abaixo do título. */
+function linhaQuizzv(de = "") {
+  return el("p.quizzvLinha", {}, [el("span", { text: "um quiz do" }), marcaQuizzv({ tamanho: 20 }), de ? el("span.muted", { text: `· de ${de}` }) : null]);
+}
+
 export class VistaQuiz extends Vista {
   #revelada = "";
   #celular = null;
@@ -692,16 +713,18 @@ export class VistaQuiz extends Vista {
   desenhar() {
     const pessoas = this.pessoas();
     const v = this.l.vista(pessoas);
+    const doQuizzv = v.fonte === "quizzv" || (v.fase === "lobby" && v.cfg.fonte === "quizzv" && !!v.quizzv);
+    this.raiz.classList.toggle("quiz-raiz--quizzv", doQuizzv);
     if (v.fase === "lobby") {
       const cfg = v.cfg;
       const qv = v.quizzv;
       if (cfg.fonte === "quizzv" && qv) {
-        trocar(this.raiz, `lobby-qv|${qv.carga}|${qv.qtd}|${qv.tempo}`, () =>
-          abertura({
+        trocar(this.raiz, `lobby-qv|${qv.carga}|${qv.qtd}|${qv.tempo}`, () => {
+          const no = abertura({
             icone: "smartphone",
             titulo: qv.titulo,
             regras: [
-              `${qv.qtd} ${qv.qtd === 1 ? "pergunta" : "perguntas"} do QuizzV${qv.de ? ` de ${qv.de}` : ""}, ${qv.tempo} s cada${qv.embaralhar ? ", em ordem sorteada" : ""}.`,
+              `${qv.qtd} ${qv.qtd === 1 ? "pergunta" : "perguntas"}, ${qv.tempo} s cada${qv.embaralhar ? ", em ordem sorteada" : ""}.`,
               "Responda aqui ou pelo celular. Acertou rápido, mais pontos.",
               "No fim, o pódio.",
             ],
@@ -709,8 +732,11 @@ export class VistaQuiz extends Vista {
               botao("Começar", { tipo: "primary", icone: "lightbulb", classe: "btn--lg", onClick: () => this.l.comecar() }),
               botao("Usar as perguntas do Vcall", { tipo: "ghost", onClick: () => this.l.configurar({ fonte: "vcall" }) }),
             ],
-          }),
-        );
+          });
+          comLogoNoSelo(no);
+          no.querySelector(".jg-abertura__titulo")?.after(linhaQuizzv(qv.de));
+          return no;
+        });
         return;
       }
       trocar(this.raiz, `lobby|${JSON.stringify(cfg)}|${qv?.carga || ""}`, () =>
@@ -727,9 +753,9 @@ export class VistaQuiz extends Vista {
             botao("Começar", { tipo: "primary", icone: "lightbulb", classe: "btn--lg", onClick: () => this.l.comecar() }),
             // O quiz do QuizzV que já veio nesta chamada continua à mão.
             qv
-              ? botao(`Usar “${qv.titulo}” (QuizzV)`, { tipo: "ghost", icone: "smartphone", onClick: () => this.l.configurar({ fonte: "quizzv" }) })
+              ? botaoQuizzv(`Usar “${qv.titulo}” (QuizzV)`, { tipo: "ghost", onClick: () => this.l.configurar({ fonte: "quizzv" }) })
               : this.c.quizzv
-                ? botao("Usar um quiz do meu QuizzV", { tipo: "ghost", icone: "smartphone", onClick: () => this.c.quizzv.parear() })
+                ? botaoQuizzv("Usar um quiz do meu QuizzV", { tipo: "ghost", onClick: () => this.c.quizzv.parear() })
                 : null,
           ].filter(Boolean),
         }),
@@ -737,16 +763,24 @@ export class VistaQuiz extends Vista {
       return;
     }
     if (v.fase === "fim") {
-      trocar(this.raiz, `fim|${JSON.stringify(v.placar)}`, () =>
-        podio(
+      trocar(this.raiz, `fim|${v.fonte}|${JSON.stringify(v.placar)}`, () => {
+        const no = podio(
           v.placar.map((x) => ({ id: x.id, nome: x.nome, pontos: x.total, eu: x.eu })),
           { pessoas, titulo: v.titulo ? `Fim de “${v.titulo}”!` : "Fim do quiz!", acoes: [botao("Jogar de novo", { tipo: "primary", icone: "rotate-ccw", onClick: () => this.l.comecar() }), botao("Trocar tema", { tipo: "ghost", onClick: () => this.l.encerrar() })] },
-        ),
-      );
+        );
+        if (v.fonte === "quizzv") no.querySelector(".jg-podio__titulo")?.after(linhaQuizzv());
+        return no;
+      });
       return;
     }
     if (v.fase === "preparar") {
-      trocar(this.raiz, `prep|${v.k}|${v.contagem}`, () => el("div.quiz__preparar", {}, [el("span.jogos__rotulo", { text: v.k === 0 ? "Preparem-se!" : `Pergunta ${v.k + 1}` }), el("strong.quiz__contagem", { text: String(v.contagem || "") })]));
+      trocar(this.raiz, `prep|${v.fonte}|${v.k}|${v.contagem}`, () =>
+        el("div.quiz__preparar", {}, [
+          v.fonte === "quizzv" && v.k === 0 ? logoQuizzv({ tamanho: 72, classe: "quizzvLogo--entrada" }) : null,
+          el("span.jogos__rotulo", { text: v.k === 0 ? "Preparem-se!" : `Pergunta ${v.k + 1}` }),
+          el("strong.quiz__contagem", { text: String(v.contagem || "") }),
+        ]),
+      );
       return;
     }
     if (!this.p || !this.p.no.isConnected || this.p.k !== v.k) this.#montarPergunta(v);
@@ -793,7 +827,7 @@ export class VistaQuiz extends Vista {
     this.p = { k: v.k, barra, tempo, opcoes, status: el("div"), explicacao: el("div"), rodape: el("div.quiz__rodape"), placar: el("ol.jg-placar") };
     this.p.no = el("div.quiz", {}, [
       el("div.quiz__palco", {}, [
-        el("div.quiz__cabeca", {}, [el("span.jg-chip", { text: `Pergunta ${v.k + 1} de ${v.total}` }), v.pergunta.tema ? el("span.muted", { text: v.pergunta.tema }) : v.titulo ? el("span.muted.truncate", { text: v.titulo }) : null, tempo]),
+        el("div.quiz__cabeca", {}, [v.fonte === "quizzv" ? marcaQuizzv({ tamanho: 20, classe: "quizzvMarca--chip" }) : null, el("span.jg-chip", { text: `Pergunta ${v.k + 1} de ${v.total}` }), v.pergunta.tema ? el("span.muted", { text: v.pergunta.tema }) : v.titulo ? el("span.muted.truncate", { text: v.titulo }) : null, tempo]),
         barra,
         // Enunciado longo (texto-base de prova, vindo do QuizzV): letra menor e as quebras de linha dele.
         el("h2.quiz__pergunta", { class: v.pergunta.texto.length > 220 ? "quiz__pergunta--longa" : "", text: v.pergunta.texto }),

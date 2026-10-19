@@ -212,7 +212,9 @@ async function rodar(motor) {
     check(motor, "a página do QR oferece abrir no QuizzV", href.startsWith("quizzv://vcall?u=") && href.includes(encodeURIComponent(URL_BASE)));
     await pagCel.click("#noNavegador");
     await pagCel.waitForSelector(".qvp__opcao", { timeout: 8000 });
-    check(motor, "pelo navegador do celular, entra direto na partida", (await pagCel.locator(".qvp__opcao.is-certa").count()) === 1);
+    // A partida pode já ter seguido sozinha (6 s depois da revelação): vale qualquer pergunta dela.
+    const naTela = (await pagCel.textContent(".qvp__pergunta")) || "";
+    check(motor, "pelo navegador do celular, entra direto na partida", QUIZ.perguntas.some((q) => q.texto === naTela.trim()), naTela.slice(0, 40));
 
     cel.pedir({ tipo: "proxima" });
     await pagCel.waitForSelector(".qvp__opcao--4", { timeout: 12_000 });

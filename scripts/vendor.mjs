@@ -8,6 +8,7 @@
  *   public/vendor/emoji.svg    — sprite com os emoji das reações e dos jogos (Fluent Emoji Flat, MIT)
  *   public/vendor/icons.json   — manifesto (id -> viewBox) para checagem em build
  *   public/vendor/avatars.js   — bundle ESM do DiceBear (MIT) com os estilos escolhidos
+ *   public/vendor/qr.js        — gerador de QR code (qrcode-generator, MIT), para parear o QuizzV
  *   public/vendor/vosk.js      — reconhecimento de fala offline (vosk-browser, Apache-2.0),
  *                                usado pelas legendas no aplicativo de mesa
  *
@@ -159,6 +160,8 @@ const ICONS = [
   "scan",
   "crown",
   "flip-horizontal",
+  // Celular com o QuizzV no Quiz (3.13)
+  "smartphone",
 ];
 
 /** Aliases semânticos: id no app -> nome do arquivo Lucide. */
@@ -318,6 +321,28 @@ async function buildAvatars() {
 }
 
 /**
+ * QR code para parear o celular (QuizzV) com a chamada. Gerado aqui, no
+ * navegador: mandar o endereço para um serviço de QR na internet entregaria
+ * o token de pareamento a um terceiro — e a CSP nem deixaria.
+ */
+async function buildQr() {
+  const result = await esbuild.build({
+    entryPoints: [path.join(root, "node_modules", "qrcode-generator", "dist", "qrcode.mjs")],
+    bundle: true,
+    format: "esm",
+    minify: true,
+    target: ["es2020"],
+    outfile: path.join(outDir, "qr.js"),
+    banner: {
+      js: "/* qrcode-generator (MIT) — Kazuhiko Arase — bundle gerado por scripts/vendor.mjs */",
+    },
+    logLevel: "error",
+  });
+  if (result.errors.length) throw new Error("falha no bundle do QR");
+  console.log("  ✓ qr.js");
+}
+
+/**
  * Reconhecimento de fala offline (vosk-browser, Apache-2.0). Só é carregado
  * quando a legenda é ligada no app de mesa, onde o reconhecimento do Chrome
  * não existe.
@@ -454,6 +479,7 @@ console.log("Vendorizando dependências de UI...");
 await buildSprite();
 await buildEmoji();
 await buildAvatars();
+await buildQr();
 await copyVosk();
 await buildWhisper();
 await copyRnnoise();

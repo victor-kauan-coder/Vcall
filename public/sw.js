@@ -93,6 +93,8 @@ function paraErro(volta, status) {
   const tipo = !status ? (self.navigator.onLine === false ? "internet" : "tunel") : status === 504 || status === 524 ? "demora" : "tunel";
   destino.searchParams.set("tipo", tipo);
   if (status) destino.searchParams.set("codigo", String(status));
-  destino.searchParams.set("url", volta);
+  // Sem o fragmento: na página do QuizzV ele é o token de pareamento, e não
+  // deve virar parte de uma URL que vai ao servidor.
+  destino.searchParams.set("url", String(volta).split("#")[0]);
   return Response.redirect(destino.href, 302);
 }

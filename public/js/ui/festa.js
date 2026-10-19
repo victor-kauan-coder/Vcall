@@ -652,14 +652,34 @@ function valida(resposta, letra) {
  * Quiz
  * ================================================================== */
 
-const CORES_QUIZ = ["vermelho", "azul", "amarelo", "verde"];
+const CORES_QUIZ = ["vermelho", "azul", "amarelo", "verde", "roxo"];
 
 export class VistaQuiz extends Vista {
   #revelada = "";
+  #celular = null;
 
   montar() {
     this.raiz = el("div.quiz-raiz");
     this.c.corpo.append(this.raiz);
+    // Responder pelo celular (QuizzV): no topo da mesa, em qualquer fase.
+    const qv = this.c.quizzv;
+    if (qv) {
+      this.#celular = botao("", { tipo: "ghost", icone: "smartphone", classe: "quizzv__botao", onClick: () => qv.parear() });
+      this.c.extra.append(this.#celular);
+      this.ouvir(qv, "mudou", () => this.#pintarCelular());
+      this.#pintarCelular();
+    }
+  }
+
+  #pintarCelular() {
+    const b = this.#celular;
+    if (!b) return;
+    const ligado = !!this.c.quizzv?.conectado;
+    b.classList.toggle("is-ligado", ligado);
+    b.dataset.tip = ligado ? "Celular conectado (QuizzV)" : "Responder pelo celular (QuizzV)";
+    b.dataset.tipPlacement = "bottom";
+    b.setAttribute("aria-label", b.dataset.tip);
+    b.replaceChildren(icon("smartphone", { size: "sm" }), el("span.quizzv__rotulo", { text: ligado ? "Celular conectado" : "Pelo celular" }));
   }
   relogio() {
     return !!this.l.jogo();
@@ -674,7 +694,26 @@ export class VistaQuiz extends Vista {
     const v = this.l.vista(pessoas);
     if (v.fase === "lobby") {
       const cfg = v.cfg;
-      trocar(this.raiz, `lobby|${JSON.stringify(cfg)}`, () =>
+      const qv = v.quizzv;
+      if (cfg.fonte === "quizzv" && qv) {
+        trocar(this.raiz, `lobby-qv|${qv.carga}|${qv.qtd}|${qv.tempo}`, () =>
+          abertura({
+            icone: "smartphone",
+            titulo: qv.titulo,
+            regras: [
+              `${qv.qtd} ${qv.qtd === 1 ? "pergunta" : "perguntas"} do QuizzV${qv.de ? ` de ${qv.de}` : ""}, ${qv.tempo} s cada${qv.embaralhar ? ", em ordem sorteada" : ""}.`,
+              "Responda aqui ou pelo celular. Acertou rápido, mais pontos.",
+              "No fim, o pódio.",
+            ],
+            acoes: [
+              botao("Começar", { tipo: "primary", icone: "lightbulb", classe: "btn--lg", onClick: () => this.l.comecar() }),
+              botao("Usar as perguntas do Vcall", { tipo: "ghost", onClick: () => this.l.configurar({ fonte: "vcall" }) }),
+            ],
+          }),
+        );
+        return;
+      }
+      trocar(this.raiz, `lobby|${JSON.stringify(cfg)}|${qv?.carga || ""}`, () =>
         abertura({
           icone: "lightbulb",
           titulo: "Quiz",
@@ -684,7 +723,15 @@ export class VistaQuiz extends Vista {
             ajuste("Perguntas", seletor("Perguntas", [5, 10, 15, 20].map((n) => [n, `${n} perguntas`]), cfg.qtd, (x) => this.l.configurar({ qtd: Number(x) }))),
             ajuste("Tempo", seletor("Tempo", [10, 15, 20, 30].map((n) => [n, `${n} s por pergunta`]), cfg.tempo, (x) => this.l.configurar({ tempo: Number(x) }))),
           ],
-          acoes: [botao("Começar", { tipo: "primary", icone: "lightbulb", classe: "btn--lg", onClick: () => this.l.comecar() })],
+          acoes: [
+            botao("Começar", { tipo: "primary", icone: "lightbulb", classe: "btn--lg", onClick: () => this.l.comecar() }),
+            // O quiz do QuizzV que já veio nesta chamada continua à mão.
+            qv
+              ? botao(`Usar “${qv.titulo}” (QuizzV)`, { tipo: "ghost", icone: "smartphone", onClick: () => this.l.configurar({ fonte: "quizzv" }) })
+              : this.c.quizzv
+                ? botao("Usar um quiz do meu QuizzV", { tipo: "ghost", icone: "smartphone", onClick: () => this.c.quizzv.parear() })
+                : null,
+          ].filter(Boolean),
         }),
       );
       return;
@@ -693,7 +740,7 @@ export class VistaQuiz extends Vista {
       trocar(this.raiz, `fim|${JSON.stringify(v.placar)}`, () =>
         podio(
           v.placar.map((x) => ({ id: x.id, nome: x.nome, pontos: x.total, eu: x.eu })),
-          { pessoas, titulo: "Fim do quiz!", acoes: [botao("Jogar de novo", { tipo: "primary", icone: "rotate-ccw", onClick: () => this.l.comecar() }), botao("Trocar tema", { tipo: "ghost", onClick: () => this.l.encerrar() })] },
+          { pessoas, titulo: v.titulo ? `Fim de “${v.titulo}”!` : "Fim do quiz!", acoes: [botao("Jogar de novo", { tipo: "primary", icone: "rotate-ccw", onClick: () => this.l.comecar() }), botao("Trocar tema", { tipo: "ghost", onClick: () => this.l.encerrar() })] },
         ),
       );
       return;
@@ -721,6 +768,9 @@ export class VistaQuiz extends Vista {
       status = m ? (m.certo ? `Certo! +${m.pontos}${m.seq > 1 ? ` · ${m.seq} seguidas` : ""}` : "Errou! A certa está em verde.") : "Tempo esgotado.";
     } else status = v.minha ? `Resposta enviada! Esperando os outros (${v.responderam} responderam)` : `${v.responderam} responderam`;
     trocar(p.status, `${status}|${revelada}`, () => el(`p.quiz__status${revelada && v.minha?.certo ? ".is-certo" : revelada ? ".is-errou" : ""}`, { text: status }));
+    // A explicação que veio no quiz do QuizzV, só depois de revelar.
+    const explicacao = revelada ? v.pergunta.explicacao || "" : "";
+    trocar(p.explicacao, `${v.k}|${explicacao}`, () => (explicacao ? el("p.quiz__explicacao", {}, [icon("info", { size: "sm" }), el("span", { text: explicacao })]) : el("span")));
     if (revelada && this.#revelada !== `${v.k}`) {
       this.#revelada = `${v.k}`;
       if (v.minha?.certo) this.c.confete();
@@ -740,14 +790,16 @@ export class VistaQuiz extends Vista {
       });
       return b;
     });
-    this.p = { k: v.k, barra, tempo, opcoes, status: el("div"), rodape: el("div.quiz__rodape"), placar: el("ol.jg-placar") };
+    this.p = { k: v.k, barra, tempo, opcoes, status: el("div"), explicacao: el("div"), rodape: el("div.quiz__rodape"), placar: el("ol.jg-placar") };
     this.p.no = el("div.quiz", {}, [
       el("div.quiz__palco", {}, [
-        el("div.quiz__cabeca", {}, [el("span.jg-chip", { text: `Pergunta ${v.k + 1} de ${v.total}` }), v.pergunta.tema ? el("span.muted", { text: v.pergunta.tema }) : null, tempo]),
+        el("div.quiz__cabeca", {}, [el("span.jg-chip", { text: `Pergunta ${v.k + 1} de ${v.total}` }), v.pergunta.tema ? el("span.muted", { text: v.pergunta.tema }) : v.titulo ? el("span.muted.truncate", { text: v.titulo }) : null, tempo]),
         barra,
-        el("h2.quiz__pergunta", { text: v.pergunta.texto }),
-        el("div.quiz__opcoes", {}, opcoes),
+        // Enunciado longo (texto-base de prova, vindo do QuizzV): letra menor e as quebras de linha dele.
+        el("h2.quiz__pergunta", { class: v.pergunta.texto.length > 220 ? "quiz__pergunta--longa" : "", text: v.pergunta.texto }),
+        el("div.quiz__opcoes", { dataset: { n: opcoes.length } }, opcoes),
         this.p.status,
+        this.p.explicacao,
         this.p.rodape,
       ]),
       el("aside.quiz__lado", {}, [el("h3.jogos__titulo", { text: "Placar" }), this.p.placar]),

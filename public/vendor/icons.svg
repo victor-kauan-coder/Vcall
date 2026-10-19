@@ -660,6 +660,8 @@
   <path d="M12 14v2" />
   <path d="M12 8v2" />
   <path d="M12 2v2" /></symbol>
+<symbol id="i-smartphone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+  <path d="M12 18h.01" /></symbol>
 <use id="i-network-0" href="#i-signal-zero"/>
 <use id="i-network-1" href="#i-signal-low"/>
 <use id="i-network-2" href="#i-signal-medium"/>

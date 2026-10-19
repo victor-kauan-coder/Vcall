@@ -11,6 +11,7 @@ import { config } from "./config.js";
 import { log, redactRoom } from "./logger.js";
 import { RoomRegistry, Participant } from "./rooms.js";
 import { C2S, S2C, ERRORS, parseClientMessage } from "./protocol.js";
+import { QUIZZV_PROTOCOLO } from "./quizzv.js";
 import { ehIpTailscale } from "./rede.js";
 
 const L = config.limits;
@@ -228,7 +229,22 @@ export function attachSignaling(
       socket.__dead = false;
     });
 
+    /*
+     * Nenhuma mensagem derruba o servidor. Antes, uma exceção no tratamento
+     * de uma única mensagem (um objeto aninhado demais, por exemplo) subia até
+     * o `uncaughtException` do processo, que encerra tudo — e todas as
+     * chamadas de todas as salas caíam por causa de um cliente.
+     */
     socket.on("message", (raw) => {
+      try {
+        tratarMensagem(raw);
+      } catch (err) {
+        log.warn("mensagem descartada por erro no tratamento", { erro: String(err?.message || err).slice(0, 120) });
+        fail(ERRORS.MALFORMED);
+      }
+    });
+
+    const tratarMensagem = (raw) => {
       const verdict = ctx.limiter.check();
       // "drop" descarta só esta mensagem e mantém a chamada de pé; a pessoa
       // perde uma legenda ou um pedaço de traço, não a sala inteira.
@@ -239,12 +255,19 @@ export function attachSignaling(
       if (!parsed.ok) return fail(parsed.error);
       const msg = parsed.msg;
 
-      if (msg.t === C2S.JOIN) return handleJoin(ctx, socket, registry, msg, fail);
+      if (msg.t === C2S.JOIN) {
+        // Um celular pareado não vira participante pela mesma conexão.
+        if (ctx.controle) return fail(ERRORS.ALREADY_JOINED);
+        return handleJoin(ctx, socket, registry, msg, fail);
+      }
       // O batimento vale também para quem está na sala de espera.
       if (msg.t === C2S.PING && !ctx.participant) {
         if (socket.readyState === 1) socket.send(JSON.stringify({ t: S2C.PONG, n: msg.n, at: Date.now() }));
         return;
       }
+      if (msg.t === C2S.QUIZ_OLA) return quizOla(ctx, socket, registry, msg);
+      // Celular pareado: só leva recados ao navegador da pessoa dele.
+      if (ctx.controle) return quizDoControle(ctx.controle, msg);
       if (ctx.waitingId) return; // na porta: nada além de esperar
       if (!ctx.participant) return fail(ERRORS.NOT_JOINED);
 
@@ -322,16 +345,43 @@ export function attachSignaling(
           socket.close(1000, "leave");
           break;
         }
+
+        case C2S.QUIZ_PAREAR: {
+          const lista = room.controlesDe(me.id);
+          me.send({
+            t: S2C.QUIZ_PAREAMENTO,
+            token: registry.parear(room, me.id),
+            conectado: lista.length > 0,
+            app: lista.at(-1)?.app || "",
+            v: QUIZZV_PROTOCOLO,
+          });
+          break;
+        }
+
+        case C2S.QUIZ_PARA_CELULAR: {
+          // Só para os celulares DESTA pessoa: ninguém escreve na tela do
+          // celular dos outros.
+          const recado = JSON.stringify({ t: S2C.QUIZ_VISTA, v: msg.v });
+          for (const c of room.controlesDe(me.id)) c.send(recado);
+          break;
+        }
+
+        case C2S.QUIZ_OLA:
+        case C2S.QUIZ_DO_CELULAR: {
+          me.send({ t: S2C.QUIZ_ERRO, erro: "so-pelo-celular" });
+          break;
+        }
       }
-    });
+    };
 
     socket.on("close", (codigo) => {
+      if (ctx.controle) return soltarControle(ctx);
       // 1000: saiu pelo botão (Signaling.close); 1001: fechou a aba. Queda de
       // rede chega como 1006, e o cliente que desiste de um socket mudo usa 4000.
       if (codigo === 1000 || codigo === 1001) ctx.saiuDeProposito = true;
       teardown(ctx, registry);
     });
-    socket.on("error", () => teardown(ctx, registry));
+    socket.on("error", () => (ctx.controle ? soltarControle(ctx) : teardown(ctx, registry)));
   });
 
   // Derruba conexões que pararam de responder (celular que dormiu, rede caiu).
@@ -477,6 +527,9 @@ function concluirEntrada(ctx, socket, room, msg, { anterior = null, ehDono = fal
   } else {
     room.broadcast({ t: S2C.PEER_JOIN, peer: me.publicView(), replaces: null }, me.id);
   }
+  // A aba voltou (reconexão): o celular pareado continua valendo.
+  if (room.controlesDe(me.id).length) room.avisarPareamento(me.id);
+
   // O anfitrião mudou (o dono voltou): todos atualizam a marca.
   if (me.host) {
     room.broadcast({ t: S2C.HOST, id: me.id }, me.id);
@@ -629,6 +682,7 @@ function anunciarSaida(room, me, registry) {
   }
   const newHost = room.remove(me.id);
   room.broadcast({ t: S2C.PEER_LEAVE, id: me.id, newHost: newHost?.id || null });
+  registry.esquecerPareamento(room, me.id);
   if (newHost) for (const [id, w] of room.waiting) newHost.send({ t: S2C.KNOCK, id, name: w.name, avatar: w.avatar });
   if (newHost && room.banned.size) newHost.send({ t: S2C.BANNED, list: room.bannedList() });
 
@@ -639,4 +693,100 @@ function anunciarSaida(room, me, registry) {
   });
 
   registry.dropIfEmpty(room.id);
+}
+
+/* ================================================================== *
+ * Celular com o QuizzV
+ * ================================================================== */
+
+/** Celulares por pessoa. Um segundo aparelho é aceito; um terceiro derruba o mais antigo. */
+const CONTROLES_POR_PESSOA = 2;
+
+/**
+ * O celular se apresenta com o token de pareamento. Ele NÃO entra na sala:
+ * não aparece para ninguém, não ocupa vaga e ninguém abre vídeo com ele — é
+ * um controle remoto do participante que o pareou.
+ */
+function quizOla(ctx, socket, registry, msg) {
+  const recusar = (erro, extra = {}) => {
+    if (socket.readyState === 1) socket.send(JSON.stringify({ t: S2C.QUIZ_ERRO, erro, ...extra }));
+    // 1000 de propósito: não é falha de rede, e o app não deve insistir.
+    socket.close(1000, erro);
+  };
+  if (ctx.participant || ctx.waitingId || ctx.controle) return recusar("ja-conectado");
+  if (msg.v !== QUIZZV_PROTOCOLO) return recusar("versao", { servidor: QUIZZV_PROTOCOLO });
+  const par = registry.pareamento(msg.token);
+  if (!par) return recusar("pareamento-invalido");
+  const { room, pid } = par;
+
+  const controle = {
+    pid,
+    room,
+    app: msg.app,
+    desde: Date.now(),
+    send(payload) {
+      if (socket.readyState !== 1) return false;
+      let data;
+      try {
+        data = typeof payload === "string" ? payload : JSON.stringify(payload);
+      } catch {
+        return false; // como em Participant.send: perde a mensagem, nunca o servidor
+      }
+      socket.send(data);
+      return true;
+    },
+    encerrar(motivo) {
+      this.send({ t: S2C.QUIZ_ERRO, erro: motivo });
+      try {
+        socket.close(1000, motivo);
+      } catch {
+        /* já fechado */
+      }
+    },
+  };
+
+  const antigos = room.controlesDe(pid).sort((a, b) => a.desde - b.desde);
+  while (antigos.length >= CONTROLES_POR_PESSOA) {
+    const velho = antigos.shift();
+    room.controles.delete(velho);
+    velho.encerrar("substituido");
+  }
+
+  ctx.controle = controle;
+  room.controles.add(controle);
+  controle.send({
+    t: S2C.QUIZ_CONECTADO,
+    v: QUIZZV_PROTOCOLO,
+    voce: { id: pid, nome: room.get(pid)?.profile.name || "" },
+    sala: { nome: room.name || "" },
+  });
+  // O navegador da pessoa fica sabendo e manda a primeira vista ao celular.
+  room.avisarPareamento(pid);
+  log.info("celular pareado", { room: redactRoom(room.id), id: pid });
+}
+
+/** O que um celular pareado pode fazer: o batimento e recados ao navegador da pessoa. */
+function quizDoControle(c, msg) {
+  if (msg.t === C2S.PING) {
+    c.send({ t: S2C.PONG, n: msg.n, at: Date.now() });
+    return;
+  }
+  if (msg.t !== C2S.QUIZ_DO_CELULAR) {
+    c.send({ t: S2C.QUIZ_ERRO, erro: "nao-permitido" });
+    return;
+  }
+  const pessoa = c.room.get(c.pid);
+  // A aba da pessoa caiu e está voltando (os 20 s de tolerância): sem ela,
+  // não há quem jogue por este celular. O app avisa e tenta de novo.
+  if (!pessoa?.send({ t: S2C.QUIZ_DO_CELULAR, a: msg.a })) {
+    c.send({ t: S2C.QUIZ_ERRO, erro: "chamada-fora", tipo: msg.a.tipo });
+  }
+}
+
+/** O celular desconectou. */
+function soltarControle(ctx) {
+  const c = ctx.controle;
+  ctx.controle = null;
+  if (!c.room.controles.delete(c)) return;
+  c.room.avisarPareamento(c.pid);
 }

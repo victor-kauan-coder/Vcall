@@ -114,6 +114,34 @@ export class EstadoJogos extends Emitter {
   }
 }
 
+/**
+ * O estado dos jogos em pedaços para quem chega, por TAMANHO e não só por
+ * quantidade. Antes eram 300 chaves por mensagem; com as perguntas de um quiz
+ * do QuizzV (até 4 kB cada) um pedaço passava do que o canal direto aceita, o
+ * envio falhava calado e quem entrava no meio ficava sem o jogo.
+ */
+const PEDACO_MAX = 48 * 1024;
+const utf8 = new TextEncoder();
+/** Bytes que um valor ocupa no fio (acentos valem 2 ou 3 bytes, não 1). */
+export const bytesDe = (v) => utf8.encode(JSON.stringify(v)).length;
+export function pedacosDoEstado(tudo, max = PEDACO_MAX) {
+  const pedacos = [];
+  let atual = [];
+  let tamanho = 0;
+  for (const item of tudo) {
+    const t = bytesDe(item) + 1;
+    if (atual.length && (tamanho + t > max || atual.length >= 300)) {
+      pedacos.push(atual);
+      atual = [];
+      tamanho = 0;
+    }
+    atual.push(item);
+    tamanho += t;
+  }
+  if (atual.length) pedacos.push(atual);
+  return pedacos;
+}
+
 /** Ids curtos para histórias, notas e ações. */
 export function novoId() {
   const b = new Uint8Array(6);

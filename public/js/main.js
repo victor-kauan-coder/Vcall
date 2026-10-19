@@ -42,10 +42,11 @@ import { linkCurto, linkWhatsApp } from "./lib/invite.js";
 import { installMotion, magnifyDock, playIntro, signal, swap, stagger } from "./ui/motion.js";
 import { MiniCall } from "./ui/minicall.js";
 import { watchHandsFree } from "./ui/handsfree.js";
-import { Daily, EstadoJogos, JOGOS, Poker, Retro, comArtigo } from "./features/jogos.js";
+import { Daily, EstadoJogos, JOGOS, Poker, Retro, comArtigo, pedacosDoEstado } from "./features/jogos.js";
 import { Codigo, Desenho, DuasVerdades, Mimica, QuemSouEu, Quiz, Roda, Stop } from "./features/festa.js";
 import { Forca, Lig4, Memoria, Sorteios, Velha } from "./features/tabuleiro.js";
 import { PainelJogos } from "./ui/jogos.js";
+import { PonteQuizzV, linkDePareamento, linkDoQuizzv, qrSvg } from "./features/quizzv.js";
 
 // Antes de qualquer tela ser montada: é ele que anima o que aparece.
 installMotion();
@@ -1916,6 +1917,8 @@ const jogosLogicas = {
   sorteios: new Sorteios(jogosEstado, { nome: meuNome }),
 };
 let jogos = null;
+/** O celular com o QuizzV como controle do Quiz (features/quizzv.js). */
+let quizzv = null;
 
 function pessoasDosJogos() {
   return mesh.roster().map((p) => ({ id: p.id, nome: p.name || "Convidado", avatar: p.avatar, eu: !!p.self }));
@@ -1936,6 +1939,19 @@ function wireJogos() {
   };
   mesh.on("joined", definirEu);
   definirEu();
+  quizzv = new PonteQuizzV({
+    signaling,
+    quiz: jogosLogicas.quiz,
+    pessoas: pessoasDosJogos,
+    eu: () => mesh.selfId || "",
+    nome: meuNome,
+    abrirQuiz: () => abrirJogos("quiz"),
+    parear: () => openQuizzvDialog(),
+  });
+  quizzv.on("aviso", ({ texto, tom }) => toast(texto, { tone: tom, ms: 2600, key: "quizzv" }));
+  quizzv.on("mudou", () => {
+    if (quizzvUi.dialogoAberto) renderPareamento();
+  });
   jogos = new PainelJogos({
     estado: jogosEstado,
     poker: jogosPoker,
@@ -1949,6 +1965,7 @@ function wireJogos() {
     aoFechar: () => fecharJogos(),
     logicas: jogosLogicas,
     aoEscolher: (id) => abrirJogos(id),
+    quizzv,
     // A câmera de alguém, do mesmo fluxo que já chega no quadrinho (Mímica, Quem sou eu?).
     videoDe: (id) => stage?.get(id === mesh.selfId ? "self" : id, "cam")?.video?.srcObject || null,
     baixar: baixarTexto,
@@ -1959,6 +1976,7 @@ function wireJogos() {
   jogosEstado.on("enviar", (lote) => mesh.broadcastBoard({ type: "jogo", o: lote }));
   jogosEstado.on("mudou", (chaves) => {
     if (chaves.includes("jogo")) avisarJogo();
+    if (chaves.some((k) => k.startsWith("qz/"))) quizzv.enviar();
   });
   // Quem chega vê os meus sinais (Já volto, Sim…) sem eu precisar repetir.
   mesh.on("board-channel", ({ id }) => {
@@ -1969,7 +1987,7 @@ function wireJogos() {
   mesh.on("board-channel", ({ id }) => {
     if (jogosEstado.vazio) return;
     const tudo = jogosEstado.instantaneo();
-    for (let i = 0; i < tudo.length; i += 300) mesh.peers.get(id)?.sendBoard({ type: "jogo", o: tudo.slice(i, i + 300) });
+    for (const pedaco of pedacosDoEstado(tudo)) mesh.peers.get(id)?.sendBoard({ type: "jogo", o: pedaco });
     // E, se eu estou desenhando, o desenho até agora (depois do estado: o canal entrega em ordem).
     for (const d of jogosLogicas.desenho.paraQuemChegou()) mesh.peers.get(id)?.sendBoard({ type: "jogo-ev", j: "dz", d });
   });
@@ -1987,6 +2005,7 @@ function wireJogos() {
   setInterval(() => {
     if (!mesh.selfId) return;
     jogosLogicas[jogosEstado.ler("jogo")]?.manter?.(pessoasDosJogos());
+    quizzv.tique();
   }, 1000);
   mesh.on("roster", () => jogos?.atualizar());
 }
@@ -2035,6 +2054,142 @@ function fecharJogos() {
   stage?.setBoard(false);
   dock?.update("jogos", { active: false, label: "Jogos" });
 }
+
+/* ------------------------------------------------------------------ *
+ * Pareamento do celular (QuizzV)
+ *
+ * O QR leva o endereço desta chamada e um token que só vale para esta
+ * pessoa. Tudo passa pelo próprio servidor da chamada (pelo mesmo túnel ou
+ * pela mesma rede): nenhum serviço de terceiros no meio.
+ * ------------------------------------------------------------------ */
+
+const quizzvUi = { dialogoAberto: false, mesmoAssim: false, dono: null };
+
+/**
+ * De onde o celular consegue chegar até este servidor.
+ *
+ * No aplicativo de mesa a página é servida em 127.0.0.1 — que, no celular, é
+ * o próprio celular. Ali vale o endereço público do túnel, ou o do Tailscale.
+ * Sem nenhum dos dois, um endereço local não serve para outro aparelho, e é
+ * melhor dizer isso do que mostrar um QR que não leva a lugar nenhum.
+ */
+function origemParaCelular() {
+  for (const url of [host.url, host.ts?.url]) {
+    if (!url) continue;
+    try {
+      return { origem: new URL(url).origin, via: url === host.url ? "tunel" : "tailscale" };
+    } catch {
+      /* endereço estranho: tenta o próximo */
+    }
+  }
+  const local = /^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname);
+  // "Mostrar mesmo assim": emulador com adb reverse, ou /quizzv aberto aqui mesmo.
+  if (local && !quizzvUi.mesmoAssim) return { origem: null, motivo: "local" };
+  return { origem: location.origin, via: location.protocol === "http:" ? "rede" : "pagina" };
+}
+
+function openQuizzvDialog() {
+  const dlg = $("#quizzvModal");
+  if (!dlg || !quizzv) return;
+  quizzvUi.dialogoAberto = true;
+  dlg.addEventListener("close", () => (quizzvUi.dialogoAberto = false), { once: true });
+  quizzv.pedirToken();
+  renderPareamento();
+  if (!dlg.open) dlg.showModal();
+  animarEntradaDoDialogo(dlg);
+}
+
+function renderPareamento() {
+  const body = $("#quizzvBody");
+  if (!body || !quizzv) return;
+  body.replaceChildren();
+  const { origem, motivo, via } = origemParaCelular();
+
+  if (!origem) {
+    const acoes = el("div.row", { style: { gap: "var(--sp-2)", flexWrap: "wrap" } });
+    if (host.disponivel) {
+      acoes.append(
+        el("button.btn.btn--primary", {
+          type: "button",
+          onClick: async (e) => {
+            e.currentTarget.disabled = true;
+            try {
+              await host.abrirTunel();
+            } catch {
+              toast("Não consegui abrir o link público agora.", { tone: "warn" });
+            }
+            renderPareamento();
+          },
+        }, [icon("link"), el("span", { text: "Gerar link público" })]),
+      );
+    }
+    if (motivo === "local") {
+      acoes.append(
+        el("button.btn.btn--ghost", {
+          type: "button",
+          onClick: () => {
+            quizzvUi.mesmoAssim = true;
+            renderPareamento();
+          },
+        }, [el("span", { text: "Mostrar o código mesmo assim" })]),
+      );
+    }
+    body.append(
+      el("p", { text: "Este endereço só funciona neste computador — o celular não chega até ele." }),
+      el("p.muted", {
+        text: host.disponivel
+          ? "Gere o link público da chamada (ou ligue o Tailscale nas configurações) e o código aparece aqui."
+          : "Abra a chamada pelo endereço da rede ou do túnel (o mesmo que você manda aos convidados) e tente de novo.",
+      }),
+      acoes,
+    );
+    return;
+  }
+
+  if (!quizzv.token) {
+    body.append(carga("Gerando o código…"));
+    return;
+  }
+
+  const link = linkDePareamento(origem, quizzv.token);
+  const status = quizzv.conectado
+    ? el("p.quizzvPar__status.is-ok", {}, [icon("check", { size: "sm" }), el("span", { text: "Celular conectado. Escolha o quiz no QuizzV." })])
+    : el("p.quizzvPar__status", {}, [carga(), el("span", { text: "Esperando o celular…" })]);
+  const celularAqui = env.isTouch && matchMedia("(max-width: 820px)").matches;
+
+  body.append(
+    el("div.quizzvPar", {}, [
+      el("div.quizzvPar__qr", {}, [qrSvg(link)]),
+      el("div.quizzvPar__lado", {}, [
+        el("ol.quizzvPar__passos", {}, [
+          el("li", { text: "No celular, abra o QuizzV e toque em “Conectar ao Vcall”." }),
+          el("li", { text: "Aponte a câmera para este código." }),
+          el("li", { text: "Escolha um quiz e toque em Começar — ou só responda, se outra pessoa estiver conduzindo." }),
+        ]),
+        status,
+      ]),
+    ]),
+    el("details.quizzvPar__mais", {}, [
+      el("summary", { text: "Sem câmera? Mande o link para o celular" }),
+      el("p.muted", {
+        text: "Tocado no celular, o link abre o QuizzV já conectado a esta chamada — ou uma página para responder pelo navegador. Ele vale só para você: quem tiver o link responde em seu nome.",
+      }),
+      el("div.row", { style: { gap: "var(--sp-2)" } }, [
+        el("input.input", { value: link, readOnly: true, "aria-label": "Link de pareamento", onFocus: (e) => e.target.select() }),
+        el("button.btn", { type: "button", onClick: () => copy(link, "Link copiado") }, [icon("copy"), el("span", { text: "Copiar" })]),
+      ]),
+      celularAqui
+        ? el("a.btn.btn--primary", { href: linkDoQuizzv(origem, quizzv.token) }, [icon("smartphone"), el("span", { text: "Abrir no QuizzV deste celular" })])
+        : null,
+    ]),
+    via === "rede"
+      ? el("p.muted.quizzvPar__nota", { text: "Endereço da rede local: o celular precisa estar no mesmo Wi-Fi que este computador." })
+      : via === "tailscale"
+        ? el("p.muted.quizzvPar__nota", { text: "Endereço do Tailscale: o celular precisa estar com o Tailscale ligado." })
+        : null,
+  );
+}
+
 
 function abrirMenuJogos() {
   if (jogos?.aberto) fecharJogos();
@@ -2454,6 +2609,9 @@ function receberReacao(from, op) {
 
 function wireMesh() {
   mesh.on("joined", ({ self, peers, room, reconnected }) => {
+    // Voltou com outro id: o token antigo de pareamento morreu com ele.
+    if (quizzvUi.dono && quizzvUi.dono !== self.id) quizzv?.esquecerToken();
+    quizzvUi.dono = self.id;
     app.maxPeers = room?.max || app.maxPeers;
     app.roomName = room?.name || app.roomName;
     app.roomCode = room?.code || app.roomCode;

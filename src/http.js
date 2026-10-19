@@ -97,11 +97,27 @@ const CSP = [
   // `navigate-to` foi retirado da especificação e os navegadores hoje apenas
   // reclamam dela no console; `form-action 'none'` acima já cobre o caso que
   // importava aqui.
-  "upgrade-insecure-requests",
 ].join("; ");
 
+/*
+ * `upgrade-insecure-requests` SÓ quando a página chegou por HTTPS.
+ *
+ * Antes ia sempre. Chrome e Firefox isentam localhost dessa regra, mas o
+ * Safari não: numa página aberta por http (rede local, ou localhost), ele
+ * trocava cada CSS, script e ícone para https no mesmo endereço — que não
+ * existe — e a chamada abria em branco. Sobre HTTPS a diretiva continua
+ * valendo; sobre http ela não tinha para onde "subir" mesmo.
+ */
+const CSP_HTTPS = `${CSP}; upgrade-insecure-requests`;
+
 /** Páginas com endereço limpo que não são o app principal. */
-const ROTAS_FIXAS = { "/abrir": "/abrir.html", "/abrir/": "/abrir.html" };
+const ROTAS_FIXAS = {
+  "/abrir": "/abrir.html",
+  "/abrir/": "/abrir.html",
+  // O QR do QuizzV: o token de pareamento vai no fragmento, nunca na URL.
+  "/quizzv": "/quizzv.html",
+  "/quizzv/": "/quizzv.html",
+};
 
 const SECURITY_HEADERS = {
   "Content-Security-Policy": CSP,
@@ -130,7 +146,11 @@ function headersFor(req) {
   const proto = config.trustProxy ? String(req.headers["x-forwarded-proto"] || "") : "";
   const secure = req.socket.encrypted === true || proto.split(",")[0].trim() === "https";
   if (!secure) return SECURITY_HEADERS;
-  return { ...SECURITY_HEADERS, "Strict-Transport-Security": "max-age=31536000" };
+  return {
+    ...SECURITY_HEADERS,
+    "Content-Security-Policy": CSP_HTTPS,
+    "Strict-Transport-Security": "max-age=31536000",
+  };
 }
 
 /** Cache de metadados (etag + tamanho) para não reler o disco a cada request. */

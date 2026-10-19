@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="/css/board.css" />
     <link rel="stylesheet" href="/css/jogos.css" />
     <link rel="stylesheet" href="/css/diversao.css" />
+    <link rel="stylesheet" href="/css/quizzv.css" />
     <link rel="stylesheet" href="/css/reacoes.css" />
     <link rel="stylesheet" href="/css/dashboard.css" />
     <link rel="stylesheet" href="/css/motion.css" />
@@ -322,6 +323,18 @@
           </button>
         </div>
         <div class="modal__body" id="settingsBody"></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="quizzvModal" aria-labelledby="quizzvTitulo">
+      <form method="dialog" class="modal__card">
+        <div class="modal__head">
+          <h2 class="modal__title" id="quizzvTitulo">Quiz pelo celular (QuizzV)</h2>
+          <button class="btn btn--icon btn--ghost" value="close" aria-label="Fechar">
+            <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-x" /></svg>
+          </button>
+        </div>
+        <div class="modal__body" id="quizzvBody"></div>
       </form>
     </dialog>
 

@@ -30,13 +30,17 @@ jobs:
       - name: Dependências (com as de desenvolvimento)
         run: npm ci --include=dev
       - name: Chromium para os testes
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Verificação estática e testes do servidor
         run: npm run check
       - name: Dois navegadores numa chamada (e2e)
         run: node scripts/e2e.mjs
       - name: Interface — cada correção, clicando como uma pessoa
         run: node scripts/ui-test.mjs
+      - name: Quiz pelo celular (QuizzV), em três motores de navegador
+        run: node scripts/quizzv-e2e.mjs
+        env:
+          QUIZ_BROWSERS: chromium,firefox,webkit
       - name: Atrás de um túnel HTTPS
         run: node scripts/proxy-test.mjs
       - name: Relé — três navegadores, a sala se ajuda
@@ -80,4 +84,5 @@ jobs:
         run: |
           node scripts/check.mjs
           node scripts/fixes-test.mjs
+          node scripts/quizzv-test.mjs
           node scripts/security-test.mjs

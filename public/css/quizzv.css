@@ -8,8 +8,307 @@
  */
 
 /* ------------------------------------------------------------------ *
+ * Identidade do QuizzV (ui/quizzv-marca.js)
+ *
+ * As cores do app: azul-marinho e laranja. No escuro o azul clareia, como
+ * no próprio QuizzV, para não sumir no fundo.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --quizzv-azul: #5b80ec; /* tema escuro (padrão do Vcall) */
+  --quizzv-azul-forte: #293e9a;
+  --quizzv-laranja: #f86b23;
+}
+:root[data-theme="light"] {
+  --quizzv-azul: #293e9a;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --quizzv-azul: #293e9a;
+  }
+}
+
+.quizzvLogo {
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+}
+.quizzvLogo__azul {
+  fill: var(--quizzv-azul);
+}
+.quizzvLogo__laranja {
+  fill: var(--quizzv-laranja);
+}
+/* Sobre fundo branco (o QR), sempre as cores originais. */
+.quizzvLogo--fixo .quizzvLogo__azul {
+  fill: var(--quizzv-azul-forte);
+}
+
+.quizzvNome {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--quizzv-azul);
+}
+.quizzvNome__v {
+  color: var(--quizzv-laranja);
+}
+
+.quizzvMarca {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* O selo no cabeçalho da pergunta. */
+.quizzvMarca--chip {
+  padding: 3px 10px 3px 6px;
+  border: 1px solid color-mix(in oklab, var(--quizzv-azul) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--quizzv-azul) 12%, transparent);
+  font-size: var(--text-sm);
+}
+
+/* "um quiz do QuizzV · de Fulano", sob o título (lobby e pódio). */
+.quizzvLinha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-secondary);
+}
+.quizzvLinha .quizzvMarca {
+  font-size: var(--text-lg);
+}
+
+/* ------------------------------------------------------------------ *
+ * A paleta do QuizzV
+ *
+ * Quando as perguntas vêm do QuizzV, o painel de jogos inteiro troca de
+ * paleta: o azul-ardósia do app no fundo, cartões neutros e o laranja de
+ * destaque. Os valores são os do próprio app (buildColors em src/theme.js,
+ * com o laranja padrão), e os tokens do Vcall são redefinidos só aqui, então
+ * botões, chips, placar e pódio seguem sem regra própria. A página do celular
+ * (/quizzv) usa a mesma paleta sempre: ela é a "cara" do QuizzV no navegador.
+ *
+ * `:has` pinta o painel todo (abas incluídas); sem ele, só o Quiz.
+ * ------------------------------------------------------------------ */
+
+.jogos:has(.quiz-raiz--quizzv),
+.quiz-raiz--quizzv,
+.tema-quizzv {
+  --qv-fundo: #0f172a;
+  --qv-cartao: #1e293b;
+  --qv-cartao-2: #273449;
+  --qv-borda: #334155;
+  --qv-texto: #f8fafc;
+  --qv-apagado: #94a3b8;
+  --qv-laranja: #f97316;
+  --qv-laranja-texto: #f97316; /* laranja legível como texto (4,5:1) */
+  --qv-sobre-laranja: #0f172a;
+  --qv-certo: #4ade80;
+  --qv-certo-suave: rgba(74, 222, 128, 0.14);
+  --qv-erro: #f87171;
+  --qv-erro-suave: rgba(248, 113, 113, 0.14);
+
+  --bg: var(--qv-fundo);
+  --bg-elevated: var(--qv-cartao);
+  --surface: var(--qv-fundo);
+  --surface-2: var(--qv-cartao);
+  --surface-3: var(--qv-cartao-2);
+  --surface-hover: var(--qv-cartao-2);
+  --border: var(--qv-borda);
+  --border-strong: #475569;
+  --border-subtle: var(--qv-cartao);
+  --text: var(--qv-texto);
+  --text-secondary: var(--qv-apagado);
+  --text-muted: var(--qv-apagado);
+  --accent: var(--qv-laranja);
+  --accent-hover: #fb8a3c;
+  --accent-soft: rgba(249, 115, 22, 0.17);
+  --accent-text: var(--qv-sobre-laranja);
+  --accent-2-soft: rgba(91, 128, 236, 0.14);
+  --ok: var(--qv-certo);
+  --ok-soft: var(--qv-certo-suave);
+  --danger: var(--qv-erro);
+  --danger-soft: var(--qv-erro-suave);
+  --brand-pink: var(--qv-laranja);
+  --brand-orange: #fb923c;
+  --brand-gradient: linear-gradient(135deg, var(--qv-laranja), #fb923c);
+}
+:root[data-theme="light"] :is(.jogos:has(.quiz-raiz--quizzv), .quiz-raiz--quizzv, .tema-quizzv) {
+  --qv-fundo: #f8fafc;
+  --qv-cartao: #ffffff;
+  --qv-cartao-2: #eef2f7;
+  --qv-borda: #e2e8f0;
+  --qv-texto: #0f172a;
+  --qv-apagado: #475569;
+  --qv-laranja-texto: #bb5611;
+  --qv-certo: #15803d;
+  --qv-certo-suave: #dcfce7;
+  --qv-erro: #b91c1c;
+  --qv-erro-suave: #fee2e2;
+  --border-strong: #cbd5e1;
+  --accent-hover: #ea6a0c;
+  --accent-soft: rgba(249, 115, 22, 0.1);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) :is(.jogos:has(.quiz-raiz--quizzv), .quiz-raiz--quizzv, .tema-quizzv) {
+    --qv-fundo: #f8fafc;
+    --qv-cartao: #ffffff;
+    --qv-cartao-2: #eef2f7;
+    --qv-borda: #e2e8f0;
+    --qv-texto: #0f172a;
+    --qv-apagado: #475569;
+    --qv-laranja-texto: #bb5611;
+    --qv-certo: #15803d;
+    --qv-certo-suave: #dcfce7;
+    --qv-erro: #b91c1c;
+    --qv-erro-suave: #fee2e2;
+    --border-strong: #cbd5e1;
+    --accent-hover: #ea6a0c;
+    --accent-soft: rgba(249, 115, 22, 0.1);
+  }
+}
+.quiz-raiz--quizzv {
+  min-height: 100%;
+  background: var(--qv-fundo);
+}
+/* Na página do celular o fundo é o do app, sem os brilhos do Vcall. */
+body.tema-quizzv {
+  background: var(--qv-fundo);
+}
+
+/* Texto em laranja: no claro, o tom escuro que o app usa para passar de 4,5:1. */
+:is(.quiz-raiz--quizzv, .tema-quizzv) .jg-chip,
+.quiz-raiz--quizzv .quiz__tempo {
+  color: var(--qv-laranja-texto);
+}
+:is(.quiz-raiz--quizzv, .tema-quizzv) .btn--primary {
+  --btn-bg: var(--qv-laranja);
+  --btn-fg: var(--qv-sobre-laranja);
+}
+/* Dentro de um botão, o nome é o rótulo: todo na cor do texto do botão. */
+.btn .quizzvNome,
+.btn .quizzvNome__v {
+  color: inherit;
+}
+
+/* Barra de tempo: o laranja sólido sobre o trilho do app. */
+.quiz-raiz--quizzv .quiz__barra,
+.tema-quizzv .qvp__barra {
+  background: var(--qv-cartao-2);
+}
+.quiz-raiz--quizzv .quiz__barra > i,
+.tema-quizzv .qvp__barra > i {
+  background: var(--qv-laranja);
+}
+.quiz-raiz--quizzv .quiz__contagem {
+  color: var(--qv-laranja-texto);
+}
+
+/* No selo grande do lobby fica o logo, num cartão do app. */
+.quiz-raiz--quizzv .jg-selo--grande {
+  background: var(--qv-cartao);
+  border: 1px solid var(--qv-borda);
+  box-shadow: 0 10px 28px -14px var(--qv-laranja);
+}
+
+/*
+ * As alternativas como no QuizzV: cartões neutros com a letra num círculo.
+ * Escolhida: borda laranja. Revelada: a certa em verde, a sua errada em
+ * vermelho, o resto apagado.
+ */
+:is(.quiz-raiz--quizzv .quiz__opcao, .qvp--quizzv .qvp__opcao) {
+  --tom: var(--qv-cartao);
+  border: 1.5px solid var(--qv-borda);
+  background: var(--qv-cartao);
+  box-shadow: none;
+  color: var(--qv-texto);
+}
+.qvp--quizzv .qvp__opcao {
+  min-height: 64px;
+}
+:is(.quiz-raiz--quizzv .quiz__letra, .qvp--quizzv .qvp__letra) {
+  border-radius: 50%;
+  background: var(--qv-cartao-2);
+  color: var(--qv-texto);
+  transition: background 200ms var(--ease-out), color 200ms var(--ease-out);
+}
+.quiz-raiz--quizzv .quiz__quem {
+  color: var(--qv-apagado);
+  opacity: 1;
+}
+.quiz-raiz--quizzv .quiz__opcao:not(:disabled):hover,
+.qvp--quizzv .qvp__opcao:not(:disabled):hover {
+  border-color: var(--qv-laranja);
+  transform: translateY(-2px);
+}
+:is(.quiz-raiz--quizzv .quiz__opcao, .qvp--quizzv .qvp__opcao).is-minha {
+  outline: none;
+  border-color: var(--qv-laranja);
+  background: var(--accent-soft);
+}
+:is(.quiz-raiz--quizzv .quiz__opcao, .qvp--quizzv .qvp__opcao).is-minha :is(.quiz__letra, .qvp__letra) {
+  background: var(--qv-laranja);
+  color: var(--qv-sobre-laranja);
+}
+:is(.quiz-raiz--quizzv .quiz__opcao, .qvp--quizzv .qvp__opcao).is-certa {
+  border-color: var(--qv-certo);
+  background: var(--qv-certo-suave);
+  box-shadow: none;
+}
+:is(.quiz-raiz--quizzv .quiz__opcao, .qvp--quizzv .qvp__opcao).is-certa :is(.quiz__letra, .qvp__letra) {
+  background: var(--qv-certo);
+  color: var(--qv-fundo);
+}
+.jogos .quiz-raiz--quizzv .quiz__opcao.is-errada,
+.qvp--quizzv .qvp__opcao.is-apagada {
+  opacity: 1;
+  filter: none;
+  color: var(--qv-apagado);
+}
+.jogos .quiz-raiz--quizzv .quiz__opcao.is-errada.is-minha,
+.qvp--quizzv .qvp__opcao.is-apagada.is-minha {
+  border-color: var(--qv-erro);
+  background: var(--qv-erro-suave);
+  color: var(--qv-texto);
+}
+:is(.quiz-raiz--quizzv .quiz__opcao.is-errada, .qvp--quizzv .qvp__opcao.is-apagada).is-minha :is(.quiz__letra, .qvp__letra) {
+  background: var(--qv-erro);
+  color: var(--qv-fundo);
+}
+
+.quizzvLogo--entrada {
+  animation: quizzvEntrada 700ms var(--ease-out) both;
+}
+@keyframes quizzvEntrada {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-8deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quizzvLogo--entrada {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * Diálogo do QR
  * ------------------------------------------------------------------ */
+
+.quizzvTitulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quizzvTitulo .quizzvNome {
+  margin-left: -2px;
+}
 
 .quizzvPar {
   display: flex;
@@ -180,6 +479,12 @@
 
 .qvp__opcao:not(:disabled):active {
   transform: scale(0.98);
+}
+
+/* Travada (já respondeu, ou revelada) não é apagada: quem apaga é .is-apagada. */
+.qvp__opcao:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .qvp__opcao.is-minha {

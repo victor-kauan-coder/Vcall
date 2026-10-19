@@ -1020,7 +1020,9 @@ export class Quiz extends Emitter {
       .sort((a, b) => b.total - a.total);
     const total = j.fonte === "quizzv" ? j.ordem.length : j.qs.length;
     const titulo = j.fonte === "quizzv" ? texto(j.titulo, 80) || "Quiz do QuizzV" : "";
-    if (p.k >= total) return { fase: "fim", placar, total, cfg, titulo };
+    // De onde vêm as perguntas desta partida: a tela usa a identidade do QuizzV.
+    const fonte = j.fonte === "quizzv" ? "quizzv" : "vcall";
+    if (p.k >= total) return { fase: "fim", placar, total, cfg, titulo, fonte };
     const q = this.pergunta(p.k);
     const agora = this.agora();
     const limite = Number(j.tempo || 20);
@@ -1033,6 +1035,7 @@ export class Quiz extends Emitter {
       k: p.k,
       total,
       titulo,
+      fonte,
       contagem: Math.max(0, Math.ceil((Number(p.inicio) - agora) / 1000)),
       restante: Math.max(0, limite - (agora - Number(p.inicio)) / 1000),
       limite,

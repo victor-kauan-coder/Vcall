@@ -11,8 +11,13 @@
  */
 import { el } from "./lib/dom.js";
 import { QUIZZV_PROTOCOLO, linkDoQuizzv } from "./features/quizzv.js";
+import { logoQuizzv, marcaQuizzv, nomeQuizzv } from "./ui/quizzv-marca.js";
 
 const $ = (s) => document.querySelector(s);
+
+// A cara do QuizzV na porta: logo e nome do app no lugar do logo do Vcall.
+$(".qv__logo")?.replaceWith(logoQuizzv({ tamanho: 72, rotulo: "QuizzV" }));
+$("#abrirApp")?.replaceChildren("Abrir no ", nomeQuizzv());
 const LETRAS = "ABCDE";
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/;
@@ -229,8 +234,10 @@ function desenhar() {
     status = minha != null ? `Resposta enviada! ${v.responderam} responderam` : `${v.responderam} responderam`;
   }
 
+  // Perguntas do QuizzV: os cartões neutros do app, como na tela da chamada.
+  raiz.classList.toggle("qvp--quizzv", v.fonte === "quizzv");
   raiz.replaceChildren(
-    el("div.qvp__topo", {}, [el("span", { text: `Pergunta ${v.k + 1} de ${v.total}${v.titulo ? ` · ${v.titulo}` : ""}` }), tempo]),
+    el("div.qvp__topo", {}, [v.fonte === "quizzv" ? marcaQuizzv({ tamanho: 18 }) : null, el("span", { text: `Pergunta ${v.k + 1} de ${v.total}${v.titulo ? ` · ${v.titulo}` : ""}` }), tempo]),
     barra,
     el("h1.qvp__pergunta", { text: v.pergunta.texto }),
     el("div.qvp__opcoes", { role: "group", "aria-label": "Alternativas" }, opcoes),

@@ -47,6 +47,7 @@ import { Codigo, Desenho, DuasVerdades, Mimica, QuemSouEu, Quiz, Roda, Stop } fr
 import { Forca, Lig4, Memoria, Sorteios, Velha } from "./features/tabuleiro.js";
 import { PainelJogos } from "./ui/jogos.js";
 import { PonteQuizzV, linkDePareamento, linkDoQuizzv, qrSvg } from "./features/quizzv.js";
+import { logoQuizzv, nomeQuizzv } from "./ui/quizzv-marca.js";
 
 // Antes de qualquer tela ser montada: é ele que anima o que aparece.
 installMotion();
@@ -2093,6 +2094,12 @@ function openQuizzvDialog() {
   if (!dlg || !quizzv) return;
   quizzvUi.dialogoAberto = true;
   dlg.addEventListener("close", () => (quizzvUi.dialogoAberto = false), { once: true });
+  // O título com a marca do app do outro lado.
+  const titulo = $("#quizzvTitulo");
+  if (titulo && !titulo.querySelector(".quizzvLogo")) {
+    titulo.classList.add("quizzvTitulo");
+    titulo.replaceChildren(logoQuizzv({ tamanho: 28 }), el("span", { text: "Quiz pelo celular com o" }), nomeQuizzv());
+  }
   quizzv.pedirToken();
   renderPareamento();
   if (!dlg.open) dlg.showModal();
@@ -2162,7 +2169,7 @@ function renderPareamento() {
       el("div.quizzvPar__qr", {}, [qrSvg(link)]),
       el("div.quizzvPar__lado", {}, [
         el("ol.quizzvPar__passos", {}, [
-          el("li", { text: "No celular, abra o QuizzV e toque em “Conectar ao Vcall”." }),
+          el("li", { text: "No celular, abra o QuizzV e toque em “Vcall”." }),
           el("li", { text: "Aponte a câmera para este código." }),
           el("li", { text: "Escolha um quiz e toque em Começar — ou só responda, se outra pessoa estiver conduzindo." }),
         ]),

@@ -16,6 +16,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import qrcode from "../../vendor/qr.js";
+import { logoQuizzv } from "../ui/quizzv-marca.js";
 
 /** Versão do protocolo celular ↔ chamada (igual a src/quizzv.js). */
 export const QUIZZV_PROTOCOLO = 1;
@@ -46,8 +47,10 @@ export function linkDoQuizzv(origem, token) {
  * Sempre escuro sobre branco, nos dois temas — leitor de celular barato não
  * lê QR invertido.
  */
-export function qrSvg(texto, { titulo = "QR code para parear o celular" } = {}) {
-  const q = qrcode(0, "M");
+export function qrSvg(texto, { titulo = "QR code para parear o celular", comLogo = true } = {}) {
+  // Com o logo do QuizzV no meio, a correção de erro vai ao máximo (H, ~30%):
+  // o logo cobre bem menos que isso e o código continua lendo de primeira.
+  const q = qrcode(0, comLogo ? "H" : "M");
   q.addData(texto);
   q.make();
   const n = q.getModuleCount();
@@ -70,6 +73,18 @@ export function qrSvg(texto, { titulo = "QR code para parear o celular" } = {}) 
   caminho.setAttribute("d", d);
   caminho.setAttribute("fill", "#000");
   svg.append(fundo, caminho);
+  if (comLogo) {
+    // Um quadrado branco com cantos redondos e o logo por cima, no centro
+    // (longe dos três quadrados de posição dos cantos).
+    const t = Math.round(n * 0.22);
+    const x0 = (n - t) / 2;
+    const placa = document.createElementNS(NS, "rect");
+    for (const [k, v] of [["x", x0 - 0.6], ["y", x0 - 0.6], ["width", t + 1.2], ["height", t + 1.2], ["rx", 1.6], ["fill", "#fff"]]) placa.setAttribute(k, String(v));
+    const logo = logoQuizzv({ fixo: true });
+    for (const [k, v] of [["x", x0], ["y", x0], ["width", t], ["height", t]]) logo.setAttribute(k, String(v));
+    logo.setAttribute("shape-rendering", "geometricPrecision");
+    svg.append(placa, logo);
+  }
   return svg;
 }
 
@@ -85,7 +100,7 @@ export function qrSvg(texto, { titulo = "QR code para parear o celular" } = {}) 
 const txt = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
 
 export function vistaParaCelular(v, { eu = "", pessoas = [] } = {}) {
-  const base = { v: QUIZZV_PROTOCOLO, fase: v.fase, fonte: v.cfg?.fonte || "vcall" };
+  const base = { v: QUIZZV_PROTOCOLO, fase: v.fase, fonte: v.fonte || v.cfg?.fonte || "vcall" };
   if (v.quizzv) base.quizzv = { titulo: txt(v.quizzv.titulo, 80), qtd: v.quizzv.qtd, tempo: v.quizzv.tempo };
   if (v.fase === "lobby") return base;
 

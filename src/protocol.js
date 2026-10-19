@@ -7,6 +7,7 @@
  * confiar cegamente nos objetos que recebe.
  */
 import { config } from "./config.js";
+import { QUIZZV_LIMITES, normalizarAcao } from "./quizzv.js";
 
 const L = config.limits;
 
@@ -27,6 +28,16 @@ export const C2S = Object.freeze({
   MODERATE: "moderate",
   LEAVE: "leave",
   PING: "ping",
+
+  /* Celular com o QuizzV (src/quizzv.js). */
+  /** Participante pede o token para parear o celular. */
+  QUIZ_PAREAR: "quiz-parear",
+  /** Primeira mensagem do celular: apresenta o token. Não é um `join`. */
+  QUIZ_OLA: "quiz-ola",
+  /** Celular -> navegador da pessoa: carregar quiz, responder, próxima… */
+  QUIZ_DO_CELULAR: "quiz-do-celular",
+  /** Navegador -> celulares da pessoa: o que mostrar agora. */
+  QUIZ_PARA_CELULAR: "quiz-para-celular",
 });
 
 /** Servidor -> cliente */
@@ -57,6 +68,19 @@ export const S2C = Object.freeze({
   BANNED: "banned",
   ERROR: "error",
   PONG: "pong",
+
+  /** Token de pareamento, para quem pediu. */
+  QUIZ_PAREAMENTO: "quiz-pareamento",
+  /** Para o celular: pareado, em nome de quem. */
+  QUIZ_CONECTADO: "quiz-conectado",
+  /** Para o participante: o celular dele conectou ou caiu. */
+  QUIZ_CELULAR: "quiz-celular",
+  /** Para o participante: um pedido do celular dele. */
+  QUIZ_DO_CELULAR: "quiz-do-celular",
+  /** Para o celular: o que mostrar agora. */
+  QUIZ_VISTA: "quiz-vista",
+  /** Recusa ligada ao celular. Não confundir com `error`, que é da sala. */
+  QUIZ_ERRO: "quiz-erro",
 });
 
 export const ERRORS = Object.freeze({
@@ -170,6 +194,30 @@ export function normalizeRoomMeta(m) {
   };
 }
 
+/**
+ * Profundidade máxima de um objeto opaco do cliente (SDP/ICE, operação do
+ * quadro, vista do Quiz). Nada legítimo passa de uns 10 níveis.
+ *
+ * ANTES NÃO HAVIA LIMITE, e uma mensagem de ~10 kB com milhares de colchetes
+ * aninhados derrubava o servidor inteiro: o JSON.parse aceita, mas o
+ * JSON.stringify (ao medir, ao repassar) estoura a pilha, a exceção escapava
+ * do tratamento da mensagem e o processo saía — todas as chamadas caíam.
+ * A conferência é iterativa de propósito: recursiva, estouraria igual.
+ */
+const PROFUNDIDADE_MAX = 64;
+export function profundidadeOk(v, max = PROFUNDIDADE_MAX) {
+  const pilha = [[v, 1]];
+  while (pilha.length) {
+    const [atual, d] = pilha.pop();
+    if (!atual || typeof atual !== "object") continue;
+    if (d > max) return false;
+    for (const k in atual) {
+      if (Object.prototype.hasOwnProperty.call(atual, k)) pilha.push([atual[k], d + 1]);
+    }
+  }
+  return true;
+}
+
 const REACTIONS = new Set(["like", "clap", "heart", "laugh", "wow", "question"]);
 
 /**
@@ -221,7 +269,7 @@ export function parseClientMessage(raw) {
 
     case C2S.SIGNAL: {
       // `to` é o id de um par; `d` é SDP ou candidato ICE, opaco para nós.
-      if (typeof m.to !== "string" || !m.to || !m.d || typeof m.d !== "object") {
+      if (typeof m.to !== "string" || !m.to || !m.d || typeof m.d !== "object" || !profundidadeOk(m.d)) {
         return { ok: false, error: ERRORS.MALFORMED };
       }
       return { ok: true, msg: { t: C2S.SIGNAL, to: m.to, d: m.d } };
@@ -247,7 +295,7 @@ export function parseClientMessage(raw) {
     case C2S.BOARD: {
       // Operações do quadro branco. O DataChannel é o caminho normal; este
       // fallback pelo servidor cobre pares que ainda não conectaram P2P.
-      if (!m.op || typeof m.op !== "object") return { ok: false, error: ERRORS.MALFORMED };
+      if (!m.op || typeof m.op !== "object" || !profundidadeOk(m.op)) return { ok: false, error: ERRORS.MALFORMED };
       return { ok: true, msg: { t: C2S.BOARD, op: m.op } };
     }
 
@@ -274,6 +322,30 @@ export function parseClientMessage(raw) {
 
     case C2S.PING:
       return { ok: true, msg: { t: C2S.PING, n: Number(m.n) || 0 } };
+
+    case C2S.QUIZ_PAREAR:
+      return { ok: true, msg: { t: C2S.QUIZ_PAREAR } };
+
+    case C2S.QUIZ_OLA: {
+      const t = token(m.token);
+      if (!t) return { ok: false, error: ERRORS.MALFORMED };
+      return { ok: true, msg: { t: C2S.QUIZ_OLA, token: t, v: Number(m.v) || 0, app: clean(m.app, 40) } };
+    }
+
+    case C2S.QUIZ_DO_CELULAR: {
+      const a = normalizarAcao(m.a);
+      if (!a) return { ok: false, error: ERRORS.MALFORMED };
+      return { ok: true, msg: { t: C2S.QUIZ_DO_CELULAR, a } };
+    }
+
+    case C2S.QUIZ_PARA_CELULAR: {
+      // Opaco para o servidor, como o SDP: só a forma e o tamanho.
+      if (!m.v || typeof m.v !== "object" || Array.isArray(m.v) || !profundidadeOk(m.v)) {
+        return { ok: false, error: ERRORS.MALFORMED };
+      }
+      if (JSON.stringify(m.v).length > QUIZZV_LIMITES.vista) return { ok: false, error: ERRORS.TOO_LARGE };
+      return { ok: true, msg: { t: C2S.QUIZ_PARA_CELULAR, v: m.v } };
+    }
 
     default:
       return { ok: false, error: ERRORS.MALFORMED };

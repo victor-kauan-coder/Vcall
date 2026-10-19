@@ -1,0 +1,288 @@
+/*
+ * quizzv.css — o celular com o QuizzV no Quiz: o diálogo do QR (na chamada)
+ * e a página /quizzv (no celular, para quem responde pelo navegador).
+ *
+ * As cores das alternativas são as mesmas do Quiz da chamada
+ * (diversao.css): "a vermelha", "a azul" é como se fala numa chamada, e isso
+ * só funciona se o celular mostra a mesma cor que a tela.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Diálogo do QR
+ * ------------------------------------------------------------------ */
+
+.quizzvPar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+.quizzvPar__qr {
+  flex: none;
+  width: 220px;
+  max-width: 100%;
+  padding: var(--sp-2);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.quizzvQr {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.quizzvPar__lado {
+  flex: 1;
+  min-width: 220px;
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.quizzvPar__passos {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding-left: 1.25em;
+}
+
+.quizzvPar__status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.quizzvPar__status.is-ok {
+  color: var(--ok);
+  font-weight: var(--weight-semibold);
+}
+
+.quizzvPar__mais {
+  margin-top: var(--sp-4);
+}
+
+.quizzvPar__mais summary {
+  cursor: pointer;
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
+}
+
+.quizzvPar__mais > * + * {
+  margin-top: var(--sp-3);
+}
+
+.quizzvPar__mais .row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.quizzvPar__nota {
+  margin-top: var(--sp-3);
+}
+
+@media (max-width: 640px) {
+  .quizzvPar__qr {
+    width: 180px;
+    margin-inline: auto;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Página /quizzv: respondendo pelo navegador do celular
+ * ------------------------------------------------------------------ */
+
+.qvp {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.qvp__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.qvp__tempo {
+  margin-left: auto;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.qvp__tempo.is-acabando {
+  color: var(--danger);
+}
+
+.qvp__barra {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--surface-2);
+}
+
+.qvp__barra > i {
+  --p: 1; /* fração do tempo que resta (vem do JS) */
+  display: block;
+  width: calc(var(--p) * 100%);
+  height: 100%;
+  background: var(--brand-gradient);
+  transition: width 250ms linear;
+}
+
+.qvp__pergunta {
+  white-space: pre-line;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.qvp__opcoes {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.qvp__opcao {
+  --tom: #e53935;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 60px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--tom);
+  color: #fff;
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 140ms var(--ease-out),
+    opacity 300ms var(--ease-out);
+}
+
+.qvp__opcao--1 { --tom: #1e88e5; }
+.qvp__opcao--2 { --tom: #e09b00; }
+.qvp__opcao--3 { --tom: #2e9a44; }
+.qvp__opcao--4 { --tom: #7b3fc4; }
+
+.qvp__opcao:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.qvp__opcao.is-minha {
+  outline: 4px solid var(--text);
+  outline-offset: 2px;
+}
+
+.qvp__opcao.is-certa {
+  box-shadow:
+    0 0 0 4px var(--bg-elevated),
+    0 0 0 8px var(--ok);
+}
+
+.qvp__opcao.is-apagada {
+  opacity: 0.35;
+}
+
+.qvp__letra {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.22);
+  font-weight: var(--weight-bold);
+}
+
+.qvp__texto {
+  flex: 1;
+  min-width: 0;
+}
+
+.qvp__conta {
+  font-variant-numeric: tabular-nums;
+}
+
+.qvp__status {
+  margin: 0;
+  text-align: center;
+  font-weight: var(--weight-semibold);
+}
+
+.qvp__status.is-certo {
+  color: var(--ok);
+}
+
+.qvp__status.is-errou {
+  color: var(--danger);
+}
+
+.qvp__explicacao {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.qvp__placar {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qvp__placar li {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-2);
+  border-radius: var(--radius-sm);
+}
+
+.qvp__placar li.is-eu {
+  background: var(--accent-soft);
+  font-weight: var(--weight-semibold);
+}
+
+.qvp__placar b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.qvp__centro {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-8) 0;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.qvp__grande {
+  font-family: var(--font-display);
+  font-size: 4.5rem;
+  line-height: 1;
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qvp__opcao,
+  .qvp__barra > i {
+    transition: none;
+  }
+}

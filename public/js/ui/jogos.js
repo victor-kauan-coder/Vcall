@@ -134,6 +134,8 @@ export class PainelJogos {
         confete: () => confete(this.#raiz),
         videoDe: (id) => this.o.videoDe?.(id) || null,
         pedir: () => this.atualizar(),
+        // O celular com o QuizzV (features/quizzv.js), para o Quiz.
+        quizzv: this.o.quizzv || null,
       });
       this.#vista.montar();
     }

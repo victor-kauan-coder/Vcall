@@ -2026,6 +2026,47 @@ button.stop__celula:hover {
   --tom: #2e9a44;
   animation-delay: 180ms;
 }
+/* A quinta alternativa (quizzes do QuizzV vão até a E). */
+.quiz__opcao--roxo {
+  --tom: #7b3fc4;
+  animation-delay: 240ms;
+}
+/* Número ímpar de alternativas: a última ocupa a linha inteira. */
+.quiz__opcoes > .quiz__opcao:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+.quiz__pergunta--longa {
+  max-height: 42vh;
+  overflow-y: auto;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-line;
+}
+.quiz__explicacao {
+  display: flex;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  animation: jgEntra 300ms var(--ease-out);
+}
+.quiz__explicacao .icon {
+  flex: none;
+  margin-top: 3px;
+}
+.quizzv__botao.is-ligado {
+  color: var(--ok);
+}
+@media (max-width: 640px) {
+  .quizzv__rotulo {
+    display: none;
+  }
+}
 .quiz__opcao:not(:disabled):hover {
   transform: translateY(-3px);
 }

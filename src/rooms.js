@@ -7,6 +7,7 @@
  */
 import { randomUUID, createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { config } from "./config.js";
+import { novoTokenDePareamento } from "./quizzv.js";
 
 /**
  * Alfabeto do código curto: sem 0/O nem 1/I/L. Um código é ditado por
@@ -71,7 +72,14 @@ export class Participant {
 
   send(payload) {
     if (this.socket.readyState !== 1) return false;
-    this.socket.send(typeof payload === "string" ? payload : JSON.stringify(payload));
+    let data;
+    try {
+      data = typeof payload === "string" ? payload : JSON.stringify(payload);
+    } catch {
+      // Um objeto que não serializa perde só esta mensagem, nunca o servidor.
+      return false;
+    }
+    this.socket.send(data);
     return true;
   }
 }
@@ -103,6 +111,24 @@ export class Room {
     this.banned = new Map();
     /** Sala de espera: id -> { socket, msg, ctx, name, avatar, at }. */
     this.waiting = new Map();
+
+    /**
+     * Celulares pareados (QuizzV, src/quizzv.js): conexões leves que NÃO são
+     * participantes — não ocupam vaga, ninguém abre vídeo com elas e só falam
+     * com o navegador de quem as pareou. Cada uma: `{ pid, send(), encerrar() }`.
+     */
+    this.controles = new Set();
+  }
+
+  /** Celulares conectados em nome de `pid`. */
+  controlesDe(pid) {
+    return [...this.controles].filter((c) => c.pid === pid);
+  }
+
+  /** Avisa o participante de que o celular dele conectou ou caiu. */
+  avisarPareamento(pid) {
+    const lista = this.controlesDe(pid);
+    this.get(pid)?.send({ t: "quiz-celular", conectado: lista.length > 0, app: lista.at(-1)?.app || "" });
   }
 
   /** Grava a chave de quem cria a sala. Só o primeiro define. */
@@ -250,7 +276,12 @@ export class Room {
   }
 
   broadcast(payload, exceptId) {
-    const data = JSON.stringify(payload);
+    let data;
+    try {
+      data = JSON.stringify(payload);
+    } catch {
+      return; // ver Participant.send
+    }
     for (const p of this.members.values()) {
       if (p.id !== exceptId) p.send(data);
     }
@@ -261,6 +292,37 @@ export class RoomRegistry {
   constructor() {
     this.rooms = new Map();
     this.codes = new Map(); // código curto -> id da sala
+    /**
+     * Pareamentos do QuizzV: token -> { roomId, pid }. O token é o único
+     * segredo que o celular recebe — NÃO é o id da sala, e só dá direito a
+     * mandar recados ao navegador de uma pessoa. Some quando ela sai.
+     */
+    this.pareamentos = new Map();
+  }
+
+  /** O token de pareamento de `pid` (o mesmo enquanto ele estiver na sala). */
+  parear(room, pid) {
+    for (const [token, e] of this.pareamentos) if (e.roomId === room.id && e.pid === pid) return token;
+    const token = novoTokenDePareamento();
+    this.pareamentos.set(token, { roomId: room.id, pid });
+    return token;
+  }
+
+  /** Resolve o token do celular: { room, pid } ou null. */
+  pareamento(token) {
+    const e = typeof token === "string" ? this.pareamentos.get(token) : null;
+    if (!e) return null;
+    const room = this.rooms.get(e.roomId);
+    if (!room || !room.get(e.pid)) return null;
+    return { room, pid: e.pid };
+  }
+
+  /** `pid` saiu de vez: o pareamento dele morre e os celulares dele caem. */
+  esquecerPareamento(room, pid) {
+    for (const [token, e] of this.pareamentos) {
+      if (e.roomId === room.id && e.pid === pid) this.pareamentos.delete(token);
+    }
+    for (const c of room.controlesDe(pid)) c.encerrar("saiu-da-chamada");
   }
 
   ensure(id, meta = null) {
@@ -319,6 +381,10 @@ export class RoomRegistry {
         }
       }
       r.waiting.clear();
+      // Celulares pareados e pareamentos morrem com a sala.
+      for (const c of [...r.controles]) c.encerrar("sala-encerrada");
+      r.controles.clear();
+      for (const [token, e] of this.pareamentos) if (e.roomId === id) this.pareamentos.delete(token);
       this.rooms.delete(id);
       this.codes.delete(r.code);
       return true;

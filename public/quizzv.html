@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Quiz pelo celular · Vcall</title>
+    <meta name="description" content="Responda o Quiz da chamada pelo celular." />
+    <meta name="theme-color" content="#0b0722" />
+    <!-- Ninguém precisa achar esta página por busca: ela carrega um token pessoal. -->
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/assets/favicon-64.png" />
+    <script src="/js/boot-tema.js"></script>
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/paletas.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/motion.css" />
+    <link rel="stylesheet" href="/css/quizzv.css" />
+    <style>
+      body {
+        min-height: 100dvh;
+        margin: 0;
+        display: grid;
+        place-items: start center;
+        padding: max(var(--sp-4), env(safe-area-inset-top)) var(--sp-4) max(var(--sp-4), env(safe-area-inset-bottom));
+        background:
+          radial-gradient(circle at 20% 10%, var(--accent-soft), transparent 45%),
+          radial-gradient(circle at 85% 90%, var(--accent-2-soft), transparent 45%),
+          var(--bg);
+      }
+      .qv {
+        width: min(440px, 100%);
+        margin-top: 8vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--sp-4);
+        padding: var(--sp-8) var(--sp-6);
+        text-align: center;
+        border-radius: var(--radius-xl);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+      }
+      .qv[hidden],
+      .qvp[hidden] {
+        display: none;
+      }
+      .qv__logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+      }
+      .qv__titulo {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: var(--text-xl);
+      }
+      .qv__texto {
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+      .qv__acoes {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-2);
+      }
+      .qv__acoes .btn {
+        width: 100%;
+        justify-content: center;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="qv" id="porta" aria-live="polite">
+      <img class="qv__logo" src="/assets/logo-mark.png" alt="Vcall" width="72" height="72" />
+      <h1 class="qv__titulo" id="titulo">Quiz pelo celular</h1>
+      <p class="qv__texto" id="texto">Este código liga o seu celular ao Quiz da chamada.</p>
+      <div class="qv__acoes">
+        <a class="btn btn--primary btn--lg" id="abrirApp" href="#">Abrir no QuizzV</a>
+        <button class="btn btn--lg" id="noNavegador" type="button">Responder por aqui</button>
+      </div>
+      <p class="qv__texto" id="rodape" style="font-size: var(--text-xs)">
+        Para escolher um quiz seu, use o aplicativo QuizzV. Para só responder, o navegador basta.
+      </p>
+    </main>
+    <main class="qvp" id="jogo" aria-live="polite" hidden></main>
+    <noscript>
+      <p style="text-align: center">Ative o JavaScript para responder o Quiz.</p>
+    </noscript>
+    <script type="module" src="/js/quizzv.js"></script>
+  </body>
+</html>

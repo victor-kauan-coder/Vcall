@@ -30,7 +30,7 @@
  * que importa, voto e palavra secreta, não viaja antes da hora.
  */
 import { Emitter } from "../lib/emitter.js";
-import { aleatorio, compacto, desofuscar, embaralhar, lider, normalizar, novoId, ofuscar, resumo, somarPlacar, sortear } from "./jogos.js";
+import { aleatorio, bytesDe, compacto, desofuscar, embaralhar, lider, normalizar, novoId, ofuscar, resumo, somarPlacar, sortear } from "./jogos.js";
 import {
   CATEGORIAS_STOP,
   EU_NUNCA,
@@ -739,7 +739,35 @@ export function valida(resposta, letra) {
  * Quiz
  * ================================================================== */
 
-const LETRAS_QUIZ = ["A", "B", "C", "D"];
+const LETRAS_QUIZ = ["A", "B", "C", "D", "E"];
+
+/*
+ * Perguntas do QuizzV (o app de quizzes, no celular de alguém da chamada).
+ *
+ * O celular manda o quiz ao navegador da pessoa (src/quizzv.js), e o
+ * navegador grava as perguntas no estado dos jogos, uma chave por pergunta
+ * (`qz/q/<n>`), com o id da carga dentro — assim uma carga nova sobrescreve a
+ * velha nas mesmas chaves, e o estado não cresce a cada quiz carregado. O
+ * jogo em si é o mesmo Quiz de sempre: mesma tela, placar e pódio.
+ */
+export const QUIZZV_MAX = 100;
+/** Cada valor do estado cabe em 4000 caracteres de JSON (features/jogos.js). */
+const QUIZZV_VALOR_MAX = 3800;
+
+/** Uma pergunta do QuizzV no formato do estado, cortada até caber. */
+function perguntaQuizzv(q, carga) {
+  const p = {
+    carga,
+    t: texto(q.texto, 1500),
+    o: q.opcoes.slice(0, 5).map((x) => texto(x, 300)),
+    c: q.correta,
+    x: texto(q.explicacao || "", 1000),
+  };
+  // Aspas e barras dobram no JSON: no pior caso, a explicação cede espaço.
+  while (JSON.stringify(p).length > QUIZZV_VALOR_MAX && p.x) p.x = p.x.slice(0, Math.max(0, p.x.length - 100));
+  while (JSON.stringify(p).length > QUIZZV_VALOR_MAX) p.t = p.t.slice(0, p.t.length - 50);
+  return p;
+}
 
 export class Quiz extends Emitter {
   #revelouEm = new Map();
@@ -762,7 +790,88 @@ export class Quiz extends Emitter {
       tema: c.tema === "todos" || TEMAS_QUIZ[c.tema] ? c.tema : "todos",
       qtd: [5, 10, 15, 20].includes(c.qtd) ? c.qtd : 10,
       tempo: [10, 15, 20, 30].includes(c.tempo) ? c.tempo : 20,
+      // De onde vêm as perguntas: o banco do Vcall ou o quiz que veio do QuizzV.
+      fonte: c.fonte === "quizzv" && this.quizzv() ? "quizzv" : "vcall",
     };
+  }
+
+  /**
+   * O quiz do QuizzV carregado nesta chamada: { carga, titulo, n, tempo, qtd,
+   * embaralhar, de } — só se TODAS as perguntas dele já chegaram aqui.
+   */
+  quizzv() {
+    const m = this.estado.ler("qz/qv");
+    if (!m || typeof m.carga !== "string" || !Number.isInteger(m.n) || m.n < 1 || m.n > QUIZZV_MAX) return null;
+    for (let k = 0; k < m.n; k += 1) if (!this.#perguntaQuizzv(k, m.carga)) return null;
+    // O estado é escrito por qualquer um da sala: só sai daqui com os tipos certos
+    // (um título que não é texto travava a tela do Quiz de quem a abrisse).
+    return {
+      carga: m.carga,
+      n: m.n,
+      titulo: texto(m.titulo, 80) || "Quiz do QuizzV",
+      tempo: [10, 15, 20, 30, 45, 60].includes(m.tempo) ? m.tempo : 20,
+      qtd: Number.isInteger(m.qtd) && m.qtd >= 1 && m.qtd <= m.n ? m.qtd : m.n,
+      embaralhar: m.embaralhar === true,
+      de: texto(m.de, 40),
+    };
+  }
+
+  /** A pergunta `k` da carga, conferida, ou null. */
+  #perguntaQuizzv(k, carga) {
+    const q = this.estado.ler(`qz/q/${k}`);
+    if (!q || q.carga !== carga || typeof q.t !== "string" || !q.t || !Array.isArray(q.o)) return null;
+    if (q.o.length < 2 || q.o.length > 5 || q.o.some((x) => typeof x !== "string" || !x)) return null;
+    if (!Number.isInteger(q.c) || q.c < 0 || q.c >= q.o.length) return null;
+    return q;
+  }
+
+  /**
+   * Grava um quiz do QuizzV no estado (já validado pelo servidor e pelo
+   * celular; aqui ele é conferido de novo, porque o estado é de todos).
+   * Em lotes pequenos: cada lote vira uma mensagem do canal direto, e uma
+   * mensagem grande demais simplesmente não chega.
+   */
+  carregarQuizzv(quiz, { tempo = 20, qtd = 0, embaralhar = false, de = "" } = {}) {
+    const perguntas = (quiz?.perguntas || [])
+      .filter((q) => q && typeof q.texto === "string" && Array.isArray(q.opcoes) && q.opcoes.length >= 2 && q.opcoes.length <= 5 && Number.isInteger(q.correta) && q.correta >= 0 && q.correta < q.opcoes.length)
+      .slice(0, QUIZZV_MAX);
+    if (!perguntas.length) return false;
+    const carga = novoId();
+    const antes = this.estado.ler("qz/qv");
+    const pares = perguntas.map((q, k) => [`qz/q/${k}`, perguntaQuizzv(q, carga)]);
+    // Sobras de uma carga maior: apagadas, para não ficarem no estado.
+    for (let k = perguntas.length; k < Math.min(Number(antes?.n) || 0, QUIZZV_MAX); k += 1) pares.push([`qz/q/${k}`, null]);
+    // Lotes de até ~40 kB (em bytes UTF-8): cabem no canal direto de qualquer navegador.
+    let lote = [];
+    let tamanho = 0;
+    for (const par of pares) {
+      const t = bytesDe(par);
+      if (lote.length && tamanho + t > 40 * 1024) {
+        this.estado.definir(lote);
+        lote = [];
+        tamanho = 0;
+      }
+      lote.push(par);
+      tamanho += t;
+    }
+    if (lote.length) this.estado.definir(lote);
+    const n = perguntas.length;
+    this.estado.definir([
+      [
+        "qz/qv",
+        {
+          carga,
+          n,
+          titulo: texto(quiz.titulo || "Quiz do QuizzV", 80),
+          tempo: [10, 15, 20, 30, 45, 60].includes(tempo) ? tempo : 20,
+          qtd: Number.isInteger(qtd) && qtd > 0 ? Math.min(qtd, n) : n,
+          embaralhar: !!embaralhar,
+          de: texto(de, 40),
+        },
+      ],
+      ["qz/cfg", { ...this.config(), fonte: "quizzv" }],
+    ]);
+    return true;
   }
   configurar(m) {
     this.estado.definir([["qz/cfg", { ...this.config(), ...m }]]);
@@ -770,6 +879,11 @@ export class Quiz extends Emitter {
   /** O jogo em andamento — conferido: cada pergunta existe e as opções são uma permutação de 0 a 3. */
   jogo() {
     const j = this.estado.ler("qz/jogo");
+    if (j?.fonte === "quizzv") {
+      // Do QuizzV: `ordem` aponta as perguntas da carga, todas já recebidas.
+      if (typeof j.id !== "string" || typeof j.carga !== "string" || !Array.isArray(j.ordem) || !j.ordem.length || j.ordem.length > QUIZZV_MAX) return null;
+      return j.ordem.every((k) => Number.isInteger(k) && this.#perguntaQuizzv(k, j.carga)) ? j : null;
+    }
     if (!j || typeof j.id !== "string" || !Array.isArray(j.qs) || !j.qs.length || j.qs.length > 30) return null;
     const ok = j.qs.every((x) => x && Number.isInteger(x.i) && this.banco[x.i] && Array.isArray(x.o) && x.o.length === 4 && [0, 1, 2, 3].every((k) => x.o.includes(k)));
     return ok ? j : null;
@@ -783,6 +897,19 @@ export class Quiz extends Emitter {
   /** Sorteia as perguntas (e a ordem das opções), igual para todos. */
   comecar() {
     const cfg = this.config();
+    const qv = cfg.fonte === "quizzv" ? this.quizzv() : null;
+    if (qv) {
+      // A ordem das alternativas NÃO é embaralhada: num quiz feito à mão,
+      // "Todas as anteriores" precisa continuar sendo a última.
+      const todas = Array.from({ length: qv.n }, (_, k) => k);
+      const ordem = qv.embaralhar ? sortear(todas, qv.qtd) : todas.slice(0, qv.qtd);
+      const id = novoId();
+      this.estado.definir([
+        ["qz/jogo", { id, fonte: "quizzv", carga: qv.carga, ordem, tempo: qv.tempo, titulo: qv.titulo }],
+        ["qz/p", { id, k: 0, inicio: this.agora() + 3000 }], // 3, 2, 1…
+      ]);
+      return;
+    }
     const indices = this.banco.map((q, i) => [q, i]).filter(([q]) => cfg.tema === "todos" || q.t === cfg.tema).map(([, i]) => i);
     const qs = sortear(indices, cfg.qtd).map((i) => ({ i, o: embaralhar([0, 1, 2, 3]) }));
     const id = novoId();
@@ -794,6 +921,10 @@ export class Quiz extends Emitter {
 
   pergunta(k = this.passo()?.k) {
     const j = this.jogo();
+    if (j?.fonte === "quizzv") {
+      const q = Number.isInteger(k) ? this.#perguntaQuizzv(j.ordem[k], j.carga) : null;
+      return q ? { texto: q.t, tema: "", opcoes: q.o, certa: q.c, explicacao: texto(q.x, 1000) } : null;
+    }
     const item = j?.qs?.[k];
     const q = item && this.banco[item.i];
     if (!q || !Array.isArray(item.o)) return null;
@@ -811,7 +942,7 @@ export class Quiz extends Emitter {
     const j = this.jogo();
     const p = this.passo();
     const q = this.pergunta();
-    if (!j || !p || !q || !Number.isInteger(escolha) || escolha < 0 || escolha > 3) return false;
+    if (!j || !p || !q || !Number.isInteger(escolha) || escolha < 0 || escolha >= q.opcoes.length) return false;
     const agora = this.agora();
     const ms = agora - Number(p.inicio);
     const limite = Number(j.tempo || 20) * 1000;
@@ -865,7 +996,8 @@ export class Quiz extends Emitter {
   manter(pessoas) {
     const j = this.jogo();
     const p = this.passo();
-    if (!j || !p || p.k >= j.qs.length || !this.revelada(pessoas)) return;
+    const total = j?.fonte === "quizzv" ? j.ordem.length : j?.qs.length;
+    if (!j || !p || p.k >= total || !this.revelada(pessoas)) return;
     const chave = `${j.id}/${p.k}`;
     if (!this.#revelouEm.has(chave)) {
       this.#revelouEm.set(chave, this.agora());
@@ -881,31 +1013,35 @@ export class Quiz extends Emitter {
     const j = this.jogo();
     const p = this.passo();
     const cfg = this.config();
-    if (!j || !p) return { fase: "lobby", cfg, temas: TEMAS_QUIZ };
+    if (!j || !p) return { fase: "lobby", cfg, temas: TEMAS_QUIZ, quizzv: this.quizzv() };
     const respostas = this.respostas();
     const placar = respostas
       .map((r) => ({ id: r.id, nome: pessoas.find((x) => x.id === r.id)?.nome || r.nome || "Saiu", total: Number(r.total) || 0, acertos: Number(r.acertos) || 0, seq: Number(r.seq) || 0, eu: r.id === this.eu }))
       .sort((a, b) => b.total - a.total);
-    if (p.k >= j.qs.length) return { fase: "fim", placar, total: j.qs.length, cfg };
+    const total = j.fonte === "quizzv" ? j.ordem.length : j.qs.length;
+    const titulo = j.fonte === "quizzv" ? texto(j.titulo, 80) || "Quiz do QuizzV" : "";
+    if (p.k >= total) return { fase: "fim", placar, total, cfg, titulo };
     const q = this.pergunta(p.k);
     const agora = this.agora();
     const limite = Number(j.tempo || 20);
     const desta = respostas.filter((r) => r.k === p.k);
     const revelada = this.revelada(pessoas);
     const minha = this.minha();
+    if (!q) return { fase: "lobby", cfg, temas: TEMAS_QUIZ, quizzv: this.quizzv() };
     return {
       fase: agora < Number(p.inicio) ? "preparar" : revelada ? "revelada" : "pergunta",
       k: p.k,
-      total: j.qs.length,
+      total,
+      titulo,
       contagem: Math.max(0, Math.ceil((Number(p.inicio) - agora) / 1000)),
       restante: Math.max(0, limite - (agora - Number(p.inicio)) / 1000),
       limite,
       pergunta: q,
-      letras: LETRAS_QUIZ,
+      letras: LETRAS_QUIZ.slice(0, q.opcoes.length),
       minha: minha && minha.k === p.k ? minha : null,
       responderam: desta.length,
       faltam: pessoas.filter((x) => !desta.some((r) => r.id === x.id)).length,
-      porOpcao: revelada ? [0, 1, 2, 3].map((o) => desta.filter((r) => r.e === o).map((r) => r.nome)) : null,
+      porOpcao: revelada ? q.opcoes.map((_, o) => desta.filter((r) => r.e === o).map((r) => r.nome)) : null,
       placar,
       cfg,
     };

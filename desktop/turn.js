@@ -48,13 +48,13 @@ export function salvarTurn(arquivo, pedido) {
       senha: pedido.senha || mesmo.senha,
       segredo: pedido.segredo || mesmo.segredo,
     });
-    if (!novo) return { erro: "Confira os dados: endereço turn: ou turns:, e o link do provedor em https." };
+    if (!novo) return { erro: "Confira os dados: o endereço do servidor começa com turn: ou turns:, e o link do provedor com https://." };
   }
   try {
     mkdirSync(path.dirname(arquivo), { recursive: true });
     writeFileSync(arquivo, JSON.stringify(novo || { tipo: "nenhum" }), { mode: 0o600 });
   } catch (err) {
-    return { erro: `Não consegui salvar: ${err?.message || err}` };
+    return { erro: "Não consegui salvar a configuração neste computador." };
   }
   definirTurnLocal(novo);
   return { ok: true, turn: visaoDoTurn(novo) };

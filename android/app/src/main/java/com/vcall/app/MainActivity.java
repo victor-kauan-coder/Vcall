@@ -454,9 +454,8 @@ public class MainActivity extends Activity {
             Intent confirmar = intent.getParcelableExtra(Intent.EXTRA_INTENT);
             if (confirmar != null) startActivity(confirmar.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } else if (st != PackageInstaller.STATUS_SUCCESS) {
-            String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
             if (st == PackageInstaller.STATUS_FAILURE_ABORTED) Atualizador.cancelada(this);
-            else Atualizador.falhou(this, "Não deu para atualizar" + (msg != null ? " (" + msg + ")." : "."));
+            else Atualizador.falhou(this, "Não deu para atualizar. Tente de novo.");
         }
     }
 

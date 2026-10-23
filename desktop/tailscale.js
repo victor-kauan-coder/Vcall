@@ -252,7 +252,7 @@ export class LinkTailscale extends EventEmitter {
       }
       const e = lerEstado(st);
       if (!e.pronto) throw new Error(MENSAGENS[e.motivo]);
-      if (!e.ipv4) throw new Error("O Tailscale não deu um endereço IPv4 a este computador.");
+      if (!e.ipv4) throw new Error("O Tailscale ainda não deu um endereço a este computador. Espere alguns segundos e tente de novo.");
 
       const cfg = await this.rodar(cli, ["serve", "status", "--json"]);
       let atual = {};
@@ -262,13 +262,13 @@ export class LinkTailscale extends EventEmitter {
         /* versão antiga sem --json: segue com a 443 */
       }
       const porta = escolherPorta(atual, e.nome);
-      if (!porta) throw new Error("As portas 443, 8443 e 10000 do Tailscale já estão em uso por outros programas.");
+      if (!porta) throw new Error("Outros programas já estão ocupando o Tailscale deste computador (portas 443, 8443 e 10000). Feche-os e tente de novo.");
 
       await this.#servir(cli, porta);
       this.url = urlDe(e.nome, porta);
       this.#set("verificando");
       const ok = await this.#verificar(e.ipv4);
-      if (ok !== true) throw new Error(`O link pelo Tailscale não respondeu (${ok}).`);
+      if (ok !== true) throw new Error("O link pelo Tailscale não respondeu. Tente de novo em instantes.");
       this.#set("pronto");
       return this.url;
     } catch (err) {

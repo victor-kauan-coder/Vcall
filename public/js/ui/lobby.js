@@ -51,7 +51,7 @@ export class Lobby {
       clear(this.hint).append(
         icon("alert-triangle", { size: "sm" }),
         el("span", {
-          text: "Câmera e microfone só funcionam em HTTPS ou em localhost.",
+          text: "Câmera e microfone não funcionam neste endereço. Abra o Vcall pelo link seguro (que começa com https://) ou pelo aplicativo.",
         }),
       );
     }

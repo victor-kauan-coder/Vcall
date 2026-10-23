@@ -1369,11 +1369,11 @@ function blocoDaRede() {
  * vale para todos que entram nas chamadas deste computador.
  */
 function blocoDoTurn() {
-  const tipo = el("select.input", { "aria-label": "Tipo de servidor TURN" }, [
-    el("option", { value: "nenhum", text: "Nenhum (só conexão direta)" }),
+  const tipo = el("select.input", { "aria-label": "Servidor de apoio" }, [
+    el("option", { value: "nenhum", text: "Nenhum (o normal para quase todo mundo)" }),
     el("option", { value: "api", text: "Link de um provedor (Metered, Xirsys…)" }),
-    el("option", { value: "segredo", text: "Meu servidor coturn (segredo compartilhado)" }),
-    el("option", { value: "fixo", text: "Usuário e senha" }),
+    el("option", { value: "segredo", text: "Servidor próprio, com segredo (coturn)" }),
+    el("option", { value: "fixo", text: "Servidor próprio, com usuário e senha" }),
   ]);
   const url = el("input.input.mono", { type: "url", placeholder: "https://SEUAPP.metered.live/api/v1/turn/credentials?apiKey=…", "aria-label": "Link do provedor" });
   const urls = el("input.input.mono", { type: "text", placeholder: "turn:turn.exemplo.com:3478, turns:turn.exemplo.com:5349?transport=tcp", "aria-label": "Endereços do servidor" });
@@ -1382,7 +1382,7 @@ function blocoDoTurn() {
   const segredo = el("input.input", { type: "password", placeholder: "Segredo (static-auth-secret)", "aria-label": "Segredo", autocomplete: "new-password" });
   const salvar = el("button.btn.btn--primary", { type: "button", text: "Salvar" });
   const testar = el("button.btn", { type: "button", text: "Testar" });
-  const dica = el("div.field__hint", { text: "O TURN só entra quando a conexão direta não fecha. A voz e o vídeo continuam criptografados." });
+  const dica = el("div.field__hint", { text: "Para quem não consegue conectar em redes de empresa, faculdade ou de algumas operadoras de 4G: a chamada passa por um servidor de apoio (TURN) só quando a conexão direta não dá, e continua criptografada. Se você não sabe o que é, deixe em “Nenhum”." });
   const linhas = {
     api: el("div.stack", {}, [url]),
     segredo: el("div.stack", {}, [urls, segredo]),
@@ -1425,7 +1425,7 @@ function blocoDoTurn() {
       });
       url.value = senha.value = segredo.value = "";
       preencher(v);
-      toast(v.tipo === "nenhum" ? "Servidor TURN desligado." : "Servidor TURN salvo. Vale a partir da próxima chamada.", { tone: "ok" });
+      toast(v.tipo === "nenhum" ? "Servidor de apoio desligado." : "Servidor de apoio salvo. Vale a partir da próxima chamada.", { tone: "ok" });
     } catch (err) {
       toast(err.message || "Não consegui salvar.", { tone: "warn" });
     }
@@ -1433,14 +1433,14 @@ function blocoDoTurn() {
   });
   testar.addEventListener("click", async () => {
     testar.disabled = true;
-    dica.textContent = "Testando: pedindo um caminho de repasse ao servidor…";
+    dica.textContent = "Testando o servidor…";
     const r = await testarTurn();
     dica.textContent = r.ok
-      ? `Funcionando: o servidor entregou um caminho de repasse (${r.endereco}) em ${r.ms} ms.`
+      ? `Funcionando: o servidor respondeu em ${r.ms} ms (${r.endereco}).`
       : r.motivo;
     testar.disabled = false;
   });
-  host.configTurn().then(preencher).catch(() => (dica.textContent = "Não consegui ler a configuração do TURN."));
+  host.configTurn().then(preencher).catch(() => (dica.textContent = "Não consegui ler esta configuração."));
   mostrar();
   return bloco;
 }
@@ -1458,7 +1458,7 @@ async function testarTurn({ limiteMs = 8000 } = {}) {
     return { ok: false, motivo: "Não consegui ler a configuração de conexão." };
   }
   const servidores = (cfg.iceServers || []).filter((s) => [].concat(s.urls).some((u) => /^turns?:/i.test(u)));
-  if (!servidores.length) return { ok: false, motivo: "Nenhum servidor TURN está valendo. Salve a configuração antes de testar (ou confira o link do provedor)." };
+  if (!servidores.length) return { ok: false, motivo: "Nenhum servidor de apoio está valendo. Salve antes de testar (ou confira o link do provedor)." };
   const inicio = performance.now();
   const pc = new RTCPeerConnection({ iceServers: servidores, iceTransportPolicy: "relay" });
   try {
@@ -1472,7 +1472,7 @@ async function testarTurn({ limiteMs = 8000 } = {}) {
     });
     await pc.setLocalDescription(await pc.createOffer());
     const c = await achou;
-    if (!c) return { ok: false, motivo: "O servidor não respondeu com um caminho de repasse. Confira endereço, portas (3478, 5349 e 49152–65535/UDP) e a senha ou segredo." };
+    if (!c) return { ok: false, motivo: "O servidor não respondeu. Confira o endereço, a senha ou o segredo, e se as portas dele estão liberadas (3478, 5349 e 49152–65535/UDP)." };
     return { ok: true, endereco: c.address || c.candidate.split(" ")[4], ms: Math.round(performance.now() - inicio) };
   } finally {
     pc.close();
@@ -1547,7 +1547,7 @@ function blocoDeAtualizacaoSoAviso() {
     notas.textContent = "";
     baixar.hidden = true;
     if (r?.erro) {
-      estado.textContent = `Não deu para conferir agora (${r.erro}). Versão instalada: ${r.atual}.`;
+      estado.textContent = `Não deu para conferir agora. Confira a internet e tente de novo. Versão instalada: ${r.atual}.`;
       return;
     }
     if (r?.tem) {
@@ -1567,7 +1567,7 @@ function blocoDeAtualizacaoSoAviso() {
     try {
       pintar(await host.atualizacao({ forcar }));
     } catch (err) {
-      estado.textContent = `Não deu para conferir: ${err.message}`;
+      estado.textContent = "Não deu para conferir agora. Confira a internet e tente de novo.";
     } finally {
       botao.disabled = false;
     }
@@ -2240,7 +2240,7 @@ function openBoardMenu() {
         Dock.item({ iconName: "undo-2", label: "Desfazer · Ctrl+Z", onClick: () => (close(), board.undo()) }),
         Dock.item({ iconName: "redo-2", label: "Refazer · Ctrl+Shift+Z", onClick: () => (close(), board.redo()) }),
         Dock.item({ iconName: "download", label: "Baixar como PNG", onClick: () => (close(), board.exportPng()) }),
-        Dock.item({ iconName: "save", label: "Salvar canvas (.json)", onClick: () => (close(), board.exportJson()) }),
+        Dock.item({ iconName: "save", label: "Salvar o canvas (para abrir depois)", onClick: () => (close(), board.exportJson()) }),
         Dock.item({ iconName: "x", label: "Fechar canvas", onClick: () => (close(), closeBoard()) }),
       );
     }
@@ -2363,7 +2363,7 @@ function wireCaptions() {
   // App de mesa: o reconhecedor offline baixa o modelo do idioma na primeira vez.
   captions.on("status", ({ fase, p }) => {
     if (fase === "baixando") {
-      toast(`Baixando o reconhecedor de fala (só na primeira vez)… ${Math.round((p || 0) * 100)}%`, {
+      toast(`Preparando as legendas (só na primeira vez)… ${Math.round((p || 0) * 100)}%`, {
         tone: "info",
         key: "fala",
         ms: 60_000,
@@ -2371,7 +2371,7 @@ function wireCaptions() {
     } else if (fase === "carregando") {
       toast("Preparando as legendas…", { tone: "info", key: "fala", ms: 30_000 });
     } else if (fase === "reserva") {
-      toast("O reconhecedor principal não abriu; usando o reserva, menos preciso.", { tone: "warn", key: "fala", ms: 5000 });
+      toast("As legendas vão funcionar num modo mais simples, um pouco menos preciso.", { tone: "warn", key: "fala", ms: 5000 });
     } else if (fase === "pronto") {
       toast("Legendas ligadas. A sua fala é reconhecida aqui mesmo, sem sair do computador.", {
         tone: "ok",
@@ -2443,7 +2443,7 @@ function wireRecorder() {
   });
 
   recorder.on("error", (err) => {
-    toast(`Não consegui gravar: ${err?.message || err}`, { tone: "warn", ms: 6000 });
+    toast("Não consegui gravar a chamada. Tente de novo.", { tone: "warn", ms: 6000 });
   });
 }
 
@@ -2788,7 +2788,7 @@ function wireMesh() {
     }
     toast(
       `Não foi possível conectar com ${name}. A rede de um dos dois (empresa, 4G ou Wi-Fi público) ` +
-        `não permite conexão direta — esse caso precisa de um servidor TURN, que não está configurado.`,
+        `está bloqueando a chamada. Tentem outra rede — por exemplo, trocar o Wi-Fi pelos dados do celular.`,
       { tone: "warn", ms: 12_000, key: "no-turn" },
     );
   }
@@ -2805,7 +2805,7 @@ function wireMesh() {
     if (state === "rebuilding") {
       const name = mesh.profiles.get(id)?.name || "um participante";
       toast(
-        `Refazendo a conexão com ${name}${relay ? " pelo servidor de retransmissão" : ""}…`,
+        `Refazendo a conexão com ${name}${relay ? " por outro caminho" : ""}…`,
         { tone: "info", ms: 3500, key: `rebuild-${id}` },
       );
       return;
@@ -2981,7 +2981,7 @@ function wireMesh() {
       badge.className = "topbar__selo topbar__selo--erro";
       text.textContent = reason === "room-full" ? "Sala cheia" : "Erro de conexão";
       if (reason === "room-full") {
-        toast(`Esta sala já tem ${app.maxPeers} pessoas — o limite da conexão direta.`, {
+        toast(`Esta sala está cheia: já tem ${app.maxPeers} pessoas, o máximo por chamada.`, {
           tone: "danger",
           ms: 9000,
         });
@@ -3131,7 +3131,7 @@ function openInvite() {
   $("#inviteLink").value = roomLink();
   $("#inviteCode").value = app.roomCode || "—";
   $("#inviteCapacity").textContent =
-    `Até ${app.maxPeers} pessoas ao mesmo tempo. Como cada participante envia vídeo diretamente para todos os outros, salas maiores exigiriam um servidor de mídia no meio — e a conversa deixaria de ser criptografada ponta a ponta.`;
+    `Até ${app.maxPeers} pessoas ao mesmo tempo. O vídeo vai direto entre os participantes, sem passar por servidor — é isso que mantém a conversa criptografada de ponta a ponta.`;
   syncTunnelUi();
   syncTailscaleUi();
   syncAppLink();
@@ -3231,12 +3231,12 @@ function syncTailscaleUi() {
   } else if (estado === "habilitar") {
     texto.textContent = "Esperando…";
     dica.textContent =
-      "Falta ligar o HTTPS da sua rede Tailscale (uma vez só). Abra a página, confirme, e o link sai sozinho.";
+      "Falta uma autorização no Tailscale (uma vez só). Abra a página, confirme, e o link sai sozinho.";
   } else if (ocupado) {
     texto.textContent = estado === "verificando" ? "Testando…" : "Conferindo…";
     dica.textContent =
       estado === "verificando"
-        ? "Conferindo se o link abre. Na primeira vez o Tailscale emite o certificado, e isso leva alguns segundos."
+        ? "Conferindo se o link abre. Na primeira vez isso leva alguns segundos."
         : "Perguntando ao Tailscale deste computador…";
   } else {
     texto.textContent = "Gerar link";
@@ -3347,7 +3347,7 @@ if ($("#tunnelBtn")) {
       const link = host.linkPublico(roomLink());
       if (link) copy(link, "Link público criado e copiado");
     } catch (err) {
-      toast(`Não consegui abrir o túnel: ${err.message}`, { tone: "warn", ms: 8000 });
+      toast("Não consegui gerar o link público agora. Confira a internet e tente de novo.", { tone: "warn", ms: 8000 });
     }
   });
 
@@ -3364,7 +3364,7 @@ if ($("#tunnelBtn")) {
       copy(link, "Link novo criado e copiado");
       if (mesh.peers.size) mesh.broadcastBoard({ type: "link-novo", url: link }, { fallback: false });
     } catch (err) {
-      toast(`Não consegui gerar outro link: ${err.message}`, { tone: "warn", ms: 8000 });
+      toast("Não consegui gerar outro link agora. Confira a internet e tente de novo.", { tone: "warn", ms: 8000 });
     }
   });
 
@@ -3543,8 +3543,18 @@ function openSettings({ naRecepcao = false } = {}) {
   // evita "Atalhos do teclado" em cima das configurações.
   $("#settingsTitle").textContent = "Configurações";
 
-  const section = (title, children) =>
-    body.append(el("div.stack", {}, [el("h3", { text: title, style: { fontSize: "var(--text-md)" } }), ...children]));
+  const section = (title, children, alvo = body) =>
+    alvo.append(el("div.stack", {}, [el("h3", { text: title, style: { fontSize: "var(--text-md)" } }), ...children]));
+  // Rede, servidor de apoio e diagnóstico: úteis para quem entende, ruído
+  // para quem só quer ligar. Ficam fechados num "Avançado" no fim.
+  // O conteúdo do <details> não herda o gap: as seções ficam num miolo próprio.
+  const miolo = el("div.stack", { style: { gap: "var(--sp-5)", marginTop: "var(--sp-4)" } });
+  const avancado = el("details.avancado", {}, [
+    el("summary", { text: "Avançado", style: { cursor: "pointer", fontWeight: "600" } }),
+    miolo,
+  ]);
+  const secaoAvancada = (title, children) => section(title, children, miolo);
+  const fecharAvancado = () => miolo.children.length && body.append(avancado);
 
   // -- identidade --
   // O avatar é um botão: abre a grade de avatares (estilos, sortear, foto) e
@@ -3592,8 +3602,9 @@ function openSettings({ naRecepcao = false } = {}) {
   if (naRecepcao) {
     section("Aparência", [themeRowDeConfiguracoes(), seletorDePaletas()]);
     if (host.disponivel) section("Atualizações", [blocoDeAtualizacao()]);
-    if (host.disponivel) section("Rede Tailscale", [blocoDaRede()]);
-    if (host.disponivel) section("Servidor TURN", [blocoDoTurn()]);
+    if (host.disponivel) secaoAvancada("Rede Tailscale", [blocoDaRede()]);
+    if (host.disponivel) secaoAvancada("Redes que bloqueiam a chamada", [blocoDoTurn()]);
+    fecharAvancado();
     $("#settingsModal").showModal();
     animarEntradaDoDialogo($("#settingsModal"));
     return;
@@ -3776,7 +3787,7 @@ function openSettings({ naRecepcao = false } = {}) {
           el("span.field__label", { text: "Precisão das legendas" }),
           selN,
           el("div.field__hint", {
-            text: "Reconhecimento com o Whisper, no seu próprio computador: nenhum áudio sai daqui. O modelo é baixado uma vez.",
+            text: "O reconhecimento acontece no seu próprio computador: nenhum áudio sai daqui. Na primeira vez, o Vcall baixa o que precisa.",
           }),
         ]),
       );
@@ -3857,41 +3868,31 @@ function openSettings({ naRecepcao = false } = {}) {
           `, sinal ${pico > 0.005 ? "sim" : "NÃO"}`,
       );
     }
+    const somDoApp = { running: "ligado", suspended: "pausado", closed: "fechado" }[dbg.contextState] || dbg.contextState;
     audioReport.textContent =
-      `Contexto: ${dbg.contextState}${dbg.blocked ? " (BLOQUEADO)" : ""} · ` +
-      `saída: ${dbg.webAudio ? "Web Audio" : "elemento"} · geral ${Math.round(dbg.master * 100)}%\n` +
+      `Som do Vcall: ${somDoApp}${dbg.blocked ? " (BLOQUEADO)" : ""} · ` +
+      `volume geral ${Math.round(dbg.master * 100)}%\n` +
       linhas.join("\n");
   };
   audioReport.style.whiteSpace = "pre-line";
   audioReport.style.fontFamily = "var(--font-mono)";
   refreshAudio();
 
-  section("Diagnóstico do áudio", [
-    audioReport,
-    el("button.btn", { type: "button", text: "Medir de novo", onClick: refreshAudio }),
-    el("div.field__hint", {
-      text: 'Se aparecer "SEM SAÍDA" ou "BLOQUEADO", me mande este texto: ele diz exatamente onde o som está parando.',
-    }),
-  ]);
-
   // -- sobre --
-  const about = el("div.field__hint", { text: "Consultando o servidor…" });
+  const about = el("div.field__hint", { text: "Conferindo…" });
   fetch("/healthz", { cache: "no-store" })
     .then((r) => r.json())
     .then((v) => {
-      about.textContent = `Versão ${v.version} · compilação ${v.build} · ${v.files} arquivos` +
+      about.textContent = `Versão ${v.version}`;
+      // Compilação e data continuam à mão de quem dá suporte, sem poluir.
+      about.title = `Compilação ${v.build} · ${v.files} arquivos` +
         (v.builtAt ? ` · ${new Date(v.builtAt).toLocaleString("pt-BR")}` : "");
     })
     .catch(() => {
       about.textContent = "Não foi possível consultar a versão.";
     });
-  if (host.disponivel) section("Rede Tailscale", [blocoDaRede()]);
-  if (host.disponivel) section("Servidor TURN", [blocoDoTurn()]);
   section("Sobre esta versão", [
     about,
-    el("div.field__hint", {
-      text: "Compare com o que o terminal mostra ao rodar npm start. Se forem diferentes, há duas cópias do sistema na máquina.",
-    }),
     el("div.field__hint", { style: { opacity: "0.6" } }, [
       "Desenvolvido por Victor Kauan · ",
       el("a", {
@@ -3903,18 +3904,29 @@ function openSettings({ naRecepcao = false } = {}) {
     ]),
   ]);
 
-  // -- conexão --
+  // -- avançado: rede, servidor de apoio, conexão e diagnóstico --
   const cfg = mesh.iceConfig || {};
-  section("Conexão", [
+  if (host.disponivel) secaoAvancada("Rede Tailscale", [blocoDaRede()]);
+  if (host.disponivel) secaoAvancada("Redes que bloqueiam a chamada", [blocoDoTurn()]);
+  secaoAvancada("Conexão", [
     el("div.field__hint", {
       text: cfg.hasTurn
-        ? "Servidor TURN configurado: a chamada consegue atravessar redes corporativas e NAT restritivo."
-        : "Sem servidor TURN. Em redes corporativas ou em algumas operadoras móveis a chamada pode não conectar. Configure TURN_URLS no servidor.",
+        ? "Servidor de apoio ligado: a chamada funciona mesmo em redes que bloqueiam a conexão direta."
+        : "Em redes de empresa, de faculdade ou de algumas operadoras de 4G a chamada pode não conectar." +
+          (host.disponivel ? " Se acontecer, configure um servidor de apoio logo acima." : " Se acontecer, tente outra rede."),
     }),
     el("div.field__hint", {
-      text: `Limite da sala: ${app.maxPeers} participantes. Numa malha ponto a ponto cada pessoa codifica o vídeo uma vez para cada outra — é isso que limita o tamanho.`,
+      text: `Limite da sala: ${app.maxPeers} participantes. O vídeo vai direto de cada pessoa para todas as outras, então salas maiores pesariam no computador e na internet de todo mundo.`,
     }),
   ]);
+  secaoAvancada("Diagnóstico do áudio", [
+    audioReport,
+    el("button.btn", { type: "button", text: "Medir de novo", onClick: refreshAudio }),
+    el("div.field__hint", {
+      text: "Se aparecer “SEM SAÍDA” ou “BLOQUEADO”, o som está parando antes do seu alto-falante. Copie este texto se for pedir ajuda.",
+    }),
+  ]);
+  fecharAvancado();
 
   $("#settingsModal").showModal();
 }

@@ -92,7 +92,7 @@ async function conferirDownload(ev) {
     conferida = null;
     registrar("atualizacao-recusada", { versao: ev.version, motivo: String(err?.message || err) });
     await unlink(ev.downloadedFile).catch(() => {});
-    mudar({ fase: "erro", erro: `a versão ${ev.version} não passou na conferência (${err?.message || err}); nada foi instalado` });
+    mudar({ fase: "erro", erro: `a versão ${ev.version} não passou na verificação de segurança; nada foi instalado` });
   }
 }
 
@@ -113,9 +113,9 @@ function tratarErro(err) {
     if (tag && maisNova(tag, app.getVersion())) return mudar({ fase: "aviso", versao: tag, url: PAGINA, erro: null });
     return mudar({ fase: "atual", versao: null, erro: null });
   }
-  let erro = "não deu para procurar agora (detalhes no registro do app)";
-  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ERR_INTERNET|ERR_NAME|ERR_NETWORK|net::/i.test(m)) erro = "sem conexão com o GitHub";
-  else if (/rate limit|\b403\b/i.test(m)) erro = "o GitHub limitou as consultas; o Vcall tenta de novo mais tarde";
+  let erro = "não deu para procurar agora";
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ERR_INTERNET|ERR_NAME|ERR_NETWORK|net::/i.test(m)) erro = "sem conexão com a internet";
+  else if (/rate limit|\b403\b/i.test(m)) erro = "muitas consultas seguidas; o Vcall tenta de novo mais tarde";
   mudar({ fase: "erro", erro });
 }
 
@@ -149,7 +149,7 @@ function instalarAppImage(reabrir) {
     return true;
   } catch (err) {
     registrar("atualizacao-appimage-falhou", { m: String(err?.message || err) });
-    mudar({ fase: "erro", erro: `não deu para trocar o arquivo do Vcall (${err?.code === "EACCES" ? "sem permissão na pasta" : err?.message || err}); baixe a versão nova na página de download` });
+    mudar({ fase: "erro", erro: `não deu para trocar o arquivo do Vcall${err?.code === "EACCES" ? " (sem permissão na pasta)" : ""}; baixe a versão nova na página de download` });
     return false;
   }
 }
@@ -173,7 +173,7 @@ function instalarPacote(reabrir) {
     return true;
   } catch (err) {
     registrar("atualizacao-pacote-falhou", { m: String(err?.message || err) });
-    mudar({ fase: "erro", erro: `não deu para instalar daqui (${err?.message || err}); baixe a versão nova na página de download` });
+    mudar({ fase: "erro", erro: "não deu para instalar daqui; baixe a versão nova na página de download" });
     return false;
   }
 }

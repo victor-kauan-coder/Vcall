@@ -144,7 +144,8 @@ p{text-wrap:pretty}
 .de-novo{visibility:hidden;margin-top:.5rem}
 .de-novo.pronto{visibility:visible}
 .direto h2{font-size:clamp(2.6rem,6vw,4.5rem);text-align:center;margin-inline:auto;max-width:16ch}
-.mapa{width:100%;max-width:1100px;max-height:calc(100svh - 27rem);min-height:12rem;margin:0 auto;align-self:center;overflow:visible}
+.direto{padding-block:clamp(5rem,9vw,6.5rem)}
+.mapa{width:100%;max-width:1100px;max-height:calc(100svh - 32rem);min-height:12rem;margin:0 auto;align-self:center;overflow:visible}
 .mapa .rotulo{font:700 22px "Bricolage Grotesque",sans-serif;fill:var(--texto)}
 .mapa .cidade{font:400 18px "Bricolage Grotesque",sans-serif;fill:var(--texto-2)}
 .mapa .apres{fill:none;stroke:var(--texto-3);stroke-width:2;stroke-dasharray:3 9;stroke-linecap:round}
@@ -189,11 +190,12 @@ p{text-wrap:pretty}
 .fala b{display:block;font-size:.85rem;color:var(--laranja);font-weight:600}
 .fala b.voce{color:var(--rosa)}
 .fala span{font-size:clamp(1.1rem,1.6vw,1.4rem);line-height:1.35}
-.b-leg .legendas{gap:1rem}
+.b-leg .fala span{font-size:clamp(1.3rem,2.2vw,2rem);line-height:1.2;letter-spacing:-.015em}
+.b-leg .legendas{gap:1.4rem}
 .b-leg .fala{max-width:34rem}
 .fala .cursor{display:inline-block;width:2px;height:1.05em;background:var(--texto);vertical-align:-.15em;margin-left:2px;animation:pisca 1s steps(1) infinite}
 @keyframes pisca{50%{opacity:0}}
-.recorte{margin:1.75rem 0 auto;aspect-ratio:680/455;border-radius:14px;background:#15171c url(assets/shots/painel-anfitriao.webp) 50% 0/cover no-repeat;box-shadow:0 0 0 1px rgb(238 238 255 / .08),0 18px 40px -20px rgb(3 2 16 / .9)}
+.recorte{flex:1;min-height:13rem;margin:1.75rem 0 .75rem;border-radius:14px;background:#15171c url(assets/shots/painel-anfitriao.webp) 50% 0/100% auto no-repeat;box-shadow:0 0 0 1px rgb(238 238 255 / .08);-webkit-mask:linear-gradient(#000 75%,transparent);mask:linear-gradient(#000 75%,transparent)}
 .zap{flex:none;width:min(46%,22rem);margin-bottom:auto;padding:.5rem .5rem .6rem;border-radius:14px 14px 14px 4px;background:#1f2c33;box-shadow:0 18px 40px -20px rgb(0 0 0 / .8);transform:rotate(-2deg)}
 .zap img{width:100%;aspect-ratio:1200/630;object-fit:cover;border-radius:9px}
 .zap p{font-size:.92rem;color:#e9edef;padding:.45rem .3rem 0;max-width:none}
@@ -445,6 +447,7 @@ p{text-wrap:pretty}
         <div class="legendas" aria-hidden="true">
           <div class="fala"><img src="assets/avatars/ana.svg" alt=""><div><b>Ana</b><span class="js-digita" data-texto="Alguém tem alguma dúvida antes de começarmos?">Alguém tem alguma dúvida antes de começarmos?</span></div></div>
           <div class="fala"><img src="assets/avatars/lucas.svg" alt=""><div><b class="voce">Você</b><span class="js-digita" data-texto="Pode falar, estou ouvindo.">Pode falar, estou ouvindo.</span></div></div>
+          <div class="fala"><img src="assets/avatars/bruno.svg" alt=""><div><b>Bruno</b><span class="js-digita" data-texto="Manda o roteiro no chat que eu abro aqui.">Manda o roteiro no chat que eu abro aqui.</span></div></div>
         </div>
         <h3>Legendas ao vivo, feitas no seu computador.</h3>
         <p>O reconhecimento de fala roda na sua máquina. Dá para buscar na transcrição e baixar em .srt.</p>

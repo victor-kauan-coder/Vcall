@@ -36,6 +36,7 @@
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;scrollbar-color:var(--linha-2) var(--tinta)}
 body{margin:0;background:var(--tinta);color:var(--texto);font:400 1.125rem/1.55 "Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;overflow-x:clip}
 img,video,svg{display:block;max-width:100%}
+img{height:auto}
 a{color:inherit;text-underline-offset:.2em;text-decoration-thickness:1px}
 h1,h2,h3,p{margin:0}
 h1,h2,h3{font-weight:800;letter-spacing:-.03em;line-height:1;text-wrap:balance}
@@ -75,7 +76,7 @@ p{text-wrap:pretty}
 /* ---------- Palco: herói + janela presa ---------- */
 .palco{position:relative}
 .palco__fixo{position:relative;padding:calc(var(--nav) + 3rem) var(--borda) 4rem}
-.palco__fixo::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,var(--tinta-2),var(--tinta) 55%,#1b0b2e)}
+.palco__fixo::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,var(--tinta-2),var(--tinta) 55%)}
 .heroi{position:relative;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:2rem 3rem}
 .heroi h1{font-size:clamp(5.4rem,15.5vw,15.5rem);line-height:.82;letter-spacing:-.055em;padding-bottom:.04em;margin-left:-.04em}
 .heroi h1 .ponto{color:var(--rosa)}
@@ -86,7 +87,7 @@ p{text-wrap:pretty}
 .acoes{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.75rem}
 .alvo{width:min(88vw,1480px);aspect-ratio:16/10;margin:clamp(2.5rem,6vh,4.5rem) auto 0}
 
-.janela{position:relative;aspect-ratio:16/10;border-radius:var(--raio);overflow:hidden;background:#0c0e13;box-shadow:0 0 0 1px rgb(238 238 255 / .1),0 50px 120px -30px rgb(3 2 16 / .9);transform-origin:50% 50%}
+.janela{position:relative;aspect-ratio:16/10;border-radius:var(--raio);overflow:hidden;background:#0c0e13;box-shadow:0 0 0 1px rgb(238 238 255 / .1),0 50px 120px -30px rgb(3 2 16 / .9),0 -24px 140px -30px rgb(253 77 135 / .35);transform-origin:50% 50%}
 .janela img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .janela .cena{opacity:0}
 .janela .cena[data-cena="chamada"]{opacity:1}
@@ -107,7 +108,7 @@ p{text-wrap:pretty}
 @media (max-width:860px){.cap{grid-template-columns:1fr}}
 
 /* Com movimento: tudo vira um palco preso na tela */
-.movimento .palco{--degrau:40vh;height:calc(100vh + 5 * var(--degrau))}
+.movimento .palco{--degrau:40vh;height:calc(100vh + 6 * var(--degrau))}
 .movimento .palco__fixo{position:sticky;top:0;height:100vh;height:100dvh;overflow:hidden;padding:0;perspective:1700px;perspective-origin:50% 30%}
 .movimento .heroi{position:absolute;inset:0 var(--borda) auto;padding-top:calc(var(--nav) + clamp(1.5rem,5vh,3.5rem));z-index:1}
 .movimento .alvo{display:block;visibility:hidden;flex-basis:100%}
@@ -123,13 +124,13 @@ p{text-wrap:pretty}
 .movimento .doca{display:flex;position:absolute;z-index:4;left:0;right:0;bottom:clamp(1rem,3vh,1.75rem);margin:0 auto;width:max-content;gap:.35rem;padding:.4rem;border-radius:99px;background:#17162a;box-shadow:0 0 0 1px var(--linha),0 18px 40px -18px rgb(0 0 0 / .8);opacity:0;visibility:hidden}
 .doca button{display:flex;align-items:center;gap:.5rem;height:2.75rem;padding:0 1rem;border:0;border-radius:99px;background:transparent;color:var(--texto-2);font-family:inherit;font-weight:600;font-size:.95rem;line-height:1;cursor:pointer;transition:background .3s,color .3s}
 .doca button:hover{color:var(--texto);background:rgb(238 238 255 / .06)}
-.doca button[aria-current="true"]{background:rgb(253 77 135 / .16);color:var(--rosa)}
+.doca button[aria-current="true"]{background:rgb(253 77 135 / .16);color:var(--rosa);box-shadow:inset 0 0 0 2px var(--rosa)}
 @media (max-width:1023px){
   .movimento .palco .janela{--w:calc(100vw - 2 * var(--borda));right:auto;left:var(--borda);top:calc(var(--nav) + 1rem)}
   .movimento .capitulos{width:auto;right:var(--borda);top:calc(var(--nav) + 2.5rem + (100vw - 2 * var(--borda)) * .625);bottom:auto;align-items:start}
   .movimento .cap h2{font-size:clamp(1.9rem,6vw,2.8rem)}
   .movimento .cap--mini h2{font-size:clamp(2.6rem,11vw,4.5rem);width:auto}
-  .doca button span{display:none}
+  .doca button span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .doca button{width:2.9rem;padding:0;justify-content:center}
 }
 
@@ -142,8 +143,8 @@ p{text-wrap:pretty}
 .direto__fixo{display:grid;gap:1.5rem;justify-items:center}
 .de-novo{visibility:hidden;margin-top:.5rem}
 .de-novo.pronto{visibility:visible}
-.direto h2{font-size:clamp(2.6rem,6vw,5.75rem);text-align:center;margin-inline:auto;max-width:16ch}
-.mapa{width:100%;max-width:1100px;margin:0 auto;align-self:center;overflow:visible}
+.direto h2{font-size:clamp(2.6rem,6vw,4.5rem);text-align:center;margin-inline:auto;max-width:16ch}
+.mapa{width:100%;max-width:1100px;max-height:calc(100svh - 27rem);min-height:12rem;margin:0 auto;align-self:center;overflow:visible}
 .mapa .rotulo{font:700 22px "Bricolage Grotesque",sans-serif;fill:var(--texto)}
 .mapa .cidade{font:400 18px "Bricolage Grotesque",sans-serif;fill:var(--texto-2)}
 .mapa .apres{fill:none;stroke:var(--texto-3);stroke-width:2;stroke-dasharray:3 9;stroke-linecap:round}
@@ -183,18 +184,18 @@ p{text-wrap:pretty}
 .b-ruido{grid-area:ruido;background:var(--tinta-3)}
 .b-link{grid-area:link}
 .legendas{display:grid;gap:.75rem;margin-bottom:auto;padding-top:.5rem}
-.fala{display:flex;gap:.8rem;align-items:flex-start;max-width:30rem;padding:.9rem 1.1rem;border-radius:16px;background:rgb(10 8 32 / .72);box-shadow:inset 0 0 0 1px rgb(238 238 255 / .08)}
+.fala{display:flex;gap:.8rem;align-items:flex-start;max-width:30rem}
 .fala img{width:2.5rem;height:2.5rem;border-radius:50%;flex:none}
 .fala b{display:block;font-size:.85rem;color:var(--laranja);font-weight:600}
 .fala b.voce{color:var(--rosa)}
 .fala span{font-size:clamp(1.1rem,1.6vw,1.4rem);line-height:1.35}
 .b-leg .legendas{gap:1rem}
-.b-leg .fala{max-width:34rem;padding:1.1rem 1.3rem}
+.b-leg .fala{max-width:34rem}
 .fala .cursor{display:inline-block;width:2px;height:1.05em;background:var(--texto);vertical-align:-.15em;margin-left:2px;animation:pisca 1s steps(1) infinite}
 @keyframes pisca{50%{opacity:0}}
-.recorte{margin:0 -1.75rem auto;height:58%;min-height:14rem;background:url(assets/shots/call-people.webp) 100% 0/auto 230% no-repeat;-webkit-mask:linear-gradient(#000 70%,transparent);mask:linear-gradient(#000 70%,transparent)}
+.recorte{margin:1.75rem 0 auto;aspect-ratio:680/455;border-radius:14px;background:#15171c url(assets/shots/painel-anfitriao.webp) 50% 0/cover no-repeat;box-shadow:0 0 0 1px rgb(238 238 255 / .08),0 18px 40px -20px rgb(3 2 16 / .9)}
 .zap{flex:none;width:min(46%,22rem);margin-bottom:auto;padding:.5rem .5rem .6rem;border-radius:14px 14px 14px 4px;background:#1f2c33;box-shadow:0 18px 40px -20px rgb(0 0 0 / .8);transform:rotate(-2deg)}
-.zap img{border-radius:9px}
+.zap img{width:100%;aspect-ratio:1200/630;object-fit:cover;border-radius:9px}
 .zap p{font-size:.92rem;color:#e9edef;padding:.45rem .3rem 0;max-width:none}
 .zap small{display:block;color:#53bdeb;font-size:.85rem;padding:0 .3rem}
 .rele-pontos{display:flex;gap:.4rem;margin-bottom:auto}
@@ -213,7 +214,8 @@ p{text-wrap:pretty}
 .movimento .faixa{animation:corre 48s linear infinite}
 .movimento .faixa:nth-child(2){animation-direction:reverse;animation-duration:56s}
 .faixas:hover .faixa{animation-play-state:paused}
-@keyframes corre{to{transform:translateX(-50%)}}
+@keyframes corre{to{transform:translateX(calc(-50% - .5rem))}}
+:root:not(.movimento) .faixa{flex-wrap:wrap;width:auto;padding:0 var(--borda)}
 .mesa{position:relative;margin-top:clamp(3rem,7vw,6rem);display:grid;grid-template-columns:1.25fr 1fr;gap:1.5rem;align-items:start}
 .mesa img{border-radius:var(--raio);box-shadow:0 0 0 1px rgb(238 238 255 / .1),0 40px 90px -30px rgb(3 2 16 / .9);width:100%;height:auto}
 .mesa figure{margin:0}
@@ -778,11 +780,14 @@ p{text-wrap:pretty}
   const gatilho = ScrollTrigger.create({
     trigger: ".palco", start: "top top", end: "bottom bottom",
     // um quarto de degrau já basta para o próximo capítulo começar
-    onUpdate: (s) => ir(Math.max(0, Math.min(ordem.length - 1, Math.floor((s.scroll() - s.start) / ((s.end - s.start) / (ordem.length - 1)) + 0.75)))),
+    // um degrau por capítulo, e um a mais para os temas terem onde ficar
+    onUpdate: (s) => ir(Math.max(0, Math.min(ordem.length - 1, Math.floor((s.scroll() - s.start) / ((s.end - s.start) / ordem.length) + 0.75)))),
     onRefresh: montar,
+    // fora do palco o ciclo de temas para (é repintura de imagem grande)
+    onToggle: (s) => ordem[passo] === "temas" && (s.isActive ? ciclo.play() : ciclo.pause()),
   });
   botoes.forEach((b) => b.addEventListener("click", () => {
-    const degrau = (gatilho.end - gatilho.start) / (ordem.length - 1);
+    const degrau = (gatilho.end - gatilho.start) / ordem.length;
     window.scrollTo({ top: gatilho.start + ordem.indexOf(b.dataset.ir) * degrau + 4, behavior: "smooth" });
   }));
 
@@ -819,7 +824,10 @@ p{text-wrap:pretty}
     .to(via, { strokeDashoffset: 0, duration: 1.1, ease: "power2.inOut" }, 5.5)
     .to(passos[3], { autoAlpha: 1, y: 0, duration: 0.5 }, 5.9)
     .to(".mapa .cadeado", { opacity: 1, y: 0, duration: 0.5 }, 6.2);
-  ScrollTrigger.create({ trigger: ".mapa", start: "top 75%", once: true, onEnter: () => td.play() });
+  ScrollTrigger.create({ trigger: ".passos", start: "bottom 95%", once: true, onEnter: () => td.play() });
+
+  // Letreiro de jogos: cada faixa ganha uma cópia para a volta não ter emenda.
+  $$(".faixa").forEach((f) => [...f.children].forEach((s) => { const c = s.cloneNode(true); c.setAttribute("aria-hidden", "true"); f.append(c); }));
   deNovo.addEventListener("click", () => { mapa.classList.remove("fluindo"); deNovo.classList.remove("pronto"); td.restart(); });
 
   // O resto aparece quando entra na tela.

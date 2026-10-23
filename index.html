@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vcall: chamada de vídeo direta, sem conta e sem mensalidade</title>
+<meta name="description" content="Chamada de vídeo de um computador para o outro, criptografada. Até 16 pessoas, quadro infinito, jogos e legendas. Grátis para Windows, Linux e Android.">
+<meta name="theme-color" content="#0a0820">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Vcall: a chamada vai direto">
+<meta property="og:description" content="Chamada de vídeo de um computador para o outro, criptografada. Sem conta, sem mensalidade, sem ninguém no meio.">
+<meta property="og:url" content="https://victor-kauan-coder.github.io/Vcall/">
+<meta property="og:image" content="https://victor-kauan-coder.github.io/Vcall/assets/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon-64.png" sizes="64x64">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="preload" href="assets/fonts/bricolage-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/shots/tema-tinta-dark.webp" as="image">
+<style>
+@font-face{font-family:"Bricolage Grotesque";font-style:normal;font-weight:200 800;font-display:swap;src:url(assets/fonts/bricolage-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Bricolage Grotesque";font-style:normal;font-weight:200 800;font-display:swap;src:url(assets/fonts/bricolage-latin-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
+:root{
+  --tinta:#0a0820;--tinta-2:#110c3a;--tinta-3:#1a1150;--linha:#2a2560;--linha-2:#3b3478;
+  --texto:#eeeeff;--texto-2:#b3b3cd;--texto-3:#8f8db8;
+  --rosa:#fd4d87;--laranja:#fe9c5f;--sobre-rosa:#1a0a1e;
+  --marca:linear-gradient(100deg,var(--rosa),var(--laranja));
+  --borda:clamp(1rem,4vw,4rem);
+  --nav:64px;
+  --raio:22px;
+  --saida:cubic-bezier(.16,1,.3,1);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;scrollbar-color:var(--linha-2) var(--tinta)}
+body{margin:0;background:var(--tinta);color:var(--texto);font:400 1.125rem/1.55 "Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;overflow-x:clip}
+img,video,svg{display:block;max-width:100%}
+a{color:inherit;text-underline-offset:.2em;text-decoration-thickness:1px}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{font-weight:800;letter-spacing:-.03em;line-height:1;text-wrap:balance}
+p{text-wrap:pretty}
+::selection{background:var(--rosa);color:var(--sobre-rosa)}
+:focus-visible{outline:2px solid var(--laranja);outline-offset:3px;border-radius:6px}
+::-webkit-scrollbar{width:12px}
+::-webkit-scrollbar-track{background:var(--tinta)}
+::-webkit-scrollbar-thumb{background:var(--linha-2);border-radius:99px;border:3px solid var(--tinta)}
+.ico{width:1.15em;height:1.15em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.pular{position:fixed;left:1rem;top:-4rem;z-index:30;background:var(--texto);color:var(--tinta);padding:.6rem 1rem;border-radius:99px;font-weight:600}
+.pular:focus{top:1rem}
+
+/* Botões */
+.btn{display:inline-flex;align-items:center;gap:.6em;height:3.5rem;padding:0 1.6rem;border-radius:99px;font-family:inherit;font-weight:700;font-size:1.0625rem;line-height:1;text-decoration:none;white-space:nowrap;border:0;cursor:pointer;transition:transform .5s var(--saida),background-position .6s var(--saida),box-shadow .5s var(--saida),border-color .3s}
+.btn:active{transform:scale(.97)}
+.btn--marca{background:var(--marca);background-size:160% 100%;background-position:0 0;color:var(--sobre-rosa);box-shadow:0 12px 28px -12px rgb(3 2 16 / .9)}
+.btn--marca:hover{background-position:100% 0;transform:translateY(-2px);box-shadow:0 18px 36px -14px rgb(3 2 16 / .95)}
+.btn--marca .ico--seta{transition:transform .5s var(--saida)}
+.btn--marca:hover .ico--seta{transform:translateY(2px)}
+.btn--linha{background:transparent;color:var(--texto);box-shadow:inset 0 0 0 1.5px var(--linha-2)}
+.btn--linha:hover{box-shadow:inset 0 0 0 1.5px var(--texto-2);transform:translateY(-2px)}
+.btn--grande{height:4.25rem;padding:0 2.2rem;font-size:1.25rem}
+
+/* Navegação */
+.nav{position:fixed;inset:0 0 auto;z-index:20;height:var(--nav);display:flex;align-items:center;justify-content:space-between;padding:0 var(--borda);transition:background .4s,box-shadow .4s}
+.nav.solida{background:rgb(10 8 32 / .94);box-shadow:0 1px 0 rgb(238 238 255 / .07)}
+.marca{display:flex;align-items:center;gap:.55rem;font-weight:800;font-size:1.45rem;letter-spacing:-.03em;text-decoration:none}
+.marca img{width:30px;height:auto}
+.nav ul{display:flex;gap:2rem;list-style:none;margin:0;padding:0;font-size:.98rem;color:var(--texto-2)}
+.nav ul a{text-decoration:none;transition:color .2s}
+.nav ul a:hover{color:var(--texto)}
+.nav .btn{height:2.6rem;padding:0 1.15rem;font-size:.95rem}
+@media (max-width:860px){.nav ul{display:none}}
+
+/* ---------- Palco: herói + janela presa ---------- */
+.palco{position:relative}
+.palco__fixo{position:relative;padding:calc(var(--nav) + 3rem) var(--borda) 4rem}
+.palco__fixo::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,var(--tinta-2),var(--tinta) 55%,#1b0b2e)}
+.heroi{position:relative;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:2rem 3rem}
+.heroi h1{font-size:clamp(5.4rem,15.5vw,15.5rem);line-height:.82;letter-spacing:-.055em;padding-bottom:.04em;margin-left:-.04em}
+.heroi h1 .ponto{color:var(--rosa)}
+.heroi h1 .letra{display:inline-block}
+.heroi__lado{max-width:25rem;padding-bottom:.9rem}
+.heroi__lado p{font-size:clamp(1.125rem,1.45vw,1.3rem);color:var(--texto-2)}
+.heroi__lado p strong{color:var(--texto);font-weight:600}
+.acoes{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.75rem}
+.alvo{width:min(88vw,1480px);aspect-ratio:16/10;margin:clamp(2.5rem,6vh,4.5rem) auto 0}
+
+.janela{position:relative;aspect-ratio:16/10;border-radius:var(--raio);overflow:hidden;background:#0c0e13;box-shadow:0 0 0 1px rgb(238 238 255 / .1),0 50px 120px -30px rgb(3 2 16 / .9);transform-origin:50% 50%}
+.janela img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.janela .cena{opacity:0}
+.janela .cena[data-cena="chamada"]{opacity:1}
+.janela .cena[data-cena="mini"]{object-position:50% 100%}
+.palco .janela{width:min(88vw,1480px);margin:clamp(2.5rem,6vh,4.5rem) auto 0}
+.palco .alvo{display:none}
+.cap[data-cap="chamada"] .so-estatico{display:none}
+
+.capitulos{position:relative;display:grid;gap:clamp(4rem,9vw,7rem);margin-top:clamp(4rem,10vw,8rem)}
+.cap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:2rem 4rem;align-items:center}
+.cap h2{font-size:clamp(2.1rem,3.6vw,3.6rem)}
+.cap p{margin-top:1.1rem;color:var(--texto-2);max-width:32ch}
+.cap .so-estatico{border-radius:16px;box-shadow:0 0 0 1px rgb(238 238 255 / .1);width:100%;height:auto}
+.temas-grade{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem}
+.temas-grade img{border-radius:8px;box-shadow:0 0 0 1px rgb(238 238 255 / .1)}
+.tema-nome{display:none}
+.doca{display:none}
+@media (max-width:860px){.cap{grid-template-columns:1fr}}
+
+/* Com movimento: tudo vira um palco preso na tela */
+.movimento .palco{--degrau:40vh;height:calc(100vh + 5 * var(--degrau))}
+.movimento .palco__fixo{position:sticky;top:0;height:100vh;height:100dvh;overflow:hidden;padding:0;perspective:1700px;perspective-origin:50% 30%}
+.movimento .heroi{position:absolute;inset:0 var(--borda) auto;padding-top:calc(var(--nav) + clamp(1.5rem,5vh,3.5rem));z-index:1}
+.movimento .alvo{display:block;visibility:hidden;flex-basis:100%}
+.movimento .palco .janela{display:block;position:absolute;z-index:2;
+  --w:min(61vw,calc((100dvh - 15rem) * 1.6),1180px);width:var(--w);margin:0;right:var(--borda);top:calc(50% - var(--w) * .3125 - 1.75rem);will-change:transform;animation:sobe 1.6s var(--saida) .2s both}
+@keyframes sobe{from{opacity:0;translate:0 14%}}
+.movimento .capitulos{position:absolute;z-index:3;left:var(--borda);top:0;bottom:0;margin:0;width:min(29vw,27rem);display:grid;grid-template-columns:minmax(0,1fr);align-items:center;pointer-events:none}
+.movimento .cap{grid-area:1/1;display:block;opacity:0;visibility:hidden}
+.movimento .cap .so-estatico,.movimento .temas-grade{display:none}
+.movimento .cap--mini h2{font-size:clamp(3.2rem,7.4vw,8rem);width:min(70vw,60rem);line-height:.92}
+.movimento .tema-nome{display:flex;align-items:center;gap:.5rem;margin-top:1.4rem;font-size:.95rem;color:var(--texto)}
+.tema-nome i{width:.85rem;height:.85rem;border-radius:50%;background:var(--rosa)}
+.movimento .doca{display:flex;position:absolute;z-index:4;left:0;right:0;bottom:clamp(1rem,3vh,1.75rem);margin:0 auto;width:max-content;gap:.35rem;padding:.4rem;border-radius:99px;background:#17162a;box-shadow:0 0 0 1px var(--linha),0 18px 40px -18px rgb(0 0 0 / .8);opacity:0;visibility:hidden}
+.doca button{display:flex;align-items:center;gap:.5rem;height:2.75rem;padding:0 1rem;border:0;border-radius:99px;background:transparent;color:var(--texto-2);font-family:inherit;font-weight:600;font-size:.95rem;line-height:1;cursor:pointer;transition:background .3s,color .3s}
+.doca button:hover{color:var(--texto);background:rgb(238 238 255 / .06)}
+.doca button[aria-current="true"]{background:rgb(253 77 135 / .16);color:var(--rosa)}
+@media (max-width:1023px){
+  .movimento .palco .janela{--w:calc(100vw - 2 * var(--borda));right:auto;left:var(--borda);top:calc(var(--nav) + 1rem)}
+  .movimento .capitulos{width:auto;right:var(--borda);top:calc(var(--nav) + 2.5rem + (100vw - 2 * var(--borda)) * .625);bottom:auto;align-items:start}
+  .movimento .cap h2{font-size:clamp(1.9rem,6vw,2.8rem)}
+  .movimento .cap--mini h2{font-size:clamp(2.6rem,11vw,4.5rem);width:auto}
+  .doca button span{display:none}
+  .doca button{width:2.9rem;padding:0;justify-content:center}
+}
+
+/* ---------- Seções ---------- */
+.secao{position:relative;padding:clamp(6rem,14vw,11rem) var(--borda)}
+.secao h2.titulo{font-size:clamp(2.6rem,6vw,5.75rem);max-width:15ch}
+.secao .lead{margin-top:1.25rem;font-size:clamp(1.125rem,1.5vw,1.35rem);color:var(--texto-2);max-width:44ch}
+
+/* Como funciona */
+.direto__fixo{display:grid;gap:1.5rem;justify-items:center}
+.de-novo{visibility:hidden;margin-top:.5rem}
+.de-novo.pronto{visibility:visible}
+.direto h2{font-size:clamp(2.6rem,6vw,5.75rem);text-align:center;margin-inline:auto;max-width:16ch}
+.mapa{width:100%;max-width:1100px;margin:0 auto;align-self:center;overflow:visible}
+.mapa .rotulo{font:700 22px "Bricolage Grotesque",sans-serif;fill:var(--texto)}
+.mapa .cidade{font:400 18px "Bricolage Grotesque",sans-serif;fill:var(--texto-2)}
+.mapa .apres{fill:none;stroke:var(--texto-3);stroke-width:2;stroke-dasharray:3 9;stroke-linecap:round}
+.mapa .via{fill:none;stroke:url(#gradMarca);stroke-width:7;stroke-linecap:round}
+.mapa .pacote{fill:var(--texto);opacity:0}
+.mapa.fluindo .pacote{opacity:1}
+.mapa .cadeado rect{fill:var(--tinta-3);stroke:var(--linha-2)}
+.mapa .cadeado text{font:600 17px "Bricolage Grotesque",sans-serif;fill:var(--texto)}
+@media (max-width:640px){
+  .mapa .rotulo{font-size:44px;transform:translateY(30px)}
+  .mapa .cidade,.mapa .cadeado{display:none}
+}
+.passos{list-style:none;margin:0 auto;padding:0;display:grid;max-width:46rem;text-align:center;counter-reset:p}
+.passos li{font-size:clamp(1.25rem,2.2vw,1.75rem);font-weight:600;letter-spacing:-.015em;color:var(--texto)}
+.passos li span{color:var(--rosa)}
+.direto:not(.animado) .passos{gap:.5rem}
+.direto.animado .passos li{grid-area:1/1;opacity:0}
+
+/* Manifesto */
+.sem{padding-top:clamp(7rem,16vw,13rem)}
+.sem p{font-size:clamp(2.7rem,7.4vw,8rem);font-weight:800;letter-spacing:-.05em;line-height:.95}
+.sem p + p{margin-top:.12em}
+.sem .so{color:var(--rosa)}
+
+/* Recursos */
+.grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(15rem,auto);gap:1rem;margin-top:clamp(3rem,6vw,5rem);grid-template-areas:"leg leg mod voz" "leg leg mod rele" "conv conv ruido link"}
+.bloco{position:relative;overflow:hidden;border-radius:var(--raio);background:var(--tinta-2);box-shadow:inset 0 0 0 1px rgb(238 238 255 / .07);padding:1.75rem;display:flex;flex-direction:column;justify-content:flex-end;gap:.6rem}
+.bloco h3{font-size:clamp(1.45rem,2vw,1.9rem);letter-spacing:-.025em;line-height:1.05}
+.bloco p{color:var(--texto-2);font-size:1.02rem;max-width:38ch}
+.bloco .ico--bloco{width:2.4rem;height:2.4rem;color:var(--rosa);margin-bottom:auto}
+.b-leg{grid-area:leg;background:radial-gradient(ellipse 80% 70% at 30% 0%,#2b1553,var(--tinta-2) 70%)}
+.b-mod{grid-area:mod;padding-top:0}
+.b-voz{grid-area:voz;background:var(--marca);color:var(--sobre-rosa)}
+.b-voz p,.b-voz .ico--bloco{color:#3a1328}
+.b-rele{grid-area:rele}
+.b-conv{grid-area:conv;flex-direction:row;align-items:flex-end;gap:2rem}
+.b-ruido{grid-area:ruido;background:var(--tinta-3)}
+.b-link{grid-area:link}
+.legendas{display:grid;gap:.75rem;margin-bottom:auto;padding-top:.5rem}
+.fala{display:flex;gap:.8rem;align-items:flex-start;max-width:30rem;padding:.9rem 1.1rem;border-radius:16px;background:rgb(10 8 32 / .72);box-shadow:inset 0 0 0 1px rgb(238 238 255 / .08)}
+.fala img{width:2.5rem;height:2.5rem;border-radius:50%;flex:none}
+.fala b{display:block;font-size:.85rem;color:var(--laranja);font-weight:600}
+.fala b.voce{color:var(--rosa)}
+.fala span{font-size:clamp(1.1rem,1.6vw,1.4rem);line-height:1.35}
+.b-leg .legendas{gap:1rem}
+.b-leg .fala{max-width:34rem;padding:1.1rem 1.3rem}
+.fala .cursor{display:inline-block;width:2px;height:1.05em;background:var(--texto);vertical-align:-.15em;margin-left:2px;animation:pisca 1s steps(1) infinite}
+@keyframes pisca{50%{opacity:0}}
+.recorte{margin:0 -1.75rem auto;height:58%;min-height:14rem;background:url(assets/shots/call-people.webp) 100% 0/auto 230% no-repeat;-webkit-mask:linear-gradient(#000 70%,transparent);mask:linear-gradient(#000 70%,transparent)}
+.zap{flex:none;width:min(46%,22rem);margin-bottom:auto;padding:.5rem .5rem .6rem;border-radius:14px 14px 14px 4px;background:#1f2c33;box-shadow:0 18px 40px -20px rgb(0 0 0 / .8);transform:rotate(-2deg)}
+.zap img{border-radius:9px}
+.zap p{font-size:.92rem;color:#e9edef;padding:.45rem .3rem 0;max-width:none}
+.zap small{display:block;color:#53bdeb;font-size:.85rem;padding:0 .3rem}
+.rele-pontos{display:flex;gap:.4rem;margin-bottom:auto}
+.rele-pontos img{width:2.6rem;height:2.6rem;border-radius:50%;box-shadow:0 0 0 3px var(--tinta-2)}
+.rele-pontos img:nth-child(2){box-shadow:0 0 0 3px var(--tinta-2),0 0 0 5px var(--rosa)}
+@media (max-width:1023px){.grade{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"leg leg" "mod voz" "mod rele" "conv conv" "ruido link"}}
+@media (max-width:640px){.grade{grid-template-columns:1fr;grid-template-areas:"leg" "mod" "voz" "rele" "conv" "ruido" "link"}.b-conv{flex-direction:column;align-items:flex-start}.zap{width:100%}}
+
+/* Jogos */
+.jogos{overflow:hidden}
+.faixas{margin:clamp(3rem,6vw,5rem) calc(-1 * var(--borda)) 0;display:grid;gap:1rem}
+.faixa{display:flex;width:max-content;gap:1rem}
+.faixa span{display:inline-flex;align-items:center;gap:.7rem;height:4.5rem;padding:0 1.7rem;border-radius:99px;background:var(--tinta-2);box-shadow:inset 0 0 0 1px var(--linha);font-size:clamp(1.25rem,2vw,1.75rem);font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.faixa span .ico{color:var(--rosa);width:1.3em;height:1.3em}
+.faixa:nth-child(2) span .ico{color:var(--laranja)}
+.movimento .faixa{animation:corre 48s linear infinite}
+.movimento .faixa:nth-child(2){animation-direction:reverse;animation-duration:56s}
+.faixas:hover .faixa{animation-play-state:paused}
+@keyframes corre{to{transform:translateX(-50%)}}
+.mesa{position:relative;margin-top:clamp(3rem,7vw,6rem);display:grid;grid-template-columns:1.25fr 1fr;gap:1.5rem;align-items:start}
+.mesa img{border-radius:var(--raio);box-shadow:0 0 0 1px rgb(238 238 255 / .1),0 40px 90px -30px rgb(3 2 16 / .9);width:100%;height:auto}
+.mesa figure{margin:0}
+.mesa figure:last-child{margin-top:clamp(2rem,8vw,7rem)}
+.mesa figcaption{margin-top:1rem;color:var(--texto-2);font-size:1rem}
+@media (max-width:760px){.mesa{grid-template-columns:1fr}.mesa figure:last-child{margin-top:0}}
+
+/* Vídeo */
+.video{text-align:center}
+.video h2{margin-inline:auto}
+.tela{position:relative;max-width:1180px;margin:clamp(3rem,6vw,4.5rem) auto 0;aspect-ratio:16/9;border-radius:var(--raio);overflow:hidden;background:#000 url(assets/video/capa.webp) center/cover;box-shadow:0 0 0 1px rgb(238 238 255 / .1),0 50px 120px -40px rgb(3 2 16 / .95)}
+.tela video{width:100%;height:100%;object-fit:cover}
+.tela button{position:absolute;inset:0;display:grid;place-items:center;border:0;background:rgb(10 8 32 / .25);cursor:pointer;color:var(--sobre-rosa);transition:background .4s}
+.tela button:hover{background:rgb(10 8 32 / .1)}
+.tela button i{display:grid;place-items:center;width:clamp(4.5rem,9vw,7rem);aspect-ratio:1;border-radius:50%;background:var(--marca);box-shadow:0 20px 40px -18px rgb(3 2 16 / .9);transition:transform .5s var(--saida)}
+.tela button:hover i{transform:scale(1.07)}
+.tela button .ico{width:38%;height:38%;margin-left:8%;fill:currentColor}
+.tela.tocando button{display:none}
+
+/* Baixar */
+.baixar{text-align:center;padding-bottom:clamp(5rem,10vw,8rem);background:radial-gradient(ellipse 60% 50% at 50% 100%,rgb(253 77 135 / .16),transparent 70%)}
+.baixar h2{margin-inline:auto;max-width:13ch}
+.baixar .lead{margin-inline:auto}
+.baixar .acoes{justify-content:center;margin-top:2.5rem}
+.versao{margin-top:1rem;font-size:.95rem;color:var(--texto-3)}
+.versao a{color:var(--texto-2)}
+.sistemas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;max-width:78rem;margin:clamp(3rem,6vw,4.5rem) auto 0;text-align:left}
+.sistema{display:flex;flex-direction:column;padding:1.75rem;border-radius:var(--raio);background:var(--tinta-2);box-shadow:inset 0 0 0 1px rgb(238 238 255 / .07)}
+.sistema.seu{box-shadow:inset 0 0 0 1.5px var(--rosa)}
+.sistema h3{display:flex;align-items:center;gap:.6rem;font-size:1.6rem}
+.sistema p{color:var(--texto-2);font-size:.98rem;margin:.45rem 0 1.4rem}
+.sistema .btn{margin-top:auto;justify-content:center;height:3.25rem;padding:0 1.2rem}
+.btn small{font-weight:500;font-size:.85em;opacity:.72}
+.so-logo{display:block;width:2.5rem;height:2.5rem;margin-bottom:1.3rem;background:var(--texto);-webkit-mask:var(--logo) center/contain no-repeat;mask:var(--logo) center/contain no-repeat}
+.so-logo--win{display:grid;grid-template-columns:1fr 1fr;gap:3px;width:2.3rem;height:2.3rem;background:none;-webkit-mask:none;mask:none}
+.so-logo--win i{background:var(--texto);border-radius:1.5px}
+.embreve{font-size:.78rem;font-weight:700;letter-spacing:.02em;padding:.3rem .6rem;border-radius:99px;background:rgb(254 156 95 / .16);color:var(--laranja)}
+.sistema--embreve .so-logo{background:var(--texto-3)}
+.btn[aria-disabled="true"]{cursor:not-allowed;color:var(--texto-3);box-shadow:inset 0 0 0 1.5px var(--linha);transform:none}
+.arquivos{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
+.arquivos a{display:inline-flex;align-items:center;gap:.4rem;height:2.4rem;padding:0 .95rem;border-radius:99px;background:rgb(238 238 255 / .06);font-size:.95rem;font-weight:600;text-decoration:none;transition:background .25s}
+.arquivos a:hover{background:rgb(253 77 135 / .18)}
+.arquivos a small{font-weight:400;color:var(--texto-3)}
+@media (max-width:1100px){.sistemas{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.sistemas{grid-template-columns:1fr}}
+
+/* Rodapé */
+.rodape{display:flex;flex-wrap:wrap;gap:1.5rem 3rem;align-items:center;justify-content:space-between;padding:2.5rem var(--borda);box-shadow:inset 0 1px 0 rgb(238 238 255 / .07);color:var(--texto-2);font-size:.98rem}
+.rodape ul{display:flex;flex-wrap:wrap;gap:1.5rem;list-style:none;margin:0;padding:0}
+.rodape a{text-decoration:none}
+.rodape a:hover{color:var(--texto)}
+.rodape strong{color:var(--texto);font-weight:600}
+
+/* Revelar ao entrar */
+.movimento .revela{opacity:0;transform:translateY(32px);transition:opacity .9s var(--saida),transform 1.1s var(--saida)}
+.movimento .revela.visivel{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.fala .cursor{animation:none}}
+</style>
+</head>
+<body>
+<a class="pular" href="#baixar">Pular para o download</a>
+
+<header class="nav" id="nav">
+  <a class="marca" href="#topo" aria-label="Vcall, início"><img src="assets/vcall-simbolo.svg" alt="" width="30" height="28">Vcall</a>
+  <nav aria-label="Seções">
+    <ul>
+      <li><a href="#como-funciona">Como funciona</a></li>
+      <li><a href="#recursos">Recursos</a></li>
+      <li><a href="#jogos">Jogos</a></li>
+      <li><a href="#video">Vídeo</a></li>
+    </ul>
+  </nav>
+  <a class="btn btn--marca" href="#baixar">Baixar</a>
+</header>
+
+<main id="topo">
+  <section class="palco" id="palco" aria-label="O Vcall por dentro">
+    <div class="palco__fixo">
+      <div class="heroi">
+        <h1 aria-label="Direto."><span class="palavra" aria-hidden="true">Direto</span><span class="ponto" aria-hidden="true">.</span></h1>
+        <div class="heroi__lado">
+          <p>Chamada de vídeo de um computador para o outro, criptografada. <strong>Sem conta, sem mensalidade, sem ninguém no meio.</strong></p>
+          <div class="acoes">
+            <a class="btn btn--marca js-baixar" href="#baixar"><svg class="ico ico--seta" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg><span class="js-rotulo">Baixar o Vcall</span></a>
+            <a class="btn btn--linha" href="#video"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-play"/></svg>Ver o vídeo</a>
+          </div>
+        </div>
+        <div class="alvo" aria-hidden="true"></div>
+      </div>
+
+      <div class="janela" aria-hidden="true">
+        <img class="cena" data-cena="chamada" src="assets/shots/tema-tinta-dark.webp" alt="" width="2400" height="1500" fetchpriority="high">
+        <img class="cena" data-cena="quadro" src="assets/shots/board.webp" alt="" width="2400" height="1500" decoding="async">
+        <img class="cena" data-cena="conversa" src="assets/shots/call-chat.webp" alt="" width="2400" height="1500" decoding="async">
+        <img class="cena" data-cena="mini" src="assets/shots/mini.webp" alt="" width="760" height="540" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Tinta, escuro" src="assets/shots/tema-tinta-dark.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Tinta, claro" src="assets/shots/tema-tinta-light.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Ametista, escuro" src="assets/shots/tema-ametista-dark.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Ametista, claro" src="assets/shots/tema-ametista-light.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Carvão, escuro" src="assets/shots/tema-carvao-dark.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Carvão, claro" src="assets/shots/tema-carvao-light.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Oceano, escuro" src="assets/shots/tema-oceano-dark.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Oceano, claro" src="assets/shots/tema-oceano-light.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Brasa, escuro" src="assets/shots/tema-brasa-dark.webp" alt="" decoding="async">
+        <img class="cena tema" data-cena="tema" data-nome="Brasa, claro" src="assets/shots/tema-brasa-light.webp" alt="" decoding="async">
+      </div>
+
+      <div class="capitulos">
+        <article class="cap" data-cap="chamada">
+          <div>
+            <h2>Até 16 pessoas, sem limite de tempo.</h2>
+            <p>Vídeo, voz e tela vão direto para quem está na sala. Quem fala acende, e você vê na hora quem está com a palavra.</p>
+          </div>
+          <img class="so-estatico" src="assets/shots/tema-tinta-dark.webp" alt="Chamada do Vcall com quatro pessoas, Ana, Bruno, Lucas e Carla" loading="lazy" width="2400" height="1500">
+        </article>
+        <article class="cap" data-cap="quadro">
+          <div>
+            <h2>Um quadro sem fim para desenhar junto.</h2>
+            <p>Rabisque, cole imagens em camadas e anote por cima da tela que alguém está mostrando.</p>
+          </div>
+          <img class="so-estatico" src="assets/shots/board.webp" alt="Quadro branco colaborativo do Vcall com traços desenhados" loading="lazy" width="2400" height="1500">
+        </article>
+        <article class="cap" data-cap="conversa">
+          <div>
+            <h2>Arquivos de até 25 MB, entregues inteiros.</h2>
+            <p>Fotos e arquivos vão direto para quem está na chamada, e a conversa não fica guardada em lugar nenhum.</p>
+          </div>
+          <img class="so-estatico" src="assets/shots/call-chat.webp" alt="Conversa por texto aberta ao lado da chamada" loading="lazy" width="2400" height="1500">
+        </article>
+        <article class="cap cap--mini" data-cap="mini">
+          <div>
+            <h2>Fica por cima de tudo.</h2>
+            <p>Aperte J e a chamada vira uma janelinha no canto, com quem fala e os botões que importam.</p>
+          </div>
+          <img class="so-estatico" src="assets/shots/mini.webp" alt="Mini-janela da chamada com três pessoas e os controles essenciais" loading="lazy" width="760" height="540">
+        </article>
+        <article class="cap" data-cap="temas">
+          <div>
+            <h2>Cinco paletas, claro e escuro.</h2>
+            <p>Tinta, Ametista, Carvão, Oceano e Brasa. Em todas, o texto passa no teste de contraste.</p>
+            <p class="tema-nome" aria-hidden="true"><i></i><span class="js-tema">Tinta, escuro</span></p>
+          </div>
+          <div class="temas-grade">
+            <img src="assets/shots/tema-tinta-dark.webp" alt="Paleta Tinta, escura" loading="lazy">
+            <img src="assets/shots/tema-ametista-dark.webp" alt="Paleta Ametista, escura" loading="lazy">
+            <img src="assets/shots/tema-carvao-dark.webp" alt="Paleta Carvão, escura" loading="lazy">
+            <img src="assets/shots/tema-oceano-dark.webp" alt="Paleta Oceano, escura" loading="lazy">
+            <img src="assets/shots/tema-brasa-dark.webp" alt="Paleta Brasa, escura" loading="lazy">
+            <img src="assets/shots/tema-tinta-light.webp" alt="Paleta Tinta, clara" loading="lazy">
+            <img src="assets/shots/tema-ametista-light.webp" alt="Paleta Ametista, clara" loading="lazy">
+            <img src="assets/shots/tema-carvao-light.webp" alt="Paleta Carvão, clara" loading="lazy">
+            <img src="assets/shots/tema-oceano-light.webp" alt="Paleta Oceano, clara" loading="lazy">
+            <img src="assets/shots/tema-brasa-light.webp" alt="Paleta Brasa, clara" loading="lazy">
+          </div>
+        </article>
+      </div>
+
+      <nav class="doca" aria-label="Capítulos do Vcall por dentro">
+        <button type="button" data-ir="chamada"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-video"/></svg><span>Chamada</span></button>
+        <button type="button" data-ir="quadro"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-pencil"/></svg><span>Quadro</span></button>
+        <button type="button" data-ir="conversa"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-message-square"/></svg><span>Conversa</span></button>
+        <button type="button" data-ir="mini"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-picture-in-picture-2"/></svg><span>Mini-janela</span></button>
+        <button type="button" data-ir="temas"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-palette"/></svg><span>Temas</span></button>
+      </nav>
+    </div>
+  </section>
+
+  <section class="secao direto" id="como-funciona" aria-labelledby="t-direto">
+    <div class="direto__fixo">
+      <h2 id="t-direto">Ninguém no meio da conversa.</h2>
+      <svg class="mapa" viewBox="0 0 1000 440" role="img" aria-labelledby="t-mapa">
+        <title id="t-mapa">O Vcall apresenta Ana e Bruno e sai da frente; a chamada vai direto entre os dois, criptografada.</title>
+        <defs>
+          <linearGradient id="gradMarca" x1="0" x2="1"><stop offset="0" stop-color="#fd4d87"/><stop offset="1" stop-color="#fe9c5f"/></linearGradient>
+          <clipPath id="redondo"><circle cx="0" cy="0" r="62"/></clipPath>
+        </defs>
+        <path class="apres apres-a" d="M150 300 L500 98"/>
+        <path class="apres apres-b" d="M850 300 L500 98"/>
+        <path class="via" id="via" d="M150 300 Q500 420 850 300"/>
+        <circle class="pacote" r="6"><animateMotion dur="2.2s" repeatCount="indefinite" path="M150 300 Q500 420 850 300"/></circle>
+        <circle class="pacote" r="6"><animateMotion dur="2.2s" begin="1.1s" repeatCount="indefinite" path="M150 300 Q500 420 850 300"/></circle>
+        <circle class="pacote" r="6"><animateMotion dur="2.6s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear" path="M150 300 Q500 420 850 300"/></circle>
+        <g transform="translate(500 90)"><g class="no-vcall">
+          <circle r="58" fill="#1a1150" stroke="#3b3478" stroke-width="2"/>
+          <image href="assets/vcall-simbolo.svg" x="-32" y="-30" width="64" height="60"/>
+        </g></g>
+        <g transform="translate(150 300)"><g class="pessoa">
+          <circle r="68" fill="#1a1150"/>
+          <image href="assets/avatars/ana.svg" x="-62" y="-62" width="124" height="124" clip-path="url(#redondo)"/>
+          <text class="rotulo" y="104" text-anchor="middle">Ana</text>
+          <text class="cidade" y="130" text-anchor="middle">em Teresina</text>
+        </g></g>
+        <g transform="translate(850 300)"><g class="pessoa">
+          <circle r="68" fill="#1a1150"/>
+          <image href="assets/avatars/bruno.svg" x="-62" y="-62" width="124" height="124" clip-path="url(#redondo)"/>
+          <text class="rotulo" y="104" text-anchor="middle">Bruno</text>
+          <text class="cidade" y="130" text-anchor="middle">em Porto Alegre</text>
+        </g></g>
+        <g transform="translate(500 360)"><g class="cadeado">
+          <rect x="-96" y="-22" width="192" height="44" rx="22"/>
+          <svg x="-78" y="-11" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fd4d87" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <text x="10" y="6" text-anchor="middle">criptografado</text>
+        </g></g>
+      </svg>
+      <ol class="passos">
+        <li>Ana, em Teresina, chama o Bruno, em Porto Alegre.</li>
+        <li>O Vcall apresenta um ao outro.</li>
+        <li>E <span>sai da frente.</span></li>
+        <li>Daí em diante, áudio, vídeo e tela vão <span>direto</span>, criptografados.</li>
+      </ol>
+      <button type="button" class="btn btn--linha de-novo"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-play"/></svg>Ver de novo</button>
+    </div>
+  </section>
+
+  <section class="secao sem" aria-label="O que o Vcall não pede">
+    <p class="revela">Sem conta.</p>
+    <p class="revela">Sem mensalidade.</p>
+    <p class="revela">Sem limite de tempo.</p>
+    <p class="revela">Sem gravação na nuvem.</p>
+    <p class="so revela">Só quem você chamou.</p>
+  </section>
+
+  <section class="secao recursos" id="recursos" aria-labelledby="t-recursos">
+    <h2 class="titulo revela" id="t-recursos">Tudo o que uma boa chamada precisa.</h2>
+    <div class="grade">
+      <article class="bloco b-leg revela">
+        <div class="legendas" aria-hidden="true">
+          <div class="fala"><img src="assets/avatars/ana.svg" alt=""><div><b>Ana</b><span class="js-digita" data-texto="Alguém tem alguma dúvida antes de começarmos?">Alguém tem alguma dúvida antes de começarmos?</span></div></div>
+          <div class="fala"><img src="assets/avatars/lucas.svg" alt=""><div><b class="voce">Você</b><span class="js-digita" data-texto="Pode falar, estou ouvindo.">Pode falar, estou ouvindo.</span></div></div>
+        </div>
+        <h3>Legendas ao vivo, feitas no seu computador.</h3>
+        <p>O reconhecimento de fala roda na sua máquina. Dá para buscar na transcrição e baixar em .srt.</p>
+      </article>
+      <article class="bloco b-mod revela">
+        <div class="recorte" role="img" aria-label="Painel de pessoas com os botões Silenciar todos e Trancar sala"></div>
+        <h3>Você manda na sala.</h3>
+        <p>Sala de espera, silenciar todos, trancar a sala e fila de mãos levantadas.</p>
+      </article>
+      <article class="bloco b-voz revela">
+        <svg class="ico ico--bloco" aria-hidden="true"><use href="assets/icones.svg#i-mic"/></svg>
+        <h3>A voz aguenta internet ruim.</h3>
+        <p>O áudio viaja com uma cópia de reserva: se um pedaço se perde, o seguinte cobre.</p>
+      </article>
+      <article class="bloco b-rele revela">
+        <div class="rele-pontos" aria-hidden="true"><img src="assets/avatars/carla.svg" alt=""><img src="assets/avatars/lucas.svg" alt=""><img src="assets/avatars/bruno.svg" alt=""></div>
+        <h3>Caiu a conexão? Alguém da sala repassa.</h3>
+        <p>Se a ligação direta entre duas pessoas falha, um terceiro computador da chamada faz a ponte.</p>
+      </article>
+      <article class="bloco b-conv revela">
+        <div class="zap" aria-hidden="true">
+          <img src="assets/shots/convite.webp" alt="" width="1200" height="630" loading="lazy">
+          <p>Bora? A sala já está aberta.</p>
+          <small>Toque para entrar</small>
+        </div>
+        <div>
+          <h3>Convite que abre direto no app.</h3>
+          <p>Mande pelo WhatsApp. Quem não tem o Vcall entra pelo navegador, sem instalar e sem criar conta.</p>
+        </div>
+      </article>
+      <article class="bloco b-ruido revela">
+        <svg class="ico ico--bloco" aria-hidden="true"><use href="assets/icones.svg#i-sparkles"/></svg>
+        <h3>Supressão de ruído por IA.</h3>
+        <p>Ventilador, teclado e liquidificador ficam do lado de fora.</p>
+      </article>
+      <article class="bloco b-link revela">
+        <svg class="ico ico--bloco" aria-hidden="true"><use href="assets/icones.svg#i-link"/></svg>
+        <h3>Link público que some com o app.</h3>
+        <p>Chame alguém de fora da sua rede com um link na hora. Fechou a janela, o link morre.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="secao jogos" id="jogos" aria-labelledby="t-jogos">
+    <h2 class="titulo revela" id="t-jogos">Noite de jogos sem desligar a chamada.</h2>
+    <p class="lead revela">16 jogos prontos. Escolha um e todo mundo na sala recebe o convite para jogar.</p>
+    <div class="faixas" aria-label="Lista de jogos">
+      <div class="faixa">
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-palette"/></svg>Desenha e Adivinha</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-hand"/></svg>Stop!</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-lightbulb"/></svg>Quiz</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-drama"/></svg>Mímica</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-scan-face"/></svg>Quem sou eu?</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-messages-square"/></svg>Roda de perguntas</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-badge-question-mark"/></svg>Duas verdades e uma mentira</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-swords"/></svg>Palavras-código</span>
+      </div>
+      <div class="faixa">
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-hash"/></svg>Jogo da velha</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-grid-3x3"/></svg>Lig 4</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-type"/></svg>Forca</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-brain"/></svg>Jogo da memória</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-dices"/></svg>Roleta e dados</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-spade"/></svg>Planning Poker</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-sticky-note"/></svg>Retrospectiva</span>
+        <span><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-timer"/></svg>Daily</span>
+      </div>
+    </div>
+    <div class="mesa">
+      <figure class="revela">
+        <img src="assets/shots/jogos-menu.webp" alt="Menu de jogos do Vcall, com Festa, Tabuleiro e palavras e Sorteios" width="2000" height="1250" loading="lazy">
+        <figcaption>A mesa de jogos abre dentro da chamada, e todo mundo continua se vendo.</figcaption>
+      </figure>
+      <figure class="revela">
+        <img src="assets/shots/jogo-roleta.webp" alt="Roleta com os nomes de quem está na chamada, sorteando Carla" width="2000" height="1250" loading="lazy">
+        <figcaption>A roleta já vem com os nomes de quem está na sala.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="secao video" id="video" aria-labelledby="t-video">
+    <h2 class="titulo revela" id="t-video">O Vcall em 88 segundos.</h2>
+    <div class="tela revela">
+      <video preload="none" playsinline poster="assets/video/capa.webp" aria-label="Vídeo de apresentação do Vcall, com narração">
+        <source src="assets/video/vcall-88s.mp4" type="video/mp4">
+      </video>
+      <button type="button" aria-label="Assistir ao vídeo"><i><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-play"/></svg></i></button>
+    </div>
+  </section>
+
+  <section class="secao baixar" id="baixar" aria-labelledby="t-baixar">
+    <h2 class="titulo revela" id="t-baixar">Sua próxima chamada vai direto.</h2>
+    <p class="lead revela">Grátis para Windows, Linux e Android. Quem você convidar entra pelo navegador.</p>
+    <div class="acoes revela">
+      <a class="btn btn--marca btn--grande js-baixar" href="https://github.com/victor-kauan-coder/Vcall/releases/latest"><svg class="ico ico--seta" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg><span class="js-rotulo">Baixar o Vcall</span></a>
+    </div>
+    <p class="versao revela"><span class="js-versao">Versão 3.13.1</span>. <a href="https://github.com/victor-kauan-coder/Vcall/releases/latest" class="js-notas">O que mudou</a></p>
+    <div class="sistemas">
+      <article class="sistema revela" data-so="windows">
+        <span class="so-logo so-logo--win" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <h3>Windows</h3>
+        <p>Windows 10 e 11. Instala em um clique e se atualiza sozinho.</p>
+        <a class="btn btn--marca" data-arq="exe" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/VcallSetup-3.13.1.exe"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar .exe <small>138 MB</small></a>
+      </article>
+      <article class="sistema revela" data-so="linux">
+        <span class="so-logo" style="--logo:url(assets/so-linux.svg)" aria-hidden="true"></span>
+        <h3>Linux</h3>
+        <p>Ubuntu, Fedora, Arch e qualquer outra distribuição.</p>
+        <a class="btn btn--linha" data-arq="appimage" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x86_64.AppImage"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar AppImage <small>159 MB</small></a>
+        <div class="arquivos">
+          <a data-arq="deb" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-amd64.deb">.deb <small>115 MB</small></a>
+          <a data-arq="rpm" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x86_64.rpm">.rpm <small>115 MB</small></a>
+          <a data-arq="pacman" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x64.pacman">pacman <small>115 MB</small></a>
+          <a data-arq="targz" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x64.tar.gz">.tar.gz <small>152 MB</small></a>
+        </div>
+      </article>
+      <article class="sistema revela" data-so="android">
+        <span class="so-logo" style="--logo:url(assets/so-android.svg)" aria-hidden="true"></span>
+        <h3>Android</h3>
+        <p>Entre e crie chamadas pelo celular.</p>
+        <a class="btn btn--linha" data-arq="apk" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1.apk"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar APK <small>0,2 MB</small></a>
+      </article>
+      <article class="sistema sistema--embreve revela" data-so="mac">
+        <span class="so-logo" style="--logo:url(assets/so-apple.svg)" aria-hidden="true"></span>
+        <h3>Mac <span class="embreve">Em breve</span></h3>
+        <p>Enquanto isso, quem está no Mac entra nas chamadas pelo navegador.</p>
+        <span class="btn" aria-disabled="true">Em breve</span>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer class="rodape">
+  <a class="marca" href="#topo"><img src="assets/vcall-simbolo.svg" alt="" width="30" height="28">Vcall</a>
+  <p>Desenvolvido por <a href="https://github.com/victor-kauan-coder"><strong>Victor Kauan</strong></a></p>
+  <ul>
+    <li><a href="https://github.com/victor-kauan-coder/Vcall">Código no GitHub</a></li>
+    <li><a href="https://github.com/victor-kauan-coder/Vcall/wiki">Wiki</a></li>
+    <li><a href="https://github.com/victor-kauan-coder/Vcall/releases">Todas as versões</a></li>
+  </ul>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.7/gsap.min.js" integrity="sha384-pEQB1h4Zmn9xhS6jotzltHSIQq6N0Oh3BXkCNOH5LKI81R2NRbb9efarAJYw9gTY" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.7/ScrollTrigger.min.js" integrity="sha384-TgZ1GoXcDnrw/czNfaiSZSFV1zgIRv8aQOevBA8ppS4SkNONmzYfjARpXsDfdnUE" crossorigin="anonymous"></script>
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const REPO = "victor-kauan-coder/Vcall";
+
+  /* ---------- Download para o sistema de quem visita ---------- */
+  const ua = navigator.userAgent;
+  const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+  const so = /android/i.test(ua) ? "android"
+    : /iphone|ipad|ipod/i.test(ua) || (/mac/i.test(plat) && navigator.maxTouchPoints > 1) ? "ios"
+    : /win/i.test(plat) || /windows/i.test(ua) ? "windows"
+    : /mac/i.test(plat) ? "mac"
+    : /linux|x11|cros/i.test(plat + ua) ? "linux" : "";
+  const principal = { windows: "exe", linux: "appimage", android: "apk" }[so];
+  const nomeSO = { windows: "Windows", linux: "Linux", android: "Android" }[so];
+  // O cartão do sistema de quem visita ganha o contorno e o botão cheio.
+  const seu = $(`.sistema[data-so="${so === "ios" ? "mac" : so}"]`);
+  if (seu) {
+    seu.classList.add("seu");
+    const b = $(".btn:not([aria-disabled])", seu), win = $('[data-arq="exe"]');
+    if (b && b !== win) { win.classList.replace("btn--marca", "btn--linha"); b.classList.replace("btn--linha", "btn--marca"); }
+  }
+
+  const aplicarPrincipal = () => {
+    const alvo = principal && $(`[data-arq="${principal}"]`);
+    for (const b of $$(".js-baixar")) {
+      if (alvo) {
+        b.href = alvo.href;
+        $(".js-rotulo", b).textContent = `Baixar para ${nomeSO}`;
+      } else {
+        b.href = "#baixar";
+        if (so === "mac" || so === "ios") $(".js-rotulo", b).textContent = "Ver as versões";
+      }
+    }
+  };
+  aplicarPrincipal();
+
+  // Os links acima apontam para a 3.13.1; a API do GitHub troca pela última versão.
+  const PADROES = { exe: /Setup.*\.exe$/i, appimage: /\.AppImage$/i, deb: /\.deb$/i, rpm: /\.rpm$/i, pacman: /\.pacman$/i, targz: /\.tar\.gz$/i, apk: /\.apk$/i };
+  const tamanho = (b) => b >= 1e6 ? `${Math.round(b / 1e6)} MB` : `${(b / 1e6).toFixed(1).replace(".", ",")} MB`;
+  fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } })
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((rel) => {
+      for (const [chave, re] of Object.entries(PADROES)) {
+        const a = rel.assets.find((x) => re.test(x.name));
+        const link = $(`[data-arq="${chave}"]`);
+        if (!a || !link) continue;
+        link.href = a.browser_download_url;
+        $("small", link).textContent = tamanho(a.size);
+      }
+      const v = String(rel.tag_name || "").replace(/^v/, "");
+      if (v) $(".js-versao").textContent = `Versão ${v}`;
+      if (rel.html_url) $(".js-notas").href = rel.html_url;
+      aplicarPrincipal();
+    })
+    .catch(() => {}); // sem API (limite de requisições, offline): ficam os links da 3.13.1
+
+  /* ---------- Vídeo ---------- */
+  const tela = $(".tela");
+  $("button", tela).addEventListener("click", () => {
+    const v = $("video", tela);
+    v.controls = true;
+    tela.classList.add("tocando");
+    v.play().catch(() => {});
+  });
+
+  /* ---------- Navegação fica sólida depois do topo ---------- */
+  const nav = $("#nav");
+  const sentinela = document.createElement("div");
+  sentinela.style.cssText = "position:absolute;top:0;height:40px;width:1px";
+  document.body.prepend(sentinela);
+  new IntersectionObserver(([e]) => nav.classList.toggle("solida", !e.isIntersecting)).observe(sentinela);
+
+  /* ---------- Movimento ---------- */
+  const reduzir = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduzir || !window.gsap || !window.ScrollTrigger) return;
+  document.documentElement.classList.add("movimento");
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Entrada: cada letra de "Direto" sobe, depois o resto.
+  const palavra = $(".heroi .palavra");
+  palavra.innerHTML = [...palavra.textContent].map((l) => `<span class="letra">${l}</span>`).join("");
+  const janela = $(".palco .janela");
+  const alvo = $(".palco .alvo");
+  gsap.timeline({ defaults: { ease: "expo.out" } })
+    .from(".heroi .letra, .heroi .ponto", { yPercent: 70, opacity: 0, filter: "blur(10px)", duration: 1.3, stagger: 0.05 })
+    .from(".heroi__lado > *", { y: 24, opacity: 0, duration: 1.1, stagger: 0.1 }, 0.35);
+  // A janela entra pelo CSS (propriedade translate): o transform é todo da rolagem.
+
+  // Onde a janela fica no herói, medida pelo .alvo (o CSS decide o lugar; o JS só mede).
+  const caixa = (el) => {
+    let x = 0, y = 0, n = el;
+    while (n && n !== janela.offsetParent) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+  };
+  const heroi = () => {
+    const a = caixa(alvo), j = caixa(janela);
+    return { x: a.x + a.w / 2 - (j.x + j.w / 2), y: a.y + a.h / 2 - (j.y + j.h / 2), s: a.w / j.w };
+  };
+  const canto = () => {
+    const j = caixa(janela), fixo = janela.offsetParent;
+    const w = Math.min(420, fixo.offsetWidth * 0.42), h = w * 0.625, m = fixo.offsetWidth < 1024 ? 16 : 40;
+    const cx = fixo.offsetWidth - m - w / 2, cy = fixo.offsetHeight - (fixo.offsetWidth < 1024 ? 96 : 110) - h / 2;
+    return { x: cx - (j.x + j.w / 2), y: cy - (j.y + j.h / 2), s: w / j.w };
+  };
+
+  const cena = (n) => $(`.janela .cena[data-cena="${n}"]`, $(".palco"));
+  const cap = (n) => $(`.cap[data-cap="${n}"]`);
+  const temas = $$(".janela .tema");
+  const entra = { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out" };
+  const sai = { autoAlpha: 0, y: -40, duration: 0.25, ease: "power2.in" };
+  const troca = (n, t) => tl.fromTo(cena(n), { opacity: 0, scale: 1.05 }, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, t);
+
+  const botoes = $$(".doca button");
+  const nomeTema = $(".js-tema");
+  const ordem = ["heroi", "chamada", "quadro", "conversa", "mini", "temas"];
+
+  gsap.set(temas, { clipPath: "circle(0% at 97.5% 3.6%)", opacity: 1 });
+
+  // A linha do tempo do palco não anda com a rolagem: cada degrau de rolagem
+  // toca o trecho até o próximo capítulo, no tempo dele. As posições dependem
+  // do tamanho da tela, então ela é refeita quando a tela muda de tamanho.
+  let tl, medida = "", passo = 0, indo = null;
+  const montar = () => {
+    const agora = `${innerWidth}x${Math.round(innerHeight / 150)}`; // a barra do celular sumindo não conta
+    if (agora === medida) return;
+    medida = agora;
+    const volta = tl ? tl.labels[ordem[passo]] : 0;
+    if (tl) {
+      indo && indo.kill();
+      tl.kill();
+      gsap.set([".heroi", janela, ".doca", ".cap", cena("quadro"), cena("conversa"), cena("mini"), temas[0]], { clearProps: "transform,opacity,visibility" });
+    }
+    gsap.set(".cap", { autoAlpha: 0, y: 50 });
+    gsap.set(temas[0], { clipPath: "circle(150% at 97.5% 3.6%)", opacity: 0 });
+    tl = gsap.timeline({ paused: true, defaults: { ease: "none" } });
+    tl.addLabel("heroi", 0)
+    // o herói sai, a janela desinclina e vai para o palco
+    .to(".heroi", { yPercent: -35, autoAlpha: 0, duration: 0.6, ease: "power1.in" }, 0)
+    .fromTo(janela, { x: () => heroi().x, y: () => heroi().y, scale: () => heroi().s, rotateX: 22 }, { x: 0, y: 0, scale: 1, rotateX: 0, duration: 1, ease: "power2.inOut", immediateRender: true }, 0)
+    .to(".doca", { autoAlpha: 1, duration: 0.25 }, 0.75)
+    .to(cap("chamada"), entra, 0.75)
+    .addLabel("chamada", 1.05)
+    // Quadro
+    .to(cap("chamada"), sai, 1.5);
+  troca("quadro", 1.55);
+  tl.to(cap("quadro"), entra, 1.75).addLabel("quadro", 2.05)
+    // Conversa
+    .to(cap("quadro"), sai, 2.5);
+  troca("conversa", 2.55);
+  tl.to(cap("conversa"), entra, 2.75).addLabel("conversa", 3.05)
+    // Mini-janela: a própria janela encolhe até o canto
+    .to(cap("conversa"), sai, 3.5)
+    .to(janela, { x: () => canto().x, y: () => canto().y, scale: () => canto().s, duration: 0.65, ease: "power3.inOut" }, 3.55)
+    .to(cena("mini"), { opacity: 1, duration: 0.3 }, 3.85)
+    .to(cap("mini"), entra, 3.95).addLabel("mini", 4.25)
+    // Volta e abre os temas
+    .to(cap("mini"), sai, 4.75)
+    .to(janela, { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power3.inOut" }, 4.8)
+    .to(cena("mini"), { opacity: 0, duration: 0.25 }, 4.85)
+    .to(temas[0], { opacity: 1, duration: 0.3 }, 5.05)
+    .to(cap("temas"), entra, 5.2).addLabel("temas", 5.5);
+    tl.seek(volta, true);
+  };
+  montar();
+
+  // Temas: chegando no capítulo, as paletas se revezam sozinhas, saindo do botão de tema.
+  const resto = temas.slice(1);
+  const ciclo = gsap.timeline({ paused: true, repeat: -1 });
+  resto.forEach((img, i) => ciclo.to(img, { clipPath: "circle(150% at 97.5% 3.6%)", duration: 0.9, ease: "power2.inOut", onStart: () => (nomeTema.textContent = img.dataset.nome) }, 0.8 + i * 1.6));
+  ciclo.to(resto, { opacity: 0, duration: 0.6, onComplete: () => (nomeTema.textContent = temas[0].dataset.nome) }, "+=1.2")
+    .set(resto, { clipPath: "circle(0% at 97.5% 3.6%)", opacity: 1 });
+  const pararTemas = () => { ciclo.pause(0); nomeTema.textContent = temas[0].dataset.nome; };
+
+  const ir = (n) => {
+    if (n === passo) return;
+    if (ordem[passo] === "temas") pararTemas();
+    passo = n;
+    indo && indo.kill();
+    const t = tl.labels[ordem[n]];
+    indo = tl.tweenTo(t, {
+      duration: Math.min(1.5, 0.6 + Math.abs(t - tl.time()) * 0.22),
+      ease: "power2.inOut",
+      onComplete: () => ordem[n] === "temas" && ciclo.play(0),
+    });
+    botoes.forEach((b) => b.setAttribute("aria-current", String(b.dataset.ir === ordem[n])));
+  };
+  const gatilho = ScrollTrigger.create({
+    trigger: ".palco", start: "top top", end: "bottom bottom",
+    // um quarto de degrau já basta para o próximo capítulo começar
+    onUpdate: (s) => ir(Math.max(0, Math.min(ordem.length - 1, Math.floor((s.scroll() - s.start) / ((s.end - s.start) / (ordem.length - 1)) + 0.75)))),
+    onRefresh: montar,
+  });
+  botoes.forEach((b) => b.addEventListener("click", () => {
+    const degrau = (gatilho.end - gatilho.start) / (ordem.length - 1);
+    window.scrollTo({ top: gatilho.start + ordem.indexOf(b.dataset.ir) * degrau + 4, behavior: "smooth" });
+  }));
+
+  // Como funciona: ao aparecer, a história toca inteira, no tempo dela.
+  const direto = $(".direto");
+  direto.classList.add("animado");
+  const mapa = $(".mapa");
+  const passos = $$(".passos li");
+  const via = $(".mapa .via");
+  const Lvia = via.getTotalLength();
+  gsap.set(via, { strokeDasharray: Lvia, strokeDashoffset: Lvia });
+  gsap.set(".mapa .apres", { opacity: 0 });
+  gsap.set(".mapa .pessoa", { opacity: 0, scale: 0.6, transformOrigin: "50% 50%", transformBox: "fill-box" });
+  gsap.set(".mapa .no-vcall", { opacity: 0, scale: 0.5, transformOrigin: "50% 50%", transformBox: "fill-box" });
+  gsap.set(".mapa .cadeado", { opacity: 0, y: 16 });
+  gsap.set(passos, { autoAlpha: 0, y: 20 });
+  const deNovo = $(".de-novo");
+  const td = gsap.timeline({
+    paused: true,
+    defaults: { ease: "power2.out" },
+    onComplete: () => { mapa.classList.add("fluindo"); deNovo.classList.add("pronto"); },
+  });
+  td.to(".mapa .pessoa", { opacity: 1, scale: 1, duration: 0.7, stagger: 0.2, ease: "back.out(1.6)" }, 0)
+    .to(passos[0], { autoAlpha: 1, y: 0, duration: 0.5 }, 0.2)
+    .to(passos[0], { autoAlpha: 0, y: -20, duration: 0.35 }, 1.9)
+    .to(".mapa .no-vcall", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.8)" }, 2)
+    .fromTo(".mapa .apres", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 2.2)
+    .to(passos[1], { autoAlpha: 1, y: 0, duration: 0.5 }, 2.3)
+    .to(passos[1], { autoAlpha: 0, y: -20, duration: 0.35 }, 3.9)
+    .to(".mapa .apres", { opacity: 0, duration: 0.5 }, 4)
+    .to(".mapa .no-vcall", { opacity: 0.18, scale: 0.8, y: -20, duration: 0.6 }, 4)
+    .to(passos[2], { autoAlpha: 1, y: 0, duration: 0.5 }, 4.1)
+    .to(passos[2], { autoAlpha: 0, y: -20, duration: 0.35 }, 5.4)
+    .to(via, { strokeDashoffset: 0, duration: 1.1, ease: "power2.inOut" }, 5.5)
+    .to(passos[3], { autoAlpha: 1, y: 0, duration: 0.5 }, 5.9)
+    .to(".mapa .cadeado", { opacity: 1, y: 0, duration: 0.5 }, 6.2);
+  ScrollTrigger.create({ trigger: ".mapa", start: "top 75%", once: true, onEnter: () => td.play() });
+  deNovo.addEventListener("click", () => { mapa.classList.remove("fluindo"); deNovo.classList.remove("pronto"); td.restart(); });
+
+  // O resto aparece quando entra na tela.
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add("visivel");
+    io.unobserve(e.target);
+    if (e.target.classList.contains("b-leg")) digitar(e.target);
+  }), { rootMargin: "0px 0px -12% 0px" });
+  $$(".revela").forEach((el, i) => { el.style.transitionDelay = `${(i % 3) * 80}ms`; io.observe(el); });
+
+  // Legendas: as falas aparecem palavra por palavra, como no app.
+  function digitar(bloco) {
+    const falas = $$(".js-digita", bloco);
+    falas.forEach((f) => (f.textContent = ""));
+    let atraso = 400;
+    falas.forEach((f) => {
+      const palavras = f.dataset.texto.split(" ");
+      palavras.forEach((w, i) => setTimeout(() => {
+        f.textContent = palavras.slice(0, i + 1).join(" ");
+        if (i < palavras.length - 1) f.insertAdjacentHTML("beforeend", '<i class="cursor"></i>');
+      }, atraso + i * 170));
+      atraso += palavras.length * 170 + 700;
+    });
+  }
+
+  // Decodifica as capturas do palco antes de precisar delas: troca sem engasgo.
+  addEventListener("load", () => {
+    ScrollTrigger.refresh();
+    $$(".palco .janela img").forEach((i) => i.decode && i.decode().catch(() => {}));
+  });
+})();
+</script>
+</body>
+</html>

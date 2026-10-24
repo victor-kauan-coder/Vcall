@@ -1,5 +1,13 @@
 # Novidades da 3.14
 
+## 3.14.1: atualizar sem perder o Vcall ao desligar
+
+- No Windows, desligar o computador com uma atualização pronta podia cortar
+  o instalador no meio e apagar o Vcall. Agora, com o sistema desligando, a
+  instalação espera o próximo fechamento do Vcall.
+- Se o seu Vcall sumiu, instale de novo pela página de Releases; as
+  configurações continuam guardadas.
+
 ## Ilustrações com gente
 
 - A tela inicial, a lista de calls vazia, a sala com só você, a sala de

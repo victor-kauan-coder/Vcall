@@ -9,7 +9,8 @@
  * Quando instalar, para não derrubar ninguém de uma chamada:
  *   - Windows e AppImage: ao fechar o Vcall, em silêncio; da próxima vez que a
  *     pessoa abre, já está na versão nova. Ou na hora, pelo botão
- *     "Reiniciar e atualizar" das configurações.
+ *     "Reiniciar e atualizar" das configurações. Nunca com o sistema
+ *     desligando, que cortava o instalador no meio (ver instalaAoFechar).
  *   - .deb e .rpm: só pelo botão, porque o sistema pede a senha de
  *     administrador. O Vcall fecha, o sistema pede a senha, instala e o Vcall
  *     abre de novo (desktop/pacote.js) — nada roda com a janela congelada.
@@ -20,7 +21,7 @@
  * que o download termina, antes de qualquer conferência. Quem instala ao
  * fechar é este módulo, e só depois da assinatura conferida.
  */
-import { app, BrowserWindow, net } from "electron";
+import { app, BrowserWindow, net, powerMonitor } from "electron";
 import { existsSync, readFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
@@ -30,7 +31,7 @@ import electronUpdater from "electron-updater";
 import { reabrirDepois, trocarAppImage } from "./appimage.js";
 import { instalarPacoteDepois } from "./pacote.js";
 import { confere, nomeNaRelease, sha512DoArquivo } from "./assinatura.js";
-import { REPO, conferir, maisNova, modoDeInstalacao } from "./atualizacao.js";
+import { REPO, conferir, instalaAoFechar, maisNova, modoDeInstalacao } from "./atualizacao.js";
 
 const { autoUpdater } = electronUpdater;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -46,6 +47,8 @@ let modo = "manual";
 let conferida = null;
 /** O arquivo baixado da versão conferida (o AppImage é instalado por nós). */
 let baixado = null;
+/** O sistema está desligando: as janelas fecham, mas não é a pessoa fechando. */
+let desligando = false;
 let estado = { fase: "parado", atual: app.getVersion(), versao: null, progresso: 0, erro: null, url: PAGINA, modo };
 
 function mudar(parcial) {
@@ -195,7 +198,10 @@ export function instalar() {
  * encerrar o app.
  */
 export function aoFechar() {
-  if (!conferida || modo !== "sozinho") return false;
+  if (!instalaAoFechar({ conferida, modo, desligando })) {
+    if (conferida && desligando) registrar("atualizacao-adiada", { versao: conferida, motivo: "sistema desligando" });
+    return false;
+  }
   registrar("atualizacao-instalando", { versao: conferida, quando: "ao fechar" });
   if (process.env.APPIMAGE && baixado) return instalarAppImage(false);
   autoUpdater.quitAndInstall(true, false);
@@ -211,6 +217,14 @@ export function iniciar(opcoes = {}) {
     tipoPacote: process.platform === "linux" && app.isPackaged ? tipoDoPacote() : null,
   });
   mudar({ fase: "parado", atual: app.getVersion() });
+
+  // Desligar o Windows também fecha as janelas; ver instalaAoFechar. As duas
+  // mensagens do Windows chegam antes de as janelas fecharem.
+  const marcarDesligando = () => (desligando = true);
+  const vigiar = (w) => w.on("query-session-end", marcarDesligando).on("session-end", marcarDesligando);
+  BrowserWindow.getAllWindows().forEach(vigiar);
+  app.on("browser-window-created", (_e, w) => vigiar(w));
+  powerMonitor.on("shutdown", marcarDesligando); // Linux e macOS
 
   if (modo !== "manual") {
     autoUpdater.autoDownload = true;

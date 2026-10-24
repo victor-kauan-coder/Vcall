@@ -348,6 +348,8 @@ try {
 
     // Configurações › Rede Tailscale: a opção fica guardada.
     await win.click('[aria-label="Configurações"]').catch(() => win.keyboard.press("Control+,"));
+    // Rede e servidor de apoio ficam no "Avançado", fechado por padrão.
+    await win.locator("#settingsModal details.avancado > summary").click({ timeout: 8000 }).catch(() => {});
     const caixa = win.locator("#settingsModal label", { hasText: "Deixar este computador disponível" }).locator("input[type=checkbox]");
     const temOpcao = await caixa.waitFor({ timeout: 8000 }).then(() => true, () => false);
     check("as configurações têm 'Deixar este computador disponível na rede Tailscale'", temOpcao);

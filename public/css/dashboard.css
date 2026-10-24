@@ -215,8 +215,8 @@
   perspective: 1000px;
 }
 
-/* Palco claro e quente nos dois temas: a ilustração foi desenhada para fundo
-   claro, e o pastel no meio da tela escura é o que dá o ar acolhedor. */
+/* Palco quente atrás da cena da chamada: pastel no tema escuro, tinta no claro.
+   A janela do app e as pessoas não têm fundo próprio e ficam bem em qualquer um. */
 .dash__stage {
   display: grid;
   /* Coluna que encolhe: com a automática, o max-width: 100% da ilustração

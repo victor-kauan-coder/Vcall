@@ -459,7 +459,7 @@ function criarJanela() {
     if (quedas > 3) {
       dialog.showErrorBox(
         "O Vcall parou de responder",
-        `A janela caiu várias vezes seguidas (${detalhes.reason}). O registro está em ${path.join(app.getPath("logs"), "vcall.log")}.`,
+        `A janela fechou sozinha várias vezes seguidas. Feche e abra o Vcall de novo. Se continuar, mande este arquivo para o suporte: ${path.join(app.getPath("logs"), "vcall.log")}`,
       );
       return;
     }
@@ -941,7 +941,9 @@ if (!app.requestSingleInstanceLock()) {
     try {
       baseUrl = await subirServidor();
     } catch (err) {
-      dialog.showErrorBox("Não foi possível iniciar o Vcall", `O servidor interno não subiu: ${err?.message || err}`);
+      dialog.showErrorBox("Não foi possível iniciar o Vcall", `Algo impediu o Vcall de abrir. Reinicie o computador e tente de novo.
+
+Detalhe: ${err?.message || err}`);
       app.quit();
       return;
     }

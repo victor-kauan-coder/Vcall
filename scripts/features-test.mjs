@@ -364,3 +364,13 @@ const sala = (spec) => {
   assert.equal(new Set(planejarRele({ ids, info }).map((p) => p.de)).size, 3, "dois ajudantes dão conta de três fracos");
 }
 console.log("✓ relé: resgate de par sem conexão, ajuda a quem tem subida fraca e teto por ajudante");
+
+// Avatar "Vcall": mesma semente, mesmo rosto (é só a semente que trafega).
+{
+  const { avatarVcall } = await import("../public/js/ui/avatar-vcall.js");
+  assert.equal(avatarVcall("ana-123"), avatarVcall("ana-123"), "a mesma semente desenha o mesmo avatar");
+  const rostos = new Set(Array.from({ length: 40 }, (_, i) => avatarVcall(`s${i}`)));
+  assert.ok(rostos.size >= 38, "sementes diferentes dão rostos diferentes");
+  assert.match(avatarVcall(""), /^<svg[^>]*viewBox="0 0 128 128"[\s\S]*<\/svg>$/, "semente vazia ainda desenha");
+}
+console.log("✓ avatar Vcall: determinístico e variado");

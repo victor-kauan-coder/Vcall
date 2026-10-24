@@ -506,7 +506,7 @@ export function describeScreenError(err) {
       return "A captura foi interrompida.";
     case "SeletorSemResposta":
       return navigator.userAgent.includes("Linux")
-        ? "O seletor de tela do sistema não respondeu. Instale o xdg-desktop-portal da sua área de trabalho (xdg-desktop-portal-gnome, -kde ou -wlr) e tente de novo."
+        ? "O Linux não abriu a janela de escolher a tela. Instale o pacote “xdg-desktop-portal” da sua área de trabalho (GNOME, KDE…) e tente de novo."
         : "O seletor de tela não respondeu. Tente compartilhar de novo.";
     default:
       return "Não foi possível compartilhar a tela.";

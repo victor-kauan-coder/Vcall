@@ -145,7 +145,7 @@ export class Dashboard {
       ]),
       el("div.dash__art", {}, [
         el("div.dash__stage", {}, [
-          ilustracao("hero", { largura: 466, altura: 379 }),
+          ilustracao("inicio", { largura: 380, altura: 380 }),
         ]),
         bubble("dash__bubble--a", "mic", "Oi! Tá me ouvindo?"),
         bubble("dash__bubble--b", "sparkles", "Bora desenhar?"),
@@ -200,7 +200,7 @@ export class Dashboard {
     this.#list = el("div.dash__list", { role: "list" });
     this.#maquinas = el("div.dash__rede", { hidden: true, "aria-label": "Computadores na sua rede Tailscale" });
     this.#empty = el("div.dash__empty", {}, [
-      ilustracao("empty", { largura: 72, altura: 48, classe: "dash__emptyArt" }),
+      ilustracao("lista-vazia", { largura: 72, altura: 84, classe: "dash__emptyArt" }),
       el("p.dash__emptyTitle", { text: "Nenhuma call pública no ar agora." }),
       el("p.field__hint", {
         text: "Salas privadas não aparecem aqui — o endereço delas é o segredo. Entre pelo link ou pelo código que você recebeu.",
@@ -374,7 +374,7 @@ export class Dashboard {
         ? null
         : el("button.btn.btn--icon.btn--ghost", {
             type: "button",
-            "aria-label": "Copiar código P2P",
+            "aria-label": "Copiar código da sala",
             dataset: { tip: "Copiar código", "tip-placement": "left" },
             onClick: () => copy(room.code, `Código ${room.code} copiado`),
           }, [icon("copy")]),
@@ -488,13 +488,13 @@ export class Dashboard {
       "private",
       "lock",
       "Privada",
-      "Não aparece no painel. Só entra quem tem o link ou o código.",
+      "Não aparece na lista. Só entra quem tem o link ou o código.",
     );
     mk(
       "public",
       "users",
       "Pública",
-      "Listada aqui para qualquer pessoa neste servidor entrar.",
+      "Aparece na lista de chamadas para qualquer pessoa entrar.",
     );
     // "Na minha rede" só existe onde há rede: no app com Tailscale, ou pela tailnet.
     const opcaoRede = () => {
@@ -520,7 +520,7 @@ export class Dashboard {
           el("span.field__label", { text: "Nome da sala" }),
           nameInput,
           el("div.field__hint", {
-            text: "Aparece no painel se a sala for pública, e no topo da chamada para todo mundo.",
+            text: "Aparece na lista de chamadas se a sala for pública, e no topo da chamada para todo mundo.",
           }),
         ]),
         options,
@@ -528,7 +528,7 @@ export class Dashboard {
           passToggle,
           el("div", {}, [
             el("div", { text: "Proteger com senha" }),
-            el("div.field__hint", { text: "A senha é conferida no servidor e nunca é guardada em claro." }),
+            el("div.field__hint", { text: "Quem entrar vai precisar digitar a senha. Ela fica guardada de forma protegida." }),
           ]),
         ]),
         passField,

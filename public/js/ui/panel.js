@@ -716,12 +716,12 @@ export class Panel {
           ]),
         );
 
-      row("Latência", formatMs(Math.round(s.rttSmoothed ?? NaN)), toneFor(s.rttSmoothed, 150, 300));
-      row("Perda de pacotes", s.lossSmoothed != null ? `${s.lossSmoothed.toFixed(1)} %` : "—", toneFor(s.lossSmoothed, 1.5, 4));
-      row("Banda disponível", formatBitrate(s.transport.availableOutgoing));
+      row("Atraso", formatMs(Math.round(s.rttSmoothed ?? NaN)), toneFor(s.rttSmoothed, 150, 300));
+      row("Dados perdidos", s.lossSmoothed != null ? `${s.lossSmoothed.toFixed(1)} %` : "—", toneFor(s.lossSmoothed, 1.5, 4));
+      row("Internet disponível", formatBitrate(s.transport.availableOutgoing));
       row(
-        "Rota",
-        s.relay ? "via servidor TURN" : s.tailscale ? "direta pela rede Tailscale" : "direta (P2P)",
+        "Caminho",
+        s.relay ? "por um servidor de apoio" : s.tailscale ? "direto pela rede Tailscale" : "direto",
         s.relay ? "warn" : "ok",
       );
 
@@ -730,15 +730,14 @@ export class Panel {
         const kind = s.outbound.screen ? "tela" : "câmera";
         row(`Enviando ${kind}`, formatBitrate(out.bitrate));
         if (out.width) row("Resolução enviada", `${out.width}×${out.height} @ ${Math.round(out.fps ?? 0)} fps`);
-        if (out.codec) row("Codec", out.codec);
         if (out.limitedBy && out.limitedBy !== "none") {
           row(
             "Limitado por",
-            out.limitedBy === "cpu" ? "processador" : out.limitedBy === "bandwidth" ? "banda" : out.limitedBy,
+            out.limitedBy === "cpu" ? "processador" : out.limitedBy === "bandwidth" ? "internet" : "outro motivo",
             "warn",
           );
         }
-        if (out.encodeMs != null) row("Custo de codificação", `${out.encodeMs.toFixed(1)} ms/quadro`, toneFor(out.encodeMs, 15, 25));
+        if (out.encodeMs != null) row("Esforço do computador", `${out.encodeMs.toFixed(1)} ms por quadro`, toneFor(out.encodeMs, 15, 25));
       }
 
       const inb = s.inbound.screen || s.inbound.cam;

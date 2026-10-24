@@ -243,31 +243,6 @@ textarea {
   display: none;
 }
 
-.waiting__signal {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 96px;
-  height: 96px;
-  margin-bottom: var(--sp-2);
-}
-.waiting__mark {
-  position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  box-shadow: 0 16px 36px -14px rgba(253, 77, 135, 0.6);
-}
-.waiting__ring {
-  position: absolute;
-  inset: 12px;
-  border-radius: 24px;
-  border: 2px solid var(--brand-pink);
-  opacity: 0;
-}
-.waiting__ring:nth-child(2) {
-  border-color: var(--brand-orange);
-}
 
 .waiting__title {
   margin: 0;
@@ -339,7 +314,9 @@ textarea {
   place-items: center;
   aspect-ratio: 1;
   max-height: 70vh;
-  padding: 14%;
+  /* Pouco respiro: as cenas já trazem o próprio (o círculo atrás das pessoas),
+     e com mais margem os detalhes delas sumiam. */
+  padding: 7%;
   border-radius: 32px;
   /*
    * O cartão seguia dois roxos cravados (#1c1455 e #110c3a) da identidade
@@ -356,12 +333,11 @@ textarea {
 }
 /*
  * `img` não alcança mais nada: a ilustração agora é um <svg> embutido dentro
- * de `.ilu`, para acompanhar o tema. O fundo claro sai junto — quem define o
- * painel do desenho são os tokens --ilu-*.
+ * de `.ilu`, para acompanhar o tema: móveis, janelas e chão das cenas usam
+ * as variáveis do tema.
  */
 .leave__art .ilu {
   width: 100%;
-  padding: 8% 6%;
 }
 .leave__body {
   display: flex;
@@ -406,13 +382,6 @@ textarea {
   margin: var(--sp-1) 0 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
-}
-/* O desenho é mais largo que alto: menos respiro, para ele ocupar o cartão. */
-.erro .leave__art {
-  padding: 9%;
-}
-.erro .leave__art .ilu {
-  padding: 0;
 }
 /* Quando os botões quebram de linha (celular), cada um ocupa a linha toda. */
 .erro .leave__actions .btn {

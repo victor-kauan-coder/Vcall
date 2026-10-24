@@ -61,6 +61,7 @@ def copiarMarca = tasks.register("copiarMarca", Copy) {
         include "erro.html", "js/erro.js", "js/ui/tela-erro.js", "js/ui/ilustracao.js", "js/lib/dom.js",
                 "js/boot-tema.js", "css/tokens.css", "css/paletas.css", "css/base.css", "css/app.css",
                 "css/motion.css", "css/call.css", "assets/illustrations/desconectado.svg",
+                "assets/illustrations/sem-internet.svg", "assets/illustrations/conectando.svg",
                 "assets/logo-mark.svg", "assets/favicon-64.png", "vendor/icons.svg", "fonts/*.woff2"
     }
     into "build/generated/vcall-assets"

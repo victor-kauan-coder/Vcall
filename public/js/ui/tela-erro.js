@@ -3,8 +3,8 @@
  *
  * Mesma família da tela "Você saiu" (.leave em call.css): cartão com a
  * ilustração, título na voz da marca, uma frase que diz o que houve e o que
- * fazer. A ilustração são as duas pessoas da logo com o cabo desencaixado, e
- * tudo segue a paleta escolhida.
+ * fazer. A ilustração muda com o problema (o plugue fora da tomada, alguém
+ * caçando sinal de wifi, a conexão vindo de caracol), e tudo segue a paleta.
  *
  * Usada em public/erro.html (o link não abriu: túnel da Cloudflare fora do ar,
  * sem internet…) e por cima da chamada quando a sala cai de vez.
@@ -20,10 +20,12 @@ export const TIPOS = {
       "O Vcall de quem te convidou foi fechado, ou o computador dele perdeu a internet. Se a sala voltar, você entra sozinho; se não, peça um link novo.",
   },
   internet: {
+    arte: "sem-internet",
     titulo: "Você está sem internet",
     texto: "Confira o Wi-Fi ou os dados móveis. Assim que a conexão voltar, o Vcall tenta de novo sozinho.",
   },
   demora: {
+    arte: "conectando",
     titulo: "A sala está demorando para responder",
     texto: "A conexão até o computador de quem te convidou está lenta. O Vcall tenta de novo em instantes.",
   },
@@ -58,7 +60,7 @@ export function montarTelaDeErro({ tipo, codigo = "", sondar = null, aoTentar, a
   const tentar = el("button.btn.btn--primary.btn--lg", { type: "button" }, [icon("refresh-cw"), el("span", { text: "Tentar de novo" })]);
 
   const tela = el("main.leave.erro", { "aria-labelledby": "erroTitulo", dataset: { tipo } }, [
-    el("div.leave__art", { "aria-hidden": "true" }, [ilustracao("desconectado", { largura: 280, altura: 182 })]),
+    el("div.leave__art", { "aria-hidden": "true" }, [ilustracao(t.arte || "desconectado", { largura: 320, altura: 240 })]),
     el("div.leave__body", {}, [
       el("img.brand__mark", { src: "/assets/logo-mark.svg", alt: "", width: 48, height: 48 }),
       el("h1.leave__title", { id: "erroTitulo", text: t.titulo }),

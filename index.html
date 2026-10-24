@@ -97,6 +97,16 @@ p{text-wrap:pretty}
 .cap[data-cap="chamada"] .so-estatico{display:none}
 
 .capitulos{position:relative;display:grid;gap:clamp(4rem,9vw,7rem);margin-top:clamp(4rem,10vw,8rem)}
+/* Movimento: só transform, em poucas camadas. Nada preso à rolagem. */
+.capitulos{overflow-x:clip}
+.palco .janela{will-change:transform}
+.cap .so-estatico{will-change:transform}
+.mascara{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.08em;margin-bottom:-.08em}
+.mascara>span{display:inline-block}
+@media (min-width:861px){
+  .cap:nth-child(even){grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+  .cap:nth-child(even)>div{order:2}
+}
 .cap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:2rem 4rem;align-items:center}
 .cap h2{font-size:clamp(2.1rem,3.6vw,3.6rem)}
 .cap p{margin-top:1.1rem;color:var(--texto-2);max-width:32ch}
@@ -281,40 +291,40 @@ p{text-wrap:pretty}
         <div class="alvo" aria-hidden="true"></div>
       </div>
 
-      <div class="janela revela" aria-hidden="true">
+      <div class="janela" aria-hidden="true">
         <img class="cena" data-cena="chamada" src="assets/shots/tema-tinta-dark.webp" alt="" width="2400" height="1500" fetchpriority="high">
       </div>
 
       <div class="capitulos">
-        <article class="cap revela" data-cap="chamada">
+        <article class="cap" data-cap="chamada">
           <div>
             <h2>Até 16 pessoas, sem limite de tempo.</h2>
             <p>Vídeo, voz e tela vão direto para quem está na sala. Quem fala acende, e você vê na hora quem está com a palavra.</p>
           </div>
           <img class="so-estatico" src="assets/shots/tema-tinta-dark.webp" alt="Chamada do Vcall com quatro pessoas, Ana, Bruno, Lucas e Carla" loading="lazy" width="2400" height="1500">
         </article>
-        <article class="cap revela" data-cap="quadro">
+        <article class="cap" data-cap="quadro">
           <div>
             <h2>Um quadro sem fim para desenhar junto.</h2>
             <p>Rabisque, cole imagens em camadas e anote por cima da tela que alguém está mostrando.</p>
           </div>
           <img class="so-estatico" src="assets/shots/board.webp" alt="Quadro branco colaborativo do Vcall com traços desenhados" loading="lazy" width="2400" height="1500">
         </article>
-        <article class="cap revela" data-cap="conversa">
+        <article class="cap" data-cap="conversa">
           <div>
             <h2>Arquivos de até 25 MB, entregues inteiros.</h2>
             <p>Fotos e arquivos vão direto para quem está na chamada, e a conversa não fica guardada em lugar nenhum.</p>
           </div>
           <img class="so-estatico" src="assets/shots/call-chat.webp" alt="Conversa por texto aberta ao lado da chamada" loading="lazy" width="2400" height="1500">
         </article>
-        <article class="cap cap--mini revela" data-cap="mini">
+        <article class="cap cap--mini" data-cap="mini">
           <div>
             <h2>Fica por cima de tudo.</h2>
             <p>Aperte J e a chamada vira uma janelinha no canto, com quem fala e os botões que importam.</p>
           </div>
           <img class="so-estatico" src="assets/shots/mini.webp" alt="Mini-janela da chamada com três pessoas e os controles essenciais" loading="lazy" width="760" height="540">
         </article>
-        <article class="cap revela" data-cap="temas">
+        <article class="cap" data-cap="temas">
           <div>
             <h2>Cinco paletas, claro e escuro.</h2>
             <p>Tinta, Ametista, Carvão, Oceano e Brasa. Em todas, o texto passa no teste de contraste.</p>
@@ -631,6 +641,34 @@ p{text-wrap:pretty}
   gsap.timeline({ defaults: { ease: "expo.out" } })
     .from(".heroi .letra, .heroi .ponto", { yPercent: 60, opacity: 0, duration: 1, stagger: 0.045 })
     .from(".heroi__lado > *", { y: 20, opacity: 0, duration: 0.9, stagger: 0.08 }, 0.3);
+
+  // A janela do app chega deitada e se levanta enquanto você rola. É um só
+  // elemento, só transform: a rolagem continua livre e lisa.
+  gsap.fromTo(".palco .janela",
+    { rotateX: 26, scale: 0.88, y: 70, transformPerspective: 1500, transformOrigin: "50% 0%" },
+    { rotateX: 0, scale: 1, y: 0, ease: "none", scrollTrigger: { trigger: ".palco .janela", start: "top 98%", end: "top 28%", scrub: 0.6 } });
+
+  // Capítulos: o título sobe palavra por palavra, a captura entra pelo lado
+  // (alternando) e depois flutua devagar com a rolagem.
+  $$(".cap").forEach((cap, i) => {
+    const h2 = $("h2", cap);
+    h2.innerHTML = h2.textContent.split(" ").map((w) => `<span class="mascara"><span>${w}</span></span>`).join(" ");
+    const lado = i % 2 ? -1 : 1;
+    const tl = gsap.timeline({ scrollTrigger: { trigger: cap, start: "top 80%", once: true }, defaults: { ease: "expo.out" } });
+    tl.from($$(".mascara > span", h2), { yPercent: 115, rotate: 4, duration: 1, stagger: 0.06 })
+      .from($$("p", cap), { y: 22, opacity: 0, duration: 0.9, stagger: 0.08 }, 0.3);
+    const img = $(".so-estatico", cap);
+    if (img && getComputedStyle(img).display !== "none") {
+      tl.from(img, { x: 120 * lado, rotate: 4 * lado, scale: 0.92, opacity: 0, duration: 1.3 }, 0.05);
+      gsap.fromTo(img, { yPercent: 5 }, { yPercent: -5, ease: "none", scrollTrigger: { trigger: cap, start: "top bottom", end: "bottom top", scrub: 0.8 } });
+    }
+  });
+
+  // Paletas: as cinco abrem em leque.
+  gsap.from(".temas-grade img", {
+    y: 50, rotate: (i) => (i - 2) * 7, scale: 0.85, opacity: 0, duration: 1, ease: "back.out(1.5)", stagger: 0.08,
+    scrollTrigger: { trigger: ".temas-grade", start: "top 88%", once: true },
+  });
 
   // Como funciona: ao aparecer, a história toca inteira, no tempo dela.
   const direto = $(".direto");

@@ -207,8 +207,8 @@ playIntro();
 
 function showLobby({ isGuest: guest }) {
   $("#lobby").hidden = false;
-  lobby.mount(document, { isGuest: guest });
-  stagger($("#lobby").querySelectorAll(".lobby__preview, .lobby__form > *"), { delay: 60, gap: 40 });
+  lobby.mount(document, { isGuest: guest, sala: app.roomName, aprovar: !!app.roomMeta?.aprovar });
+  stagger($("#lobby").querySelectorAll(".lobby__papel, .lobby__canhoto"), { delay: 60, gap: 90 });
 }
 
 if (!env.canShareScreen) {
@@ -563,7 +563,7 @@ function wireModeration() {
   mesh.on("speaking", ({ id, speaking }) => marcarFala(id, speaking));
 
   /* -- sala de espera: quem espera -- */
-  mesh.on("waiting", () => mostrarEspera(true));
+  mesh.on("waiting", (m) => mostrarEspera(true, m?.name || app.roomName));
   mesh.on("joined", () => mostrarEspera(false));
 
   /* -- sala de espera: o anfitrião decide -- */
@@ -684,8 +684,8 @@ function wireModoJogo() {
   });
 }
 
-/** Tela de "aguardando o anfitrião" por cima do palco. */
-function mostrarEspera(on) {
+/** A fila: quem pediu para entrar espera aqui, por cima do palco, até ser aceito. */
+function mostrarEspera(on, sala = "") {
   let tela = $(".waitRoom");
   if (!on) {
     tela?.remove();
@@ -694,9 +694,10 @@ function mostrarEspera(on) {
   if (tela) return;
   tela = el("div.waitRoom", { role: "status", "aria-live": "polite" }, [
     el("div.waitRoom__card", {}, [
-      ilustracao("sala-de-espera", { largura: 340, altura: 255 }),
-      el("h2", { text: "Aguardando o anfitrião" }),
-      el("p", { text: "A sala está trancada. O anfitrião já sabe que você chegou e vai decidir se você entra." }),
+      el("span.waitRoom__marca", {}, [el("img", { src: "/assets/logo-mark.png", alt: "", width: 22, height: 22 }), el("span", { text: "Vcall" })]),
+      el("h2", { text: "Pedindo para entrar" }),
+      sala ? el("p.waitRoom__sala", { text: `Sala “${sala}”` }) : null,
+      el("p", { text: "Quem está na sala já sabe que você chegou. Assim que aceitarem, você entra." }),
       el("div.waitRoom__pulse", { "aria-hidden": "true" }, [el("i"), el("i"), el("i")]),
       el("button.btn.btn--ghost", { type: "button", onClick: () => leaveCall() }, [icon("log-out", { size: "sm" }), el("span", { text: "Desistir" })]),
     ]),

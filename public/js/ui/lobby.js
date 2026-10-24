@@ -10,6 +10,7 @@ import { avatarEl, sampleAvatars, STYLE_LABELS, defaultAvatar, isPhoto } from ".
 import { preparePhoto, ACCEPTED } from "./photo.js";
 import { prefs, randomSeed, env } from "../lib/util.js";
 import { describeMediaError } from "../core/media.js";
+import { VoiceActivity } from "../core/vad.js";
 import { toast } from "./toast.js";
 
 export class Lobby {
@@ -23,7 +24,7 @@ export class Lobby {
     this.node = null;
   }
 
-  mount(root, { isGuest }) {
+  mount(root, { isGuest, sala = "", aprovar = false }) {
     this.node = $(".lobby", root);
     this.video = $("#lobbyVideo");
     this.placeholder = $("#lobbyPlaceholder");
@@ -39,7 +40,14 @@ export class Lobby {
     this.hint = $("#lobbyHint");
 
     this.nameInput.value = this.name;
-    this.joinBtn.querySelector("span").textContent = isGuest ? "Entrar na sala" : "Criar sala";
+    this.joinBtn.querySelector("span").textContent = isGuest ? "Entrar na sala" : "Começar a call";
+    $("#lobbyTitulo").textContent = isGuest ? "Te chamaram para uma call." : "Sua call está pronta.";
+    $("#lobbyCanhotoTitulo").textContent = isGuest ? "Tudo certo?" : "Pode chamar.";
+    const salaEl = $("#lobbySala");
+    // Para o anfitrião: o nome da sala e, com aprovação, que quem chegar pede para entrar.
+    const linha = [sala ? `Sala “${sala}”.` : "", aprovar ? "Quem chegar pede para entrar, e você aceita." : ""].filter(Boolean).join(" ");
+    salaEl.hidden = !linha;
+    salaEl.textContent = linha;
 
     this.#renderAvatars();
     this.#renderPlaceholder();
@@ -100,6 +108,7 @@ export class Lobby {
       this.#attachPreview();
       this.#syncMic(this.media.micEnabled);
       this.#syncCam(this.media.camEnabled);
+      this.#medirSom();
     });
     this.media.on("devices", () => this.#renderDevices());
     this.media.on("error", ({ kind, err }) => toast(describeMediaError(err, kind), { tone: "warn" }));
@@ -114,6 +123,7 @@ export class Lobby {
     this.#syncMic(this.media.micEnabled);
     this.#syncCam(this.media.camEnabled);
     this.#renderDevices();
+    this.#medirSom();
   }
 
   #attachPreview() {
@@ -204,14 +214,21 @@ export class Lobby {
     }
   }
 
+  /**
+   * Microfone e câmera: o nome do aparelho (ou a lista, quando há mais de
+   * um) e, no microfone, o medidor que acende com a voz.
+   */
   #renderDevices() {
     const { audioinput, videoinput } = this.media.devices;
     clear(this.deviceRow);
     if (!audioinput.length && !videoinput.length) return;
 
-    const select = (kind, list, iconName, label) => {
-      if (list.length < 2) return null;
-      const sel = el("select.input", { "aria-label": label, style: { minHeight: "38px", paddingInline: "8px" } });
+    const escolha = (kind, list, label) => {
+      if (list.length < 2) {
+        const atual = list.find((d) => d.deviceId === this.media.selected[kind]) || list[0];
+        return el("span.lobby__aparelho", { text: atual?.label || label });
+      }
+      const sel = el("select.lobby__select", { "aria-label": label });
       for (const d of list) {
         sel.append(
           el("option", {
@@ -222,16 +239,49 @@ export class Lobby {
         );
       }
       sel.addEventListener("change", () => this.media.selectDevice(kind, sel.value));
-      return el("label.row.row--tight", { style: { flex: "1", minWidth: "0" } }, [
-        icon(iconName, { size: "sm" }),
-        sel,
-      ]);
+      return sel;
     };
 
-    const mic = select("audioinput", audioinput, "mic", "Microfone");
-    const cam = select("videoinput", videoinput, "video", "Câmera");
-    if (mic) this.deviceRow.append(mic);
-    if (cam) this.deviceRow.append(cam);
+    this.nivel = el("span.lobby__nivel", { "aria-hidden": "true" });
+    this.deviceRow.append(
+      el("span.lobby__rotulo", { text: "Microfone e câmera" }),
+      el("div.lobby__aparelhoLinha", {}, [
+        icon("mic", { size: "sm" }),
+        el("div.lobby__aparelhoInfo", {}, [escolha("audioinput", audioinput, "Microfone"), this.nivel]),
+      ]),
+      el("div.lobby__aparelhoLinha", {}, [icon("video", { size: "sm" }), escolha("videoinput", videoinput, "Câmera")]),
+    );
+  }
+
+  /**
+   * O medidor do microfone: acende com a voz, para a pessoa saber que está
+   * sendo ouvida antes de entrar. Usa o mesmo detector da chamada (que pega
+   * a origem do grafo de áudio compartilhado; uma segunda origem para o mesmo
+   * stream deixa um dos consumidores mudo) e escreve só uma variável CSS.
+   */
+  #medirSom() {
+    const stream = this.media.stream;
+    if (!stream?.getAudioTracks().length || this.node?.hidden) return;
+    this.vad ??= new VoiceActivity();
+    this.vad.track("eu", stream);
+    if (this.somRaf) return;
+    let suave = 0;
+    const passo = () => {
+      this.somRaf = requestAnimationFrame(passo);
+      const bruto = this.media.micEnabled ? Math.min(1, this.vad.levelOf("eu") * 5) : 0;
+      // Sobe na hora, desce devagar: a barra não pisca entre as sílabas.
+      suave = bruto > suave ? bruto : suave * 0.9;
+      this.nivel?.style.setProperty("--nivel", suave.toFixed(3));
+    };
+    this.somRaf = requestAnimationFrame(passo);
+    // Sem um gesto da pessoa, o navegador deixa o áudio suspenso.
+    this.node?.addEventListener("pointerdown", () => this.vad?.resume(), { once: true });
+  }
+
+  #pararSom() {
+    cancelAnimationFrame(this.somRaf);
+    this.somRaf = 0;
+    this.vad?.stop();
   }
 
   /* ---------------------------------------------------------------- */
@@ -249,6 +299,7 @@ export class Lobby {
   }
 
   hide() {
+    this.#pararSom();
     if (this.node) this.node.hidden = true;
     this.video.srcObject = null;
   }

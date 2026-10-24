@@ -191,6 +191,8 @@ export function normalizeRoomMeta(m) {
     name: clean(m.name, 48),
     visibility,
     pass: typeof m.pass === "string" ? m.pass.slice(0, 128) : "",
+    // Aprovar quem entra: a sala nasce trancada, e quem chega pede para entrar.
+    aprovar: m.aprovar === true,
   };
 }
 

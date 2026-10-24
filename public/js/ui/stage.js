@@ -74,7 +74,33 @@ class Tile {
     ]);
     this.node.append(this.video, this.avatarBox, this.espera, this.netBox, this.label, this.actions);
 
+    // O enquadramento muda quando o vídeo muda de tamanho (o celular virou)
+    // e quando o quadro muda (alguém entrou, a grade se reorganizou).
+    if (kind === "cam") {
+      const enquadrar = () => this.#enquadrar();
+      for (const ev of ["loadedmetadata", "resize"]) this.video.addEventListener(ev, enquadrar);
+      this.observador = new ResizeObserver(enquadrar);
+      this.observador.observe(this.node);
+    }
+
     this.setCamera(null);
+  }
+
+  /**
+   * Câmera em pé num quadro deitado (o celular visto do computador), ou o
+   * contrário: com `object-fit: cover` sobrava só uma faixa do meio do rosto.
+   * Quando o corte esconderia mais de ~30% da imagem, o vídeo aparece
+   * inteiro, com o fundo do quadro dos lados. Diferenças pequenas (4:3 num
+   * quadro 16:9) continuam preenchendo o quadro.
+   */
+  #enquadrar() {
+    const { videoWidth: vw, videoHeight: vh } = this.video;
+    const { clientWidth: tw, clientHeight: th } = this.node;
+    if (!vw || !vh || !tw || !th) return;
+    const video = vw / vh;
+    const quadro = tw / th;
+    const visivel = video > quadro ? quadro / video : video / quadro;
+    this.video.classList.toggle("is-inteiro", visivel < 0.7);
   }
 
   /**
@@ -435,6 +461,7 @@ class Tile {
   }
 
   destroy() {
+    this.observador?.disconnect();
     this.video.srcObject = null;
     this.node.remove();
   }

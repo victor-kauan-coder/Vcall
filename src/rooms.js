@@ -101,8 +101,12 @@ export class Room {
     this.code = newCode();
     /** Hash da chave de anfitrião de quem criou a sala. */
     this.hostKeyHash = null;
-    /** Trancada pelo anfitrião: ninguém novo entra. */
-    this.closed = false;
+    /**
+     * Trancada: ninguém novo entra sem o anfitrião aceitar (sala de espera).
+     * Com "Aprovar quem entra" a sala já nasce assim; depois, o anfitrião
+     * tranca e destranca quando quiser.
+     */
+    this.closed = !!meta?.aprovar;
     /**
      * Aparelhos removidos pelo anfitrião: aparelho -> { id, name, avatar, at }.
      * O `id` é um apelido aleatório — o anfitrião nunca vê o identificador do
@@ -225,6 +229,7 @@ export class Room {
       max: config.maxPeersPerRoom,
       full: this.isFull,
       locked: this.locked,
+      aprovar: this.closed,
       createdAt: this.createdAt,
       host: host ? { name: host.profile.name, avatar: host.profile.avatar } : null,
       talking: [...this.members.values()].filter((p) => p.state?.mic).length,

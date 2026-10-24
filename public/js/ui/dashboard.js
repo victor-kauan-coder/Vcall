@@ -20,8 +20,8 @@
  */
 import { el, icon, clear, on } from "../lib/dom.js";
 import { avatarEl } from "./avatars.js";
-import { ilustracao } from "./ilustracao.js";
 import { toast } from "./toast.js";
+import { calm } from "./motion.js";
 import { newRoomId, prefs } from "../lib/util.js";
 
 const POLL_MS = 5000;
@@ -44,8 +44,15 @@ export class Dashboard {
   /** Resposta de /api/rede: { disponivel, computadores: [{ eu, curto, url, salas }] } */
   #rede = null;
   #maquinas = null;
-  #aoMudarRede = null;
   #list = null;
+  /* O ingresso: campos e escolhas da nova call. */
+  #nomeSala = null;
+  #aprovar = null;
+  #setor = null;
+  #visibilidade = "private";
+  #setorTocado = false;
+  /** Id escolhido por outro computador da rede (?criar=1#sala). */
+  #roomIdFixo = null;
   #empty = null;
   #count = null;
   #node = null;
@@ -120,95 +127,195 @@ export class Dashboard {
   }
 
   /**
-   * A recepção: quem abre o app é cumprimentado pelo nome (se já entrou
-   * antes), entende em uma frase o que dá para fazer, e tem a ação principal
-   * ao alcance do polegar. A ilustração ocupa o outro lado e dá rosto à tela.
+   * A recepção é um ingresso.
+   *
+   * Criar uma call é preencher (se quiser) o próprio ingresso e destacá-lo:
+   * nome da sala, setor e aprovação de quem entra moram nele, no lugar do
+   * modal que se abria antes de qualquer coisa. Quem já foi chamado usa o
+   * canhoto, com o código.
+   * À esquerda ficam o título e, embaixo, as calls ao vivo como canhotos.
    */
   #hero() {
-    const chip = (iconName, text) => el("li", {}, [icon(iconName, { size: "sm" }), el("span", { text })]);
-    const bubble = (cls, iconName, text) =>
-      el(`div.dash__bubble.${cls}`, { "aria-hidden": "true" }, [icon(iconName, { size: "sm" }), el("span", { text })]);
-
     return el("div.dash__hero", {}, [
       el("div.dash__intro", {}, [
-        el("h1.dash__headline", {}, ["Chame quem importa, ", this.#scribble("direto"), " de um computador para o outro."]),
+        el("h1.dash__headline", {}, ["Chame alguém ", el("em", { text: "agora." })]),
         el("p.dash__lead", {
-          text: "Vídeo, voz, tela e um quadro infinito para desenhar junto. Criptografado de ponta a ponta — quem você convida não precisa de conta.",
+          text: "Vídeo, voz e tela de um computador direto para o outro. Quem você chama entra pelo link, sem conta.",
         }),
-        this.#actions(),
-        el("ul.dash__trust", {}, [
-          chip("shield-check", "Ponta a ponta"),
-          chip("users", "Até 16 pessoas"),
-          chip("pencil", "Quadro colaborativo"),
-        ]),
-        this.#body(),
       ]),
-      el("div.dash__art", {}, [
-        el("div.dash__stage", {}, [
-          ilustracao("inicio", { largura: 380, altura: 380 }),
-        ]),
-        bubble("dash__bubble--a", "mic", "Oi! Tá me ouvindo?"),
-        bubble("dash__bubble--b", "sparkles", "Bora desenhar?"),
-        bubble("dash__bubble--c", "shield-check", "Só entre nós"),
-      ]),
+      el("div.dash__art", {}, [this.#bilhete()]),
+      this.#body(),
     ]);
   }
 
-  /** Palavra com um traço feito à mão embaixo — ui/motion.js desenha o traço. */
-  #scribble(word) {
-    const span = el("em.dash__scribble", { text: word });
-    span.insertAdjacentHTML(
-      "beforeend",
-      '<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M3 14 C 40 5, 80 4, 120 9 S 180 15, 197 6"/></svg>',
-    );
-    return span;
-  }
+  #bilhete() {
+    const hora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-  #actions() {
-    const codeInput = el("input.input.mono", {
+    this.#nomeSala = el("input.bilhete__input", {
       type: "text",
-      placeholder: "Código da sala",
-      maxLength: 8,
-      "aria-label": "Entrar com um código",
-      autocapitalize: "characters",
-      spellcheck: false,
+      maxLength: 48,
+      placeholder: "Ex.: Almoço de domingo",
+      autocomplete: "off",
+      value: prefs.get("room:lastName", ""),
     });
-    codeInput.addEventListener("input", () => {
-      codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    });
-    codeInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.#enterByCode(codeInput.value);
-    });
+    // Aprovar quem entra (como no Meet): a sala nasce trancada e quem chega
+    // espera na fila até o anfitrião aceitar. Substitui a antiga senha.
+    this.#aprovar = el("input", { type: "checkbox", checked: prefs.get("room:aprovar", false) });
 
-    return el("div.dash__actions", {}, [
-      el("button.btn.btn--primary.btn--lg", {
-        type: "button",
-        onClick: () => this.#openCreate(),
-      }, [icon("video"), el("span", { text: "Criar nova call" })]),
-      el("div.dash__code", {}, [
-        codeInput,
-        el("button.btn", { type: "button", onClick: () => this.#enterByCode(codeInput.value) }, [
-          icon("arrow-right", { size: "sm" }),
-          el("span", { text: "Entrar" }),
+    // O setor é a privacidade. "Na minha rede" entra quando a rede aparece.
+    this.#setor = el("div.dash__privacy", { role: "radiogroup", "aria-labelledby": "setorRotulo" });
+    this.#visibilidade = prefs.get("room:visibilidade", null) === "public" ? "public" : "private";
+    this.#opcao("private", "lock", "Privada", "Só entra quem tem o link ou o código.");
+    this.#opcao("public", "users", "Pública", "Aparece em Ao vivo agora para qualquer pessoa entrar.");
+
+    const principal = el("form.bilhete__principal", {
+      "aria-label": "Nova call",
+      onSubmit: (e) => {
+        e.preventDefault();
+        this.#criar();
+      },
+    }, [
+      el("div.bilhete__corpo", {}, [
+        el("div.bilhete__topo", {}, [
+          el("span.bilhete__marca", {}, [el("img", { src: "/assets/logo-mark.png", alt: "", width: 22, height: 22 }), el("span", { text: "Vcall" })]),
+          el("dl.bilhete__dados", {}, [
+            el("div", {}, [el("dt", { text: "Sessão" }), el("dd", { text: `Hoje, ${hora}` })]),
+            el("div", {}, [el("dt", { text: "Lugares" }), el("dd", { text: "Até 16" })]),
+          ]),
+        ]),
+        el("div.bilhete__cabeca", {}, [
+          el("h2.bilhete__titulo", { text: "Nova call" }),
+          el("p.bilhete__admite", { text: "Admite quem você chamar" }),
+        ]),
+        el("label.bilhete__campo", {}, [el("span.bilhete__rotulo", { text: "Nome da sala (opcional)" }), this.#nomeSala]),
+        el("div.bilhete__linha", {}, [
+          el("div.bilhete__campo", {}, [el("span.bilhete__rotulo", { id: "setorRotulo", text: "Setor" }), this.#setor]),
+          el("label.bilhete__aprovar", {}, [
+            this.#aprovar,
+            el("span", {}, [
+              el("strong", { text: "Aprovar quem entra" }),
+              el("small", { text: "Quem chega espera na fila até você aceitar." }),
+            ]),
+          ]),
+        ]),
+        el("div.bilhete__pe", {}, [
+          el("button.bilhete__chamar", { type: "submit" }, [icon("video"), el("span", { text: "Chamar agora" })]),
+          el("p.bilhete__letras", { text: "Vídeo, voz e tela vão direto, criptografados. A sala some quando todos saem." }),
         ]),
       ]),
+    ]);
+
+    return el("div.bilhete", {}, [principal, this.#canhoto()]);
+  }
+
+  /** Uma opção de setor: um rádio em forma de pílula, impresso no ingresso. */
+  #opcao(valor, iconName, titulo, dica) {
+    const b = el("button.privacy", {
+      type: "button",
+      role: "radio",
+      "aria-checked": String(this.#visibilidade === valor),
+      dataset: { valor, tip: dica, "tip-placement": "bottom" },
+      onClick: () => {
+        this.#visibilidade = valor;
+        this.#setorTocado = true;
+        this.#marcarSetor();
+      },
+    }, [icon(iconName, { size: "sm" }), el("strong", { text: titulo })]);
+    this.#setor.append(b);
+  }
+
+  #marcarSetor() {
+    for (const b of this.#setor.children) b.setAttribute("aria-checked", String(b.dataset.valor === this.#visibilidade));
+  }
+
+  /**
+   * "Na minha rede" só existe onde há rede: no app com Tailscale, ou pela
+   * tailnet. Quando a rede aparece e a pessoa ainda não escolheu, ela vira o
+   * padrão: aparece para a turma e continua escondida do link público.
+   */
+  #setorDaRede() {
+    if (!this.#rede || !this.#setor || this.#setor.querySelector('[data-valor="rede"]')) return;
+    this.#opcao("rede", "network", "Na minha rede", "Aparece para quem está na sua rede Tailscale. Quem chega pelo link público não vê.");
+    const guardada = prefs.get("room:visibilidade", null);
+    if (!this.#setorTocado && (guardada === "rede" || !guardada)) this.#visibilidade = "rede";
+    this.#marcarSetor();
+  }
+
+  /**
+   * O canhoto: quem já foi chamado digita o código aqui.
+   *
+   * Um campo de verdade, transparente, por cima de seis casas desenhadas: o
+   * teclado, o colar e o leitor de tela falam com o campo; as casas só
+   * mostram o que ele tem. Na sexta letra a busca começa sozinha, e colar o
+   * link curto inteiro (…/c/ABC123) também vale.
+   */
+  #canhoto() {
+    const casas = el("span.bilhete__casas", { "aria-hidden": "true" }, Array.from({ length: 6 }, () => el("span")));
+    const codigo = el("input.bilhete__codigo", {
+      type: "text",
+      maxLength: 6,
+      autocomplete: "off",
+      autocapitalize: "characters",
+      spellcheck: false,
+      enterKeyHint: "go",
+      "aria-label": "Código da sala",
+    });
+    const mostrar = () => {
+      const foco = document.activeElement === codigo;
+      [...casas.children].forEach((c, i) => {
+        c.textContent = codigo.value[i] || "";
+        c.classList.toggle("is-atual", foco && i === Math.min(codigo.value.length, 5));
+      });
+    };
+    codigo.addEventListener("input", () => {
+      codigo.value = codigo.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+      mostrar();
+      if (codigo.value.length === 6) this.#enterByCode(codigo.value);
+    });
+    codigo.addEventListener("paste", (e) => {
+      const doLink = /\/c\/([A-Za-z0-9]{4,12})/.exec(e.clipboardData?.getData("text") || "");
+      if (!doLink) return;
+      e.preventDefault();
+      codigo.value = doLink[1].toUpperCase().slice(0, 6);
+      mostrar();
+      this.#enterByCode(doLink[1]);
+    });
+    codigo.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.#enterByCode(codigo.value);
+    });
+    codigo.addEventListener("focus", mostrar);
+    codigo.addEventListener("blur", mostrar);
+
+    return el("div.bilhete__canhoto", {}, [
+      el("p.bilhete__canhotoTitulo", { text: "Já tem um ingresso?" }),
+      el("label.bilhete__codigoCaixa", {}, [
+        el("span.bilhete__rotulo", { text: "Código da sala" }),
+        el("span.bilhete__codigoWrap", {}, [casas, codigo]),
+      ]),
+      el("button.bilhete__entrar", { type: "button", onClick: () => this.#enterByCode(codigo.value) }, [
+        el("span", { text: "Entrar" }),
+        icon("arrow-right", { size: "sm" }),
+      ]),
+      el("p.bilhete__dica", { text: "Ou cole o link que você recebeu." }),
     ]);
   }
 
   #body() {
-    this.#count = el("span.dash__count", { text: "…" });
+    this.#count = el("span.dash__count", { text: "" });
     this.#list = el("div.dash__list", { role: "list" });
     this.#maquinas = el("div.dash__rede", { hidden: true, "aria-label": "Computadores na sua rede Tailscale" });
     this.#empty = el("div.dash__empty", {}, [
-      ilustracao("lista-vazia", { largura: 72, altura: 84, classe: "dash__emptyArt" }),
-      el("p.dash__emptyTitle", { text: "Nenhuma call pública no ar agora." }),
-      el("p.field__hint", {
-        text: "Salas privadas não aparecem aqui — o endereço delas é o segredo. Entre pelo link ou pelo código que você recebeu.",
-      }),
+      el("span.dash__emptyArt", { "aria-hidden": "true" }, [icon("search")]),
+      el("div.dash__emptyText", {}, [
+        el("p.dash__emptyTitle", { text: "Nenhuma call pública no ar agora." }),
+        el("p.dash__emptyHint", {
+          text: "Salas privadas não aparecem aqui: o endereço delas é o segredo. Entre pelo link ou pelo código que você recebeu.",
+        }),
+      ]),
     ]);
-    return el("div.dash__body", {}, [
-      el("div.row", {}, [
-        el("h2.dash__title", {}, [el("i.dash__live", { "aria-hidden": "true" }), "Ao vivo agora"]),
+    return el("section.dash__body", { "aria-labelledby": "aoVivoTitulo" }, [
+      el("div.dash__bodyHead", {}, [
+        el("h2.dash__title", { id: "aoVivoTitulo" }, [el("i.dash__live", { "aria-hidden": "true" }), "Ao vivo agora"]),
         this.#count,
         el("span.spacer"),
         el("button.btn.btn--icon.btn--ghost", {
@@ -238,7 +345,7 @@ export class Dashboard {
       this.#rede = null;
     }
     this.#render();
-    this.#aoMudarRede?.();
+    this.#setorDaRede();
   }
 
   /** As salas dos OUTROS computadores, cada uma sabendo de onde é. */
@@ -314,6 +421,8 @@ export class Dashboard {
       ? `${n} ${n === 1 ? "sala" : "salas"} · ${people} ${people === 1 ? "pessoa" : "pessoas"}`
       : "";
     this.#empty.hidden = n > 0;
+    // O ponto vermelho só pulsa quando há mesmo alguma call no ar.
+    this.#node?.querySelector(".dash__body")?.classList.toggle("is-vazio", n === 0);
     this.#empty.querySelector(".dash__emptyTitle").textContent = this.#rede
       ? "Nenhuma call no ar na sua rede agora."
       : "Nenhuma call pública no ar agora.";
@@ -322,7 +431,7 @@ export class Dashboard {
     const ordenadas = todas.sort((a, b) => b.size - a.size);
     for (const room of ordenadas.slice(0, MAX_VISIVEIS)) this.#list.append(this.#card(room));
     if (ordenadas.length > MAX_VISIVEIS) {
-      this.#list.append(el("p.dash__more", { text: `+ ${ordenadas.length - MAX_VISIVEIS} salas públicas no ar — entre pelo código` }));
+      this.#list.append(el("p.dash__more", { text: `Mais ${ordenadas.length - MAX_VISIVEIS} no ar. Entre pelo código que recebeu.` }));
     }
   }
 
@@ -341,44 +450,49 @@ export class Dashboard {
       onClick: () => this.#enter(room),
     }, [icon("arrow-right", { size: "sm" }), el("span", { text: room.full ? "Cheia" : "Entrar" })]);
 
+    // Um canhoto por sala: o corpo diz quem e quantos, o picote separa as ações.
     return el("div.dashRoom", { role: "listitem", dataset: { key: room.code || room.name } }, [
-      el("div.dashRoom__avatar", {}, [
-        room.host?.avatar
-          ? avatarEl(room.host.avatar, { size: 44, title: `Avatar de ${room.host.name}` })
-          : el("div.avatar", { style: { width: "44px", height: "44px" } }),
-      ]),
-      el("div.dashRoom__info", {}, [
-        el("div.dashRoom__name", {}, [
-          el("span", { text: room.name }),
-          room.locked ? icon("lock", { size: "sm", label: "Sala com senha" }) : null,
+      el("div.dashRoom__corpo", {}, [
+        el("div.dashRoom__avatar", {}, [
+          room.host?.avatar
+            ? avatarEl(room.host.avatar, { size: 40, title: `Avatar de ${room.host.name}` })
+            : el("div.avatar", { style: { width: "40px", height: "40px" } }),
         ]),
-        el("div.dashRoom__meta", {}, [
-          el("span", { text: room.host?.name ? `por ${room.host.name}` : "sem anfitrião" }),
-          el("span.dot-sep", { text: `${room.size}/${room.max} ${room.size === 1 ? "pessoa" : "pessoas"}` }),
-          room.computador
-            ? el("span.dot-sep.dashRoom__pc", {}, [icon("laptop", { size: "sm" }), el("span", { text: `em ${room.computador.curto}` })])
-            : el("span.dot-sep.mono", { text: room.code }),
-          room.visibility === "rede" ? el("span.dot-sep", { text: "só na rede" }) : null,
+        el("div.dashRoom__info", {}, [
+          el("div.dashRoom__name", {}, [
+            el("span", { text: room.name }),
+            room.locked ? icon("lock", { size: "sm", label: "Sala com senha" }) : null,
+          ]),
+          el("div.dashRoom__meta", {}, [
+            el("span", { text: room.host?.name ? `por ${room.host.name}` : "sem anfitrião" }),
+            el("span.dot-sep", { text: `${room.size}/${room.max} ${room.size === 1 ? "pessoa" : "pessoas"}` }),
+            room.computador
+              ? el("span.dot-sep.dashRoom__pc", {}, [icon("laptop", { size: "sm" }), el("span", { text: `em ${room.computador.curto}` })])
+              : el("span.dot-sep.mono", { text: room.code }),
+            room.visibility === "rede" ? el("span.dot-sep", { text: "só na rede" }) : null,
+            room.aprovar ? el("span.dot-sep", { text: "pede para entrar" }) : null,
+          ]),
         ]),
+        el(`span.badge.badge--${status.tone}`, { text: status.text }),
       ]),
-      el("span.spacer"),
-      el(`span.badge.badge--${status.tone}`, { text: status.text }),
-      el("button.btn.btn--icon.btn--ghost", {
-        type: "button",
-        "aria-label": "Copiar link de convite",
-        dataset: { tip: "Copiar link", "tip-placement": "left" },
-        onClick: () => copy(room.computador ? `${room.computador.url}/#${room.id}` : linkFor(room.id), "Link copiado"),
-      }, [icon("link")]),
-      // O código só vale no servidor da sala: o de outro computador não serve aqui.
-      room.computador
-        ? null
-        : el("button.btn.btn--icon.btn--ghost", {
-            type: "button",
-            "aria-label": "Copiar código da sala",
-            dataset: { tip: "Copiar código", "tip-placement": "left" },
-            onClick: () => copy(room.code, `Código ${room.code} copiado`),
-          }, [icon("copy")]),
-      enter,
+      el("div.dashRoom__canhoto", {}, [
+        el("button.btn.btn--icon.btn--ghost", {
+          type: "button",
+          "aria-label": "Copiar link de convite",
+          dataset: { tip: "Copiar link", "tip-placement": "left" },
+          onClick: () => copy(room.computador ? `${room.computador.url}/#${room.id}` : linkFor(room.id), "Link copiado"),
+        }, [icon("link")]),
+        // O código só vale no servidor da sala: o de outro computador não serve aqui.
+        room.computador
+          ? null
+          : el("button.btn.btn--icon.btn--ghost", {
+              type: "button",
+              "aria-label": "Copiar código da sala",
+              dataset: { tip: "Copiar código", "tip-placement": "left" },
+              onClick: () => copy(room.code, `Código ${room.code} copiado`),
+            }, [icon("copy")]),
+        enter,
+      ]),
     ]);
   }
 
@@ -443,116 +557,42 @@ export class Dashboard {
     });
   }
 
-  /** Abre o "Criar nova call" (com um id já escolhido, quando veio de outro computador). */
+  /**
+   * "Criar aqui" de outro computador da rede chega com o id da sala já
+   * escolhido: o ingresso fica pronto com ele, e o nome ganha o foco.
+   */
   abrirCriar({ roomId = null } = {}) {
-    this.#openCreate(roomId);
+    this.#roomIdFixo = roomId;
+    this.#node?.querySelector(".bilhete")?.classList.add("is-pedido");
+    this.#nomeSala?.focus();
+    toast("Dê um nome à sala, se quiser, e toque em Chamar agora para criar a call aqui.", { tone: "info", ms: 6000 });
   }
 
-  #openCreate(roomIdFixo = null) {
-    const nameInput = el("input.input", {
-      type: "text",
-      maxLength: 48,
-      placeholder: "Ex.: Revisão de arquitetura",
-      value: prefs.get("room:lastName", ""),
-    });
-
-    const passInput = el("input.input", { type: "password", placeholder: "Senha (opcional)" });
-    const passField = el("label.field", { hidden: true }, [
-      el("span.field__label", { text: "Senha" }),
-      passInput,
-    ]);
-
-    const options = el("div.dash__privacy", { role: "radiogroup", "aria-label": "Privacidade" });
-    // Na rede Tailscale, o padrão é "Na minha rede": aparece para a turma, e
-    // continua escondida de quem chega pelo link público.
-    let visibility = prefs.get("room:visibilidade", null) || (this.#rede ? "rede" : "private");
-
-    const mk = (value, iconName, title, hint) => {
-      const b = el("button.privacy", {
-        type: "button",
-        role: "radio",
-        "aria-checked": String(visibility === value),
-        onClick: () => {
-          visibility = value;
-          for (const other of options.children) {
-            other.setAttribute("aria-checked", String(other === b));
-          }
-        },
-      }, [
-        icon(iconName),
-        el("div", {}, [el("strong", { text: title }), el("div.field__hint", { text: hint })]),
-      ]);
-      options.append(b);
-    };
-    mk(
-      "private",
-      "lock",
-      "Privada",
-      "Não aparece na lista. Só entra quem tem o link ou o código.",
-    );
-    mk(
-      "public",
-      "users",
-      "Pública",
-      "Aparece na lista de chamadas para qualquer pessoa entrar.",
-    );
-    // "Na minha rede" só existe onde há rede: no app com Tailscale, ou pela tailnet.
-    const opcaoRede = () => {
-      if (!this.#rede || options.querySelector('[data-valor="rede"]')) return;
-      mk("rede", "network", "Na minha rede", "Aparece para quem está na sua rede Tailscale. Quem chega pelo link público não vê.");
-      options.lastElementChild.dataset.valor = "rede";
-      if (visibility === "rede") for (const b of options.children) b.setAttribute("aria-checked", String(b.dataset.valor === "rede"));
-    };
-    if (visibility === "rede" && !this.#rede) visibility = "private";
-    opcaoRede();
-    this.#aoMudarRede = opcaoRede;
-
-    const passToggle = el("input", { type: "checkbox" });
-    passToggle.addEventListener("change", () => {
-      passField.hidden = !passToggle.checked;
-      if (passToggle.checked) passInput.focus();
-    });
-
-    modal({
-      title: "Criar nova call",
-      body: [
-        el("label.field", {}, [
-          el("span.field__label", { text: "Nome da sala" }),
-          nameInput,
-          el("div.field__hint", {
-            text: "Aparece na lista de chamadas se a sala for pública, e no topo da chamada para todo mundo.",
-          }),
-        ]),
-        options,
-        el("label.row", {}, [
-          passToggle,
-          el("div", {}, [
-            el("div", { text: "Proteger com senha" }),
-            el("div.field__hint", { text: "Quem entrar vai precisar digitar a senha. Ela fica guardada de forma protegida." }),
-          ]),
-        ]),
-        passField,
-      ],
-      confirm: "Criar e entrar",
-      onConfirm: () => {
-        const name = nameInput.value.trim().slice(0, 48);
-        prefs.set("room:lastName", name);
-        prefs.set("room:visibilidade", visibility);
-        this.#aoMudarRede = null;
-        this.onEnter({
-          roomId: roomIdFixo || newRoomId(),
-          pass: passToggle.checked ? passInput.value : "",
-          isNew: true,
-          roomName: name,
-          meta: {
-            name,
-            visibility,
-            pass: passToggle.checked ? passInput.value : "",
-          },
-        });
-        return true;
-      },
-    });
+  /**
+   * Destacar o ingresso.
+   *
+   * O canhoto fica e o resto segue: o movimento dura meio segundo e só então
+   * a antessala entra. Sem movimento (prefers-reduced-motion), entra direto.
+   */
+  #criar() {
+    const bilhete = this.#node?.querySelector(".bilhete");
+    if (!bilhete || bilhete.classList.contains("is-destacado")) return;
+    const name = this.#nomeSala.value.trim().slice(0, 48);
+    const aprovar = this.#aprovar.checked;
+    prefs.set("room:lastName", name);
+    prefs.set("room:visibilidade", this.#visibilidade);
+    prefs.set("room:aprovar", aprovar);
+    const entrar = () =>
+      this.onEnter({
+        roomId: this.#roomIdFixo || newRoomId(),
+        pass: "",
+        isNew: true,
+        roomName: name,
+        meta: { name, visibility: this.#visibilidade, aprovar },
+      });
+    bilhete.classList.add("is-destacado");
+    if (calm()) entrar();
+    else setTimeout(entrar, 520);
   }
 }
 

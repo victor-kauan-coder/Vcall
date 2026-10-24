@@ -278,7 +278,7 @@ export async function playIntro() {
 
 /** A logo voa até a marca da tela de baixo, e o véu some. */
 async function outro(root, mark) {
-  const target = [...document.querySelectorAll(".brand__mark, .topbar__brand img")].find(
+  const target = [...document.querySelectorAll(".brand__mark, .topbar__brand img, .lobby__marca img")].find(
     (n) => n.offsetParent && n.getBoundingClientRect().width,
   );
   const b = target?.getBoundingClientRect();
@@ -429,10 +429,9 @@ function onAdded(node) {
 }
 
 /**
- * A recepção ganha vida: conteúdo em cascata, balões de conversa que surgem
- * e flutuam, a mão do "Bom dia" acenando, e o palco da ilustração inclinando
- * de leve com o mouse. Os laços infinitos são animações compostas — custam
- * nada de CPU — e somem junto com a tela.
+ * A recepção entra em cascata: o título, a lista e o ingresso sobem de
+ * leve e param. Nada acompanha o mouse: a tela fica quieta depois de
+ * pronta.
  */
 function liven(dash) {
   // Debaixo da intro ninguém veria a entrada: ela espera o véu começar a sair.
@@ -445,50 +444,16 @@ function liven(dash) {
     easing: EASE_OUT,
     fill: "backwards",
   });
-  const scribble = dash.querySelector(".dash__scribble path");
-  animate(scribble, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], {
-    duration: 700,
-    delay: 700,
-    easing: "cubic-bezier(0.65, 0, 0.35, 1)",
-    fill: "backwards",
-  });
-  stagger(dash.querySelectorAll(".dash__intro > *, .dash__stage"), {
+  stagger(dash.querySelectorAll(".dash__intro > *, .dash__body"), {
     delay: 90,
-    gap: 55,
+    gap: 70,
   });
 
-  dash.querySelectorAll(".dash__bubble").forEach((b, i) => {
-    const delay = 650 + i * 260;
-    animate(b, [
-      { opacity: 0, scale: "0.4", translate: "0 16px" },
-      { opacity: 1, scale: "1", translate: "0 0" },
-    ], { ...spring({ stiffness: 360, damping: 15 }), delay, fill: "backwards" });
-    if (!calm()) {
-      b.animate([{ translate: "0 0" }, { translate: `0 ${i % 2 ? 7 : -7}px` }, { translate: "0 0" }], {
-        duration: 3400 + i * 600,
-        delay: delay + 700,
-        iterations: Infinity,
-        easing: "ease-in-out",
-        composite: "add",
-      });
-    }
-  });
-
-  magnetic(dash.querySelector(".dash__actions .btn--primary"));
-
-  const art = dash.querySelector(".dash__art");
-  const stage = dash.querySelector(".dash__stage");
-  if (art && stage && !calm() && matchMedia("(hover: hover)").matches) {
-    art.addEventListener("pointermove", (e) => {
-      const r = art.getBoundingClientRect();
-      stage.style.setProperty("--ty", `${((e.clientX - r.left) / r.width - 0.5) * 10}deg`);
-      stage.style.setProperty("--tx", `${-((e.clientY - r.top) / r.height - 0.5) * 8}deg`);
-    });
-    art.addEventListener("pointerleave", () => {
-      stage.style.setProperty("--tx", "0deg");
-      stage.style.setProperty("--ty", "0deg");
-    });
-  }
+  // O ingresso só entra; parado, ele fica parado (nada segue o mouse).
+  animate(dash.querySelector(".bilhete"), [
+    { opacity: 0, translate: "0 28px" },
+    { opacity: 1, translate: "0 0" },
+  ], { duration: 560, delay: 160, easing: EASE_OUT, fill: "backwards" });
 }
 
 function watchDom() {

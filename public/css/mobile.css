@@ -321,59 +321,10 @@
     max-width: 100%;
   }
 
-  /* -- painel inicial -- */
+  /* -- painel inicial (o resto mora em dashboard.css) -- */
 
-  /*
-   * O cartão da sala empilhava em ordem embaralhada: avatar e selo numa
-   * linha, botões noutra, o nome por último. Uma grade explícita põe o
-   * nome onde o olho procura primeiro.
-   */
-  .dashRoom {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: var(--sp-2) var(--sp-3);
-    align-items: center;
-  }
-  .dashRoom__info {
-    min-width: 0;
-  }
   .dashRoom__meta {
     font-size: var(--text-2xs);
-  }
-
-  .dash__code {
-    flex: 1 1 100%;
-  }
-
-  /* -- antessala -- */
-
-  .lobby {
-    padding: 0;
-    /* Centralizado, um cartão mais alto que a tela fica cortado nas duas
-       pontas e a metade de cima não rola. Começando do topo, ele cresce
-       para baixo e a rolagem alcança tudo. */
-    place-items: start stretch;
-  }
-  .lobby__card {
-    border-radius: 0;
-    border: 0;
-    min-height: 100dvh;
-  }
-  .lobby__preview {
-    min-height: 34dvh;
-  }
-  /*
-   * "Câmera desligada" ficava exatamente atrás dos botões de microfone e
-   * câmera. Subir o texto resolve sem esconder nenhum dos dois.
-   */
-  .lobby__placeholder {
-    padding-bottom: 88px;
-  }
-  .lobby__form {
-    padding: var(--sp-4) var(--sp-4) max(var(--sp-4), env(safe-area-inset-bottom));
-  }
-  .avatarPicker__grid {
-    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
   }
 
   /* -- avisos -- */
@@ -418,12 +369,6 @@
     border-radius: 0;
     border-left: 1px solid var(--border);
     border-top: 0;
-  }
-  .lobby__card {
-    min-height: auto;
-  }
-  .lobby__preview {
-    min-height: 200px;
   }
 
   /*

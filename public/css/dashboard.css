@@ -1,10 +1,14 @@
 /* ------------------------------------------------------------------ *
  * dashboard.css — a recepção do app (tela inicial).
  *
- * Tela cheia, sem cartão flutuante: barra fina no topo, a recepção em duas
- * colunas assimétricas (texto à esquerda, ilustração à direita) e a lista de
- * salas públicas logo abaixo, na mesma coluna de leitura. O fundo é o próprio
- * ambiente da marca, então não há "cartão dentro de cartão" em lugar nenhum.
+ * A recepção é um ingresso. À esquerda, o título e as calls ao vivo como
+ * canhotos; à direita, o ingresso da nova call: sessão e lugares, nome da
+ * sala, setor e aprovação, o picote e o canhoto com o código de quem já foi
+ * chamado. Criar a call é destacá-lo.
+ *
+ * O ingresso é papel liso: creme fixo nos dois temas e tinta escura. O que
+ * muda com a paleta é o acento (o botão) e o canhoto, que usa o fundo dos
+ * quadros de vídeo, escuro em qualquer tema. Nada se mexe sob o mouse.
  * ------------------------------------------------------------------ */
 
 .dash {
@@ -15,8 +19,8 @@
   flex: 1;
   min-height: 0;
   width: 100%;
-  /* Uma tela só: tudo cabe na janela, sem rolagem (ver os tamanhos em vh
-     abaixo). Só telas estreitas ou baixas demais voltam a rolar. */
+  /* Uma tela só: tudo cabe na janela, sem rolagem. Só telas estreitas ou
+     baixas demais voltam a rolar (ver o fim do arquivo). */
   overflow: hidden;
 }
 
@@ -30,26 +34,17 @@
   gap: var(--sp-3);
   flex: none;
   min-height: 64px;
-  /* Alinhada à mesma coluna de 1240px do conteúdo, não às bordas da janela. */
+  /* Alinhada à mesma coluna do conteúdo, não às bordas da janela. */
   --gutter: clamp(var(--sp-4), 4vw, var(--sp-12));
-  --inset: max(var(--gutter), calc((100% - 1240px) / 2 + var(--gutter)));
+  --inset: max(var(--gutter), calc((100% - 1320px) / 2 + var(--gutter)));
   padding: 0 var(--inset);
   /* No app de mesa, os botões da janela moram no canto direito. */
   padding-right: calc(var(--inset) + var(--titlebar-controls, 0px));
-  border-bottom: 1px solid color-mix(in oklab, var(--border-subtle) 70%, transparent);
 }
 .dash__greet {
   color: var(--text-secondary);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-}
-.dash__head .brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-}
-.dash__head .brand__name {
-  font-size: var(--text-lg);
 }
 
 .dash__status {
@@ -68,7 +63,6 @@
   height: 7px;
   border-radius: 50%;
   background: currentColor;
-  animation: dashPulse 2.4s var(--ease-out) infinite;
 }
 @keyframes dashPulse {
   0% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 60%, transparent); }
@@ -82,214 +76,591 @@
   min-height: 0;
   display: flex;
   align-items: center;
-  width: min(1240px, 100%);
+  width: min(1320px, 100%);
   margin-inline: auto;
-  padding: clamp(var(--sp-4), 4vh, var(--sp-12)) clamp(var(--sp-4), 4vw, var(--sp-12));
+  padding: clamp(var(--sp-4), 3vh, var(--sp-10)) clamp(var(--sp-4), 4vw, var(--sp-12));
 }
 
-/* -- recepção -- */
-
+/*
+ * Duas colunas, três áreas: o título e as calls ao vivo à esquerda, o
+ * ingresso à direita ocupando as duas linhas. No celular a ordem vira
+ * título, ingresso, ao vivo: a ação vem antes da lista.
+ */
 .dash__hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  /*
-   * A LINHA PRECISA PODER ENCOLHER.
-   *
-   * `max-height: 100%` limitava a grade, mas não a linha dentro dela: uma
-   * linha automática é dimensionada pelo conteúdo e não cede. Com três salas
-   * na lista a coluna da esquerda pedia 829 px dentro de uma grade de 764, e
-   * o excedente saía por baixo — onde `.dash` corta. `minmax(0, 1fr)` é o
-   * que autoriza a linha a ficar menor que o conteúdo, e é daí que a lista
-   * ganha um fim onde rolar.
-   */
-  grid-template-rows: minmax(0, 1fr);
-  align-items: center;
-  gap: clamp(var(--sp-8), 5vw, var(--sp-16));
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "intro art"
+    "body art";
+  align-content: center;
+  column-gap: clamp(var(--sp-8), 4.5vw, 80px);
+  row-gap: clamp(var(--sp-5), 4vh, var(--sp-10));
   width: 100%;
-  max-height: 100%;
-  min-height: 0;
-}
-.dash__hero > * {
-  min-height: 0;
 }
 
 .dash__intro {
+  grid-area: intro;
+  align-self: end;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: clamp(var(--sp-3), 2.4vh, var(--sp-5));
+  gap: clamp(var(--sp-3), 2.2vh, var(--sp-5));
   min-width: 0;
-  min-height: 0;
 }
-
 
 .dash__headline {
   margin: 0;
-  max-width: 15ch;
-  /* Guiado pela altura: é ela que decide se a tela inteira cabe. */
-  font-size: clamp(2rem, 0.6rem + 4.6vh + 0.6vw, 3.9rem);
-  line-height: 1.02;
-  letter-spacing: -0.045em;
+  max-width: 9ch;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 1rem + 3.4vw + 1.6vh, 5.6rem);
   font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.04em;
   text-wrap: balance;
 }
-
-/* A palavra em destaque ganha cor sólida e um traço à mão — mais humano que
-   texto em degradê, e continua legível em qualquer tema. */
-.dash__scribble {
-  position: relative;
-  display: inline-block;
+/* A palavra que pede pressa, na cor da ação. Cor chapada, não degradê. */
+.dash__headline em {
   font-style: normal;
   color: var(--accent);
-}
-.dash__scribble svg {
-  position: absolute;
-  left: -2%;
-  bottom: -0.16em;
-  width: 104%;
-  height: 0.32em;
-  overflow: visible;
-}
-.dash__scribble path {
-  fill: none;
-  stroke: var(--brand-orange);
-  stroke-width: 5;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  vector-effect: non-scaling-stroke;
 }
 
 .dash__lead {
   margin: 0;
-  max-width: 44ch;
+  max-width: 34ch;
   color: var(--text-secondary);
   font-size: clamp(var(--text-md), 0.9rem + 0.3vw, var(--text-lg));
-  line-height: 1.6;
+  line-height: 1.55;
   text-wrap: pretty;
 }
 
-.dash__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  width: min(100%, 560px);
+/* ================================================================== *
+ * O ingresso
+ * ================================================================== */
+
+.dash__art {
+  grid-area: art;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
 }
 
-.dash__code {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex: 1;
-  min-width: 220px;
+.bilhete {
+  /* O papel e a tinta do ingresso: fixos, como um ingresso de verdade. */
+  --papel: #fff6ec;
+  --tinta: #1d0a1f;
+  --tinta-2: #554150; /* 8.9:1 sobre o papel */
+  --tinta-3: #6e5a69; /* 5.9:1 sobre o papel: rótulos */
+  --fio: rgb(29 10 31 / 0.16);
+  --foco: color-mix(in oklab, var(--brand-pink) 72%, #1d0a1f);
+  /* Texto sobre o degradê da ação: tinta no tema escuro, branco no claro,
+     onde os acentos da paleta escurecem para passar no AA. */
+  --cta-texto: #1a0a1e;
+  /* Canhoto: o fundo dos quadros de vídeo, escuro em qualquer tema. */
+  --canhoto-texto: #f4f0ff;
+  --canhoto-calado: rgb(244 240 255 / 0.74);
+  --acento-claro: color-mix(in oklab, var(--brand-pink) 70%, #ffffff);
+  /* Raio das meias-luas do picote. */
+  --r: 14px;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(200px, 17vw, 236px);
+  width: min(100%, 820px);
+  filter: drop-shadow(0 30px 34px rgb(4 2 18 / 0.55)) drop-shadow(0 2px 3px rgb(4 2 18 / 0.4));
+}
+.bilhete ::selection {
+  background: color-mix(in oklab, var(--brand-pink) 32%, transparent);
 }
 
-.dash__code .input {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
+/* -- parte principal: o corpo do ingresso -- */
 
-.dash__trust {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-4);
+.bilhete__principal {
+  display: grid;
   margin: 0;
-  padding: 0;
-  list-style: none;
+  color: var(--tinta);
+  background: var(--papel);
+  /* Os controles nativos (a caixa de aprovar) desenham claros sobre o papel. */
+  color-scheme: light;
+  border-radius: 22px 0 0 22px;
+  /* As meias-luas do picote, no alto e embaixo da borda direita. */
+  -webkit-mask:
+    radial-gradient(circle var(--r) at 100% 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 100% 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle var(--r) at 100% 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 100% 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
 }
-.dash__trust li {
+
+.bilhete__corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: 26px 34px 28px;
+}
+
+/* A faixa de cima: a marca de um lado, a sessão e os lugares do outro. */
+.bilhete__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--fio);
+}
+.bilhete__marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.bilhete__marca img {
+  border-radius: 6px;
+}
+
+.bilhete__dados {
+  display: flex;
+  gap: 26px;
+  margin: 0;
+  text-align: right;
+}
+.bilhete__dados div {
+  display: grid;
+  gap: 2px;
+}
+.bilhete__dados dt {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+.bilhete__dados dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bilhete__titulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 1.4rem + 2vw, 3.6rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+.bilhete__admite {
+  margin: 5px 0 0;
+  font-size: 13px;
+  color: var(--tinta-2);
+}
+
+.bilhete__campo {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.bilhete__rotulo {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tinta-2);
+}
+
+/* Campos escritos no papel: só a linha embaixo, como num formulário impresso. */
+.bilhete__input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1.5px solid rgb(29 10 31 / 0.3);
+  border-radius: 0;
+  background: transparent;
+  color: var(--tinta);
+  font: 600 17px/1 var(--font-sans);
+  caret-color: var(--foco);
+  outline: none;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.bilhete__input::placeholder {
+  color: #74606e; /* 5.1:1 sobre o papel */
+  font-weight: 500;
+}
+.bilhete__input:hover {
+  border-bottom-color: rgb(29 10 31 / 0.5);
+}
+.bilhete__input:focus-visible {
+  border-bottom-color: var(--foco);
+  box-shadow: 0 1.5px 0 var(--foco);
+}
+
+/* O setor (privacidade): pílulas impressas; a marcada vira tinta cheia. */
+.bilhete .dash__privacy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bilhete .privacy {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
+  height: 32px;
+  padding: 0 13px 0 11px;
+  border: 1px solid var(--fio);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--tinta-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
-.dash__trust .icon {
-  color: var(--accent);
+.bilhete .privacy strong {
+  font-weight: 600;
 }
-
-/* -- ilustração -- */
-
-.dash__art {
-  position: relative;
-  perspective: 1000px;
+.bilhete .privacy:hover {
+  color: var(--tinta);
+  background: rgb(29 10 31 / 0.05);
 }
-
-/* Palco quente atrás da cena da chamada: pastel no tema escuro, tinta no claro.
-   A janela do app e as pessoas não têm fundo próprio e ficam bem em qualquer um. */
-.dash__stage {
-  display: grid;
-  /* Coluna que encolhe: com a automática, o max-width: 100% da ilustração
-     apontava para a própria coluna, e no celular o desenho saía da tela. */
-  grid-template-columns: minmax(0, 1fr);
-  place-items: center;
-  padding: 9% 8% 7%;
-  aspect-ratio: 5 / 4;
-  max-height: calc(100dvh - 64px - 2 * clamp(var(--sp-4), 4vh, var(--sp-12)));
-  margin-inline: auto;
-  border-radius: 32px;
-  background:
-    radial-gradient(70% 60% at 30% 20%, #fff 0%, transparent 70%),
-    linear-gradient(150deg, #ffe6ee 0%, #fff0e4 55%, #f3ecff 100%);
-  box-shadow:
-    0 40px 80px -40px rgba(253, 77, 135, 0.5),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-  transition: transform 500ms var(--ease-out);
-  transform: rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
+.bilhete .privacy[aria-checked="true"] {
+  color: var(--papel);
+  background: var(--tinta);
+  border-color: var(--tinta);
 }
-.dash__stage img {
-  width: 100%;
-  height: auto;
-  filter: drop-shadow(0 12px 18px rgba(17, 12, 58, 0.12));
+.bilhete .privacy:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
 }
 
-.dash__bubble {
-  position: absolute;
+.bilhete__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 28px;
+}
+
+/* Aprovar quem entra: a caixa e duas linhas, a de baixo explica a fila. */
+.bilhete__aprovar {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 220px;
+  cursor: pointer;
+}
+.bilhete__aprovar input {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+  accent-color: var(--tinta);
+  cursor: pointer;
+}
+.bilhete__aprovar strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tinta);
+}
+.bilhete__aprovar small {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--tinta-2);
+}
+.bilhete__aprovar input:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.bilhete__pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+/* A ação: o degradê da paleta, numa pílula grossa. */
+.bilhete__chamar {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 14px;
-  border-radius: 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  gap: 10px;
+  height: 52px;
+  padding: 0 24px 0 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--brand-gradient);
+  background-size: 170% 100%;
+  color: var(--cta-texto);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   white-space: nowrap;
-  pointer-events: none;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 14px 26px -14px color-mix(in oklab, var(--brand-pink) 85%, #000);
+  transition:
+    background-position 500ms var(--ease-out),
+    box-shadow 300ms var(--ease-out);
 }
-.dash__bubble .icon { color: var(--accent); }
-.dash__bubble--a { top: 7%; left: -8%; border-bottom-left-radius: 4px; }
-.dash__bubble--b { bottom: 18%; right: -6%; border-bottom-right-radius: 4px; }
-.dash__bubble--b .icon { color: var(--accent-2); }
-.dash__bubble--c { bottom: -4%; left: 12%; }
-.dash__bubble--c .icon { color: var(--ok); }
+.bilhete__chamar:hover {
+  background-position: 100% 0;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 18px 30px -14px color-mix(in oklab, var(--brand-pink) 90%, #000);
+}
+.bilhete__chamar:active {
+  translate: 0 1px;
+}
+.bilhete__chamar:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 3px;
+}
+.bilhete__letras {
+  flex: 1 1 150px;
+  margin: 0;
+  max-width: 34ch;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--tinta-2);
+}
 
-/* -- salas ao vivo (na coluna do texto) -- */
+/* -- canhoto -- */
+
+.bilhete__canhoto {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 26px 22px 22px;
+  border-radius: 0 22px 22px 0;
+  color: var(--canhoto-texto);
+  background:
+    radial-gradient(120% 70% at 100% 0%, color-mix(in oklab, var(--brand-pink) 30%, transparent), transparent 62%),
+    radial-gradient(90% 60% at 0% 100%, color-mix(in oklab, var(--brand-orange) 20%, transparent), transparent 60%),
+    var(--tile-bg);
+  -webkit-mask:
+    radial-gradient(circle var(--r) at 0 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 0 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle var(--r) at 0 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 0 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
+}
+/* O picote: pontilhado entre as meias-luas. */
+.bilhete__canhoto::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--r) + 4px);
+  bottom: calc(var(--r) + 4px);
+  left: 0;
+  border-left: 2px dashed rgb(255 255 255 / 0.3);
+}
+.bilhete__canhotoTitulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+.bilhete__codigoCaixa {
+  display: grid;
+  gap: 8px;
+}
+.bilhete__canhoto .bilhete__rotulo {
+  color: var(--canhoto-calado);
+}
+.bilhete__codigoWrap {
+  position: relative;
+  display: block;
+}
+.bilhete__casas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.bilhete__casas span {
+  display: grid;
+  place-items: center;
+  height: 46px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.07);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+  font: 700 22px/1 var(--font-mono);
+  color: #ffffff;
+  transition:
+    box-shadow var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.bilhete__casas span:not(:empty) {
+  background: rgb(255 255 255 / 0.12);
+}
+.bilhete__casas span.is-atual {
+  box-shadow: inset 0 0 0 2px var(--acento-claro);
+}
+/* O campo de verdade, invisível por cima das casas. */
+.bilhete__codigo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px; /* 16px: o iPhone não dá zoom ao focar */
+  outline: none;
+  cursor: text;
+}
+.bilhete__codigo::selection {
+  background: transparent;
+}
+.bilhete__codigoWrap:has(.bilhete__codigo:focus-visible) .bilhete__casas {
+  border-radius: 12px;
+  outline: 2px solid var(--acento-claro);
+  outline-offset: 4px;
+}
+
+.bilhete__entrar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--papel);
+  color: var(--tinta);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 200ms var(--ease-out);
+}
+.bilhete__entrar:hover {
+  background: #ffffff;
+}
+.bilhete__entrar:active {
+  translate: 0 1px;
+}
+.bilhete__entrar:focus-visible {
+  outline: 2px solid var(--acento-claro);
+  outline-offset: 3px;
+}
+.bilhete__dica {
+  margin: 0;
+  margin-top: auto;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--canhoto-calado);
+}
+
+/*
+ * Destacar: o canhoto fica, o ingresso segue. Meio segundo, e a antessala
+ * entra (ver Dashboard.#criar). Sem movimento, nada disto acontece.
+ */
+.bilhete__principal,
+.bilhete__canhoto {
+  transition:
+    translate 520ms var(--ease-out),
+    rotate 520ms var(--ease-out),
+    opacity 380ms ease 120ms;
+}
+.bilhete__principal {
+  transform-origin: 100% 100%;
+}
+.bilhete__canhoto {
+  transform-origin: 0 0;
+}
+.bilhete.is-destacado .bilhete__principal {
+  translate: -22px -40px;
+  rotate: -6deg;
+  opacity: 0;
+}
+.bilhete.is-destacado .bilhete__canhoto {
+  translate: 14px 12px;
+  rotate: 6deg;
+}
+
+/* Pedido por outro computador da rede: o botão chama a atenção duas vezes. */
+.bilhete.is-pedido .bilhete__chamar {
+  animation: bilhetePedido 1.1s var(--ease-out) 2 300ms;
+}
+@keyframes bilhetePedido {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand-pink) 60%, transparent); }
+  100% { box-shadow: 0 0 0 16px transparent; }
+}
+
+/* Tema claro: o mesmo papel, a sombra tingida de tinta e mais leve. */
+:root[data-theme="light"] .bilhete {
+  --cta-texto: #ffffff;
+  filter: drop-shadow(0 26px 30px rgb(22 16 63 / 0.2)) drop-shadow(0 2px 3px rgb(22 16 63 / 0.16));
+}
+:root[data-theme="light"] .bilhete__principal {
+  box-shadow: inset 0 0 0 1px rgb(29 10 31 / 0.07);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .bilhete {
+    --cta-texto: #ffffff;
+    filter: drop-shadow(0 26px 30px rgb(22 16 63 / 0.2)) drop-shadow(0 2px 3px rgb(22 16 63 / 0.16));
+  }
+  :root:not([data-theme]) .bilhete__principal {
+    box-shadow: inset 0 0 0 1px rgb(29 10 31 / 0.07);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bilhete,
+  .bilhete__principal,
+  .bilhete__canhoto,
+  .bilhete__chamar {
+    transition: none;
+  }
+}
+
+/* ================================================================== *
+ * Ao vivo agora: canhotos menores
+ * ================================================================== */
 
 .dash__body {
+  grid-area: body;
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  width: min(100%, 560px);
-  /* Sem isto o bloco cresce com a lista e empurra o conteúdo para fora. */
+  width: min(100%, 520px);
   min-height: 0;
-  margin-top: clamp(var(--sp-2), 2vh, var(--sp-4));
-  padding-top: clamp(var(--sp-3), 2vh, var(--sp-4));
-  border-top: 1px solid var(--border-subtle);
 }
-.dash__body > .row {
+.dash__bodyHead {
+  display: flex;
+  align-items: center;
   gap: var(--sp-2);
 }
 
 .dash__title {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0;
+  gap: 9px;
   margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 /* Ponto "ao vivo": o único vermelho da tela, e só aqui. */
 .dash__live {
@@ -307,28 +678,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-/*
- * A LISTA ROLA; A TELA NÃO.
- *
- * A recepção é uma tela só, sem rolagem — é a intenção do desenho e ela
- * continua valendo. Mas `.dash` corta o que passa da janela, e com três
- * salas públicas o terceiro cartão era desenhado em 929 px numa tela de 900:
- * existia no documento, aparecia pela metade e não dava para alcançar nem
- * rolando. Uma sala pública que ninguém consegue entrar.
- *
- * A rolagem fica aqui, no único bloco que cresce com o conteúdo, e a tela
- * continua inteira. `min-height: 0` é o que permite a um filho de flex
- * encolher abaixo do próprio conteúdo — sem ele o `overflow` não vale nada.
- */
+.dash__body.is-vazio .dash__live {
+  animation: none;
+  opacity: 0.45;
+}
+
+/* A lista rola; a tela não. min-height: 0 deixa o bloco encolher. */
 .dash__list {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
   min-height: 0;
+  max-height: 34vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  /* Espaço para a sombra do cartão não ser cortada pela borda da rolagem. */
-  padding-right: 2px;
+  padding: 2px 2px 6px 0;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
@@ -339,7 +703,6 @@
   background: var(--border-strong);
   border-radius: var(--radius-full);
 }
-
 .dash__list:empty {
   display: none;
 }
@@ -351,38 +714,64 @@
 }
 
 .dashRoom {
+  --r: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.25));
+}
+.dashRoom__corpo {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
+  min-width: 0;
+  padding: 10px 12px 10px 12px;
+  border-radius: 16px 0 0 16px;
   background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  transition:
-    border-color var(--dur-fast) var(--ease-out),
-    translate var(--dur-base) var(--ease-out),
-    box-shadow var(--dur-base) var(--ease-out);
+  -webkit-mask:
+    radial-gradient(circle var(--r) at 100% 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 100% 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle var(--r) at 100% 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 100% 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
 }
-.dashRoom:hover {
-  border-color: var(--border-strong);
-  translate: 0 -2px;
-  box-shadow: var(--shadow-md);
+.dashRoom__canhoto {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 0 16px 16px 0;
+  background: var(--surface-2);
+  -webkit-mask:
+    radial-gradient(circle var(--r) at 0 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 0 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle var(--r) at 0 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) top / 100% 51% no-repeat,
+    radial-gradient(circle var(--r) at 0 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) bottom / 100% 51% no-repeat;
+}
+.dashRoom__canhoto::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--r) + 3px);
+  bottom: calc(var(--r) + 3px);
+  left: 0;
+  border-left: 1.5px dashed var(--border-strong);
+}
+.dashRoom__canhoto .btn--primary {
+  margin-left: 4px;
 }
 
 .dashRoom__info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
   min-width: 0;
 }
 
 /*
- * O nome da sala com reticências.
- *
- * As três propriedades já estavam aqui, mas num contêiner flex elas não
- * alcançam o filho: quem precisa encolher e cortar é o <span> de dentro.
- * "Revisão de arquitetura do serviço de pagamentos" sumia no meio da
- * palavra, sem sinal de que havia mais texto.
+ * O nome da sala com reticências: quem precisa encolher e cortar é o <span>
+ * de dentro, não o contêiner flex.
  */
 .dashRoom__name {
   display: flex;
@@ -408,6 +797,11 @@
   gap: var(--sp-2);
   font-size: var(--text-xs);
   color: var(--text-secondary);
+}
+.dashRoom__pc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Rede Tailscale: os outros computadores com Vcall, com "criar aqui". */
@@ -458,73 +852,43 @@
   border-radius: var(--radius-full);
   font-size: var(--text-xs);
 }
-.dashRoom__pc {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
 
+/* Lista vazia: um canhoto em branco, pontilhado. */
 .dash__empty {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  column-gap: var(--sp-4);
-  row-gap: 2px;
+  gap: var(--sp-4);
+  padding: 12px 16px 12px 12px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 16px;
   color: var(--text-secondary);
 }
-.dash__empty p {
-  margin: 0;
-  max-width: 56ch;
-}
 .dash__emptyArt {
-  flex: none;
-  width: 72px;
-  height: auto;
-  padding: 6px 8px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
-  background: linear-gradient(150deg, #ffe6ee, #fff0e4);
-  grid-row: span 2;
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
+.dash__emptyText p {
+  margin: 0;
 }
 .dash__emptyTitle {
   color: var(--text);
   font-weight: var(--weight-semibold);
 }
-
-/* -- escolha de privacidade, no modal de criação -- */
-
-.dash__privacy {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--sp-2);
+.dash__emptyHint {
+  margin-top: 2px !important;
+  max-width: 48ch;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
-.privacy {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  text-align: left;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: inherit;
-  transition:
-    border-color var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
-}
-.privacy:hover {
-  background: var(--surface-2);
-}
-.privacy[aria-checked="true"] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.privacy .icon {
-  margin-top: 2px;
-  flex: none;
-}
-
-/* Rodapé dos modais criados pelo painel. */
+/* Rodapé dos modais criados pelo painel (a senha de uma sala). */
 .modal__foot {
   display: flex;
   align-items: center;
@@ -542,124 +906,140 @@
   text-overflow: ellipsis;
 }
 
-/* Janela estreita ou baixa demais para caber: aí sim a recepção rola. */
+/* ================================================================== *
+ * Telas menores
+ * ================================================================== */
+
 /*
- * A saída de emergência da tela única.
- *
- * A recepção cabe numa janela só — é a intenção do desenho, e ela vale
- * enquanto houver altura. O limite estava em 600 px, baixo demais: um
- * notebook de 1366x768 entrega cerca de 680 px de janela, ficava de fora
- * desta regra e aí `overflow: hidden` comia as duas pontas — o título
- * cortado em cima, a terceira sala cortada embaixo, e nenhuma das duas
- * alcançável porque não havia rolagem.
- *
- * 860 px é a altura que o conteúdo pede com a lista cheia (o bloco da
- * esquerda mede cerca de 830, mais a faixa de cima e o respiro). Abaixo
- * disso a página rola, que é o comportamento que o próprio comentário de
- * `.dash` sempre prometeu.
+ * A saída de emergência da tela única: abaixo de 860 px de altura (um
+ * notebook de 1366x768 entrega uns 680) ou numa janela estreita, a
+ * recepção rola em vez de cortar as pontas.
  */
-@media (max-width: 960px), (max-height: 860px) {
+@media (max-width: 1100px), (max-height: 820px) {
   .dash {
     overflow-y: auto;
   }
   .dash__main {
     align-items: flex-start;
   }
-  /* Rolando, a linha volta a ser do tamanho do conteúdo: encolher aqui
-     esconderia justamente o que a rolagem existe para alcançar. */
-  .dash__hero {
-    grid-template-rows: auto;
+  .dash__list {
     max-height: none;
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1100px) {
+  .dash__hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "intro"
+      "art"
+      "body";
+    row-gap: var(--sp-8);
+  }
+  .dash__intro {
+    align-self: start;
+  }
+  .dash__headline {
+    max-width: 14ch;
+  }
+}
+
+/*
+ * Celular: o ingresso fica em pé. A arte vira uma faixa no alto, o corpo
+ * embaixo dela, o picote passa a ser horizontal e o canhoto fecha o pé.
+ */
+@media (max-width: 720px) {
   .dash__greet {
     display: none;
   }
-  .dash__hero {
-    /* minmax(0, …): `1fr` sozinho nunca fica menor que o conteúdo, e no
-       celular a coluna esticava para 466 px numa tela de 360. */
+  .dash__status {
+    display: none;
+  }
+  .bilhete {
     grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
   }
-  .dash__art {
-    order: -1;
-    width: min(440px, 86%);
-    margin-inline: auto;
+  .bilhete__principal {
+    grid-template-columns: minmax(0, 1fr);
+    border-radius: 22px 22px 0 0;
+    -webkit-mask:
+      radial-gradient(circle var(--r) at 0 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) left / 51% 100% no-repeat,
+      radial-gradient(circle var(--r) at 100% 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) right / 51% 100% no-repeat;
+    mask:
+      radial-gradient(circle var(--r) at 0 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) left / 51% 100% no-repeat,
+      radial-gradient(circle var(--r) at 100% 100%, #0000 calc(var(--r) - 0.5px), #000 var(--r)) right / 51% 100% no-repeat;
   }
-  .dash__headline {
-    max-width: 18ch;
+  .bilhete__corpo {
+    padding: 20px 20px 22px;
   }
-}
-
-/* Celular deitado: a ilustração ocupava a primeira tela inteira e escondia
-   "Criar nova call". Em tela baixa ela é só enfeite. */
-@media (max-height: 500px) and (orientation: landscape) {
-  .dash__art {
+  .bilhete__dados {
+    gap: 16px;
+  }
+  .bilhete__pe {
+    flex-wrap: wrap;
+  }
+  .bilhete__chamar {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  .bilhete__canhoto {
+    border-radius: 0 0 22px 22px;
+    padding: 22px 18px 20px;
+    -webkit-mask:
+      radial-gradient(circle var(--r) at 0 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) left / 51% 100% no-repeat,
+      radial-gradient(circle var(--r) at 100% 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) right / 51% 100% no-repeat;
+    mask:
+      radial-gradient(circle var(--r) at 0 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) left / 51% 100% no-repeat,
+      radial-gradient(circle var(--r) at 100% 0, #0000 calc(var(--r) - 0.5px), #000 var(--r)) right / 51% 100% no-repeat;
+  }
+  .bilhete__canhoto::before {
+    top: 0;
+    bottom: auto;
+    left: calc(var(--r) + 4px);
+    right: calc(var(--r) + 4px);
+    border-left: 0;
+    border-top: 2px dashed rgb(255 255 255 / 0.3);
+  }
+  .bilhete__casas {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .bilhete__dica {
+    margin-top: 0;
+  }
+  .bilhete.is-destacado .bilhete__principal {
+    translate: 0 -40px;
+    rotate: -3deg;
+  }
+  .bilhete.is-destacado .bilhete__canhoto {
+    translate: 0 14px;
+    rotate: 2deg;
+  }
+  .dash__empty {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .dashRoom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dashRoom__corpo {
+    border-radius: 16px 16px 0 0;
+    -webkit-mask: none;
+    mask: none;
+  }
+  .dashRoom__canhoto {
+    justify-content: flex-end;
+    border-radius: 0 0 16px 16px;
+    -webkit-mask: none;
+    mask: none;
+  }
+  .dashRoom__canhoto::before {
+    top: 0;
+    bottom: auto;
+    left: 12px;
+    right: 12px;
+    border-left: 0;
+    border-top: 1.5px dashed var(--border-strong);
+  }
+  .dashRoom__corpo .badge {
     display: none;
   }
 }
 
-@media (max-width: 720px) {
-  .dash__status span { display: none; }
-  .dash__bubble { font-size: var(--text-xs); padding: 7px 11px; }
-  .dash__bubble--a { left: -4%; }
-  .dash__bubble--b { right: -3%; }
-  .dash__list {
-    grid-template-columns: 1fr;
-  }
-  .dash__empty {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    text-align: center;
-  }
-  .dash__emptyArt {
-    grid-row: auto;
-  }
-  .dashRoom {
-    flex-wrap: wrap;
-  }
-  .dashRoom__info {
-    flex: 1 1 100%;
-    order: 2;
-  }
-}
-
-/* -- tema claro: o palco com a identidade do ícone --
- *
- * No claro, o pastel se perdia no fundo claro e parecia um cartão qualquer.
- * Aqui ele vira o próprio ícone do Vcall: azul-tinta com o brilho rosa de um
- * lado e o laranja do outro, e uma trama de pontos discreta — a ilustração
- * clara salta do azulejo escuro, e o título, na mesma tinta, amarra os dois.
- */
-:root[data-theme="light"] .dash__stage {
-  background:
-    radial-gradient(55% 55% at 8% 4%, rgba(253, 77, 135, 0.55), transparent 70%),
-    radial-gradient(55% 55% at 96% 100%, rgba(254, 156, 95, 0.5), transparent 70%),
-    radial-gradient(rgba(255, 255, 255, 0.09) 1.2px, transparent 1.6px) 0 0 / 18px 18px,
-    linear-gradient(160deg, #1c1455 0%, #110c3a 100%);
-  box-shadow:
-    0 40px 80px -36px rgba(17, 12, 58, 0.55),
-    0 18px 40px -24px rgba(253, 77, 135, 0.45),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-:root[data-theme="light"] .dash__stage img {
-  filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.35));
-}
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) .dash__stage {
-    background:
-      radial-gradient(55% 55% at 8% 4%, rgba(253, 77, 135, 0.55), transparent 70%),
-      radial-gradient(55% 55% at 96% 100%, rgba(254, 156, 95, 0.5), transparent 70%),
-      radial-gradient(rgba(255, 255, 255, 0.09) 1.2px, transparent 1.6px) 0 0 / 18px 18px,
-      linear-gradient(160deg, #1c1455 0%, #110c3a 100%);
-    box-shadow:
-      0 40px 80px -36px rgba(17, 12, 58, 0.55),
-      0 18px 40px -24px rgba(253, 77, 135, 0.45),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  }
-  :root:not([data-theme]) .dash__stage img {
-    filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.35));
-  }
-}

@@ -68,39 +68,22 @@
 
     <div class="app">
       <!-- ============================ ANTESSALA ============================ -->
+      <!--
+        A antessala é a credencial: o mesmo papel do ingresso da tela inicial.
+        Na parte de papel, a câmera grande, o nome, o avatar e o som; no
+        canhoto escuro, o botão de entrar.
+      -->
       <section class="lobby" id="lobby" aria-label="Antes de entrar">
         <div class="lobby__card">
-          <div class="lobby__preview">
-            <video
-              class="lobby__video is-mirrored"
-              id="lobbyVideo"
-              autoplay
-              playsinline
-              muted
-              hidden
-            ></video>
-            <div class="lobby__placeholder" id="lobbyPlaceholder"></div>
-
-            <div class="lobby__previewBar">
-              <button class="ctrl" id="lobbyMic" type="button" aria-pressed="true" aria-label="Microfone">
-                <svg class="icon icon--lg" aria-hidden="true"><use href="/vendor/icons.svg#i-mic" /></svg>
-              </button>
-              <button class="ctrl" id="lobbyCam" type="button" aria-pressed="true" aria-label="Câmera">
-                <svg class="icon icon--lg" aria-hidden="true"><use href="/vendor/icons.svg#i-video" /></svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="lobby__form">
-            <div class="row">
-              <img class="brand__mark" src="/assets/logo-mark.png" alt="" width="44" height="44" />
-              <div>
-                <div class="brand__name">Vcall</div>
-                <div class="brand__tag">Conversas diretas, sem intermediário</div>
-              </div>
+          <div class="lobby__papel">
+            <div class="lobby__topo">
+              <span class="lobby__marca">
+                <img src="/assets/logo-mark.png" alt="" width="22" height="22" />
+                <span>Vcall</span>
+              </span>
               <span class="spacer"></span>
               <button
-                class="btn btn--icon btn--ghost"
+                class="btn btn--icon btn--ghost lobby__tema"
                 id="themeBtn"
                 type="button"
                 aria-label="Tema"
@@ -110,50 +93,80 @@
               </button>
             </div>
 
-            <label class="field">
-              <span class="field__label">Como você quer aparecer</span>
-              <input
-                class="input"
-                id="nameInput"
-                type="text"
-                maxlength="32"
-                placeholder="Seu nome"
-                autocomplete="nickname"
-                enterkeyhint="go"
-              />
-            </label>
+            <div class="lobby__miolo">
+              <div class="lobby__preview">
+                <video
+                  class="lobby__video is-mirrored"
+                  id="lobbyVideo"
+                  autoplay
+                  playsinline
+                  muted
+                  hidden
+                ></video>
+                <div class="lobby__placeholder" id="lobbyPlaceholder"></div>
 
-            <div class="avatarPicker">
-              <div class="row">
-                <span class="field__label">Avatar</span>
-                <span class="spacer"></span>
-                <button class="btn btn--ghost" id="avatarPhoto" type="button" style="min-height: 30px; padding: 0 10px">
-                  <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-image" /></svg>
-                  <span>Usar foto</span>
-                </button>
-                <button class="btn btn--ghost" id="avatarShuffle" type="button" style="min-height: 30px; padding: 0 10px">
-                  <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-shuffle" /></svg>
-                  <span>Sortear</span>
-                </button>
-                <input class="sr-only" id="avatarPhotoInput" type="file" accept="image/*" tabindex="-1" />
+                <div class="lobby__previewBar">
+                  <button class="ctrl" id="lobbyMic" type="button" aria-pressed="true" aria-label="Microfone">
+                    <svg class="icon icon--lg" aria-hidden="true"><use href="/vendor/icons.svg#i-mic" /></svg>
+                  </button>
+                  <button class="ctrl" id="lobbyCam" type="button" aria-pressed="true" aria-label="Câmera">
+                    <svg class="icon icon--lg" aria-hidden="true"><use href="/vendor/icons.svg#i-video" /></svg>
+                  </button>
+                </div>
               </div>
-              <div class="avatarPicker__grid" id="avatarGrid" role="radiogroup" aria-label="Escolha um avatar"></div>
+
+              <div class="lobby__form">
+                <div class="lobby__cabeca">
+                  <h1 class="lobby__titulo" id="lobbyTitulo">Pronto para entrar?</h1>
+                  <p class="lobby__sala" id="lobbySala" hidden></p>
+                </div>
+
+                <label class="lobby__campo">
+                  <span class="lobby__rotulo">Como você quer aparecer</span>
+                  <input
+                    class="lobby__nome"
+                    id="nameInput"
+                    type="text"
+                    maxlength="32"
+                    placeholder="Seu nome"
+                    autocomplete="nickname"
+                    enterkeyhint="go"
+                  />
+                </label>
+
+                <div class="lobby__aparelhos" id="lobbyDevices"></div>
+
+                <div class="avatarPicker">
+                  <div class="lobby__linha">
+                    <span class="lobby__rotulo">Avatar</span>
+                    <span class="spacer"></span>
+                    <button class="lobby__mini" id="avatarPhoto" type="button">
+                      <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-image" /></svg>
+                      <span>Usar foto</span>
+                    </button>
+                    <button class="lobby__mini" id="avatarShuffle" type="button">
+                      <svg class="icon icon--sm" aria-hidden="true"><use href="/vendor/icons.svg#i-shuffle" /></svg>
+                      <span>Sortear</span>
+                    </button>
+                    <input class="sr-only" id="avatarPhotoInput" type="file" accept="image/*" tabindex="-1" />
+                  </div>
+                  <div class="avatarPicker__grid" id="avatarGrid" role="radiogroup" aria-label="Escolha um avatar"></div>
+                </div>
+
+                <div class="lobby__aviso" id="lobbyHint" hidden></div>
+              </div>
             </div>
+          </div>
 
-            <div class="row" id="lobbyDevices"></div>
-
-            <div class="row" id="lobbyHint" hidden style="color: var(--warn); font-size: var(--text-xs)"></div>
-
-            <span class="spacer"></span>
-
-            <button class="btn btn--primary btn--lg btn--block" id="joinBtn" type="button">
+          <div class="lobby__canhoto">
+            <p class="lobby__canhotoTitulo" id="lobbyCanhotoTitulo">Tudo certo?</p>
+            <button class="lobby__entrar" id="joinBtn" type="button">
               <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-video" /></svg>
-              <span>Criar sala</span>
+              <span>Entrar na sala</span>
             </button>
-
-            <p class="field__hint">
+            <p class="lobby__letras">
               Áudio, vídeo e tela vão direto de um navegador ao outro, criptografados. O servidor só
-              apresenta os participantes — ele não vê nem guarda nada da conversa.
+              apresenta os participantes: ele não vê nem guarda nada da conversa.
             </p>
           </div>
         </div>

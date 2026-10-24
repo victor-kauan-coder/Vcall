@@ -374,10 +374,15 @@ a {
   z-index: var(--z-toast);
 }
 
-[data-tip]:hover::after,
 [data-tip]:focus-visible::after {
   opacity: 1;
   translate: -50% 0;
+}
+@media (hover: hover) {
+  [data-tip]:hover::after {
+    opacity: 1;
+    translate: -50% 0;
+  }
 }
 
 [data-tip-placement="bottom"]::after {
@@ -391,9 +396,13 @@ a {
   right: 0;
   translate: 0 4px;
 }
-[data-tip-align="end"]:hover::after,
 [data-tip-align="end"]:focus-visible::after {
   translate: 0 0;
+}
+@media (hover: hover) {
+  [data-tip-align="end"]:hover::after {
+    translate: 0 0;
+  }
 }
 
 @media (pointer: coarse) {

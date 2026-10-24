@@ -290,6 +290,23 @@ const TOK = (n) => `token-${n}-abcdefghijklmnop`;
   for (const c of [host, bia, davi]) c.ws.close();
 }
 
+/* -- aprovar quem entra: a sala já nasce com fila (como no Meet) -- */
+{
+  assert.equal(normalizeRoomMeta({ aprovar: true }).aprovar, true);
+  assert.equal(normalizeRoomMeta({ aprovar: "sim" }).aprovar, false, "só true liga a fila");
+  const id = sala("aprovar");
+  const dono = cliente();
+  const w = await dono.entrar(id, { meta: { name: "Com fila", aprovar: true }, hostKey: TOK("ap") });
+  assert.equal(w.t, "welcome", "quem cria entra direto");
+  const eva = cliente();
+  assert.equal((await eva.entrar(id, { nome: "Eva" })).t, "waiting", "quem chega espera na fila");
+  const batida = await dono.esperar((m) => m.t === "knock" && m.name === "Eva");
+  dono.send({ t: "moderate", action: "admit", target: batida.id });
+  assert.ok(await eva.esperar((m) => m.t === "welcome"), "aceita, entra");
+  ok("aprovar quem entra: a sala nasce com fila e o anfitrião aceita");
+  for (const c of [dono, eva]) c.ws.close();
+}
+
 /* -- protocolo -- */
 {
   const p = parseClientMessage(JSON.stringify({ t: "moderate", action: "explodir", target: "x" }));

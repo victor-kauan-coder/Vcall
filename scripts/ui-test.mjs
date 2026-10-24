@@ -370,6 +370,9 @@ try {
     await espera(500);
     const [id1, id2] = await a.evaluate(() => [...window.vcall.mesh.peers.keys()]);
     await a.evaluate((id) => window.vcall.stage.get(id, "cam").setSpeaking(true), id1);
+    // Passar o mouse acende o quadro de propósito: o mouse sai de cima de
+    // todos (ele fica onde foi o último clique, o "Entrar na sala").
+    await a.mouse.move(2, 2);
     await espera(500);
     const op = await a.evaluate(
       ([x, y]) => ({
@@ -755,14 +758,14 @@ try {
     await pg.waitForURL(/notebook-ana/, { timeout: 5000 }).catch(() => {});
     check("Entrar leva até o computador da chamada", pg.url() === `https://notebook-ana.tail1.ts.net:8443/#${ID_ANA}`, pg.url());
 
-    // Criar: com rede, a opção "Na minha rede" existe e vem marcada.
+    // Criar: o ingresso da tela inicial. Com rede, "Na minha rede" existe e vem marcada.
     await pg.goto(`${BASE}/`, { waitUntil: "networkidle" });
     await pg.waitForSelector(".dashPc");
-    await pg.click("text=Criar nova call");
+    await pg.waitForSelector('.dash__privacy [data-valor="rede"]');
     const opcoes = await pg.locator(".dash__privacy .privacy").evaluateAll((bs) => bs.map((b) => `${b.querySelector("strong").textContent}:${b.getAttribute("aria-checked")}`));
     check("na rede, criar oferece 'Na minha rede', já marcada", opcoes.includes("Na minha rede:true"), opcoes.join(" · "));
-    await pg.fill("dialog[open] input[type=text]", "Do time");
-    await pg.click("text=Criar e entrar");
+    await pg.fill(".bilhete__principal input[type=text]", "Do time");
+    await pg.click(".bilhete__chamar");
     // A antessala entra com uma transição e, ao montar, preenche o nome com o
     // guardado: um nome digitado antes disso se perde. Escreve de novo até o
     // botão acender.
@@ -792,10 +795,10 @@ try {
     const ID_NOVA = "criadapelarede-0123456789";
     const c = await abrirPainel({ width: 390, height: 820 });
     await c.goto(`${BASE}/?criar=1#${ID_NOVA}`, { waitUntil: "networkidle" });
-    const dialogo = await c.waitForSelector(".modal >> text=Criar nova call", { timeout: 8000 }).then(() => true, () => false);
-    check("?criar=1 abre o Criar nova call (em vez da antessala de convidado)", dialogo);
-    await c.fill("dialog[open] input[type=text]", "Do celular");
-    await c.click("text=Criar e entrar");
+    const pronto = await c.waitForSelector(".bilhete.is-pedido", { timeout: 8000 }).then(() => true, () => false);
+    check("?criar=1 deixa o ingresso pronto para criar (em vez da antessala de convidado)", pronto);
+    await c.fill(".bilhete__principal input[type=text]", "Do celular");
+    await c.click(".bilhete__chamar");
     await c.waitForSelector("#lobby:not([hidden]) #joinBtn", { timeout: 10_000 });
     check("a chamada criada usa o id que veio do outro computador", (await c.evaluate(() => location.hash)) === `#${ID_NOVA}`);
     await c.goto(`${BASE}/`, { waitUntil: "networkidle" });

@@ -156,3 +156,14 @@ export function modoDeInstalacao({ plataforma = process.platform, empacotado = f
   if (["deb", "rpm"].includes(String(tipoPacote || "").trim())) return "senha";
   return "manual";
 }
+
+/**
+ * Fechar o Vcall é a hora de instalar a versão conferida — menos quando quem
+ * fechou as janelas foi o sistema desligando. Aí o instalador do Windows
+ * apagava a versão antiga e o desligamento o cortava antes de pôr a nova: o
+ * Vcall sumia do computador (aconteceu na atualização para a 3.14.0). O pacote
+ * baixado continua guardado e é instalado no próximo fechamento.
+ */
+export function instalaAoFechar({ conferida = null, modo = "manual", desligando = false } = {}) {
+  return !!conferida && modo === "sozinho" && !desligando;
+}

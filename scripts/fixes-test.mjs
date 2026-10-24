@@ -23,7 +23,7 @@ import { createBoardNotice } from "../public/js/features/board-notice.js";
 import { argsParaX11, executavelParaRegistrar, modoDeReabrir, namespacesDisponiveis, opcoesDeExibicao, precisaSemSandbox } from "../desktop/linux.js";
 import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
 import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/assinatura.js";
-import { maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
+import { instalaAoFechar, maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
 import { reabrirDepois, trocarAppImage } from "../desktop/appimage.js";
 import { ROTA_CURTA, origemPublica, paginaDoConvite } from "../src/convite.js";
 import { ehAndroid, linkCurto, linkIntentAndroid } from "../public/js/lib/invite.js";
@@ -415,9 +415,13 @@ server.close();
   assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true, tipoPacote: "pacman" }), "manual", "pacman fora do latest-linux.yml: só avisa");
   assert.equal(modoDeInstalacao({ plataforma: "linux", empacotado: true }), "manual", ".tar.gz: só avisa");
   assert.equal(modoDeInstalacao({ plataforma: "win32", empacotado: false }), "manual", "rodando do código-fonte: só avisa");
+  assert.equal(instalaAoFechar({ conferida: "3.14.0", modo: "sozinho" }), true, "fechar o Vcall instala a versão conferida");
+  assert.equal(instalaAoFechar({ conferida: "3.14.0", modo: "sozinho", desligando: true }), false, "Windows desligando: o instalador seria cortado no meio e o Vcall sumia");
+  assert.equal(instalaAoFechar({ conferida: null, modo: "sozinho" }), false, "nada conferido: não instala");
+  assert.equal(instalaAoFechar({ conferida: "3.14.0", modo: "senha" }), false, ".deb/.rpm: só pelo botão");
   assert.equal(maisNova("v3.10.0", "3.9.0"), true, "3.10 é mais nova que 3.9");
   assert.equal(maisNova("3.7.0", "3.7.0"), false);
-  ok("atualização: só instala o que foi assinado por nós, na versão certa; modo por tipo de instalação");
+  ok("atualização: só instala o que foi assinado por nós, na versão certa; modo por tipo de instalação; nunca com o sistema desligando");
 }
 
 /* ================================================================== *

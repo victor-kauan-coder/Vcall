@@ -103,36 +103,9 @@ p{text-wrap:pretty}
 .cap .so-estatico{border-radius:16px;box-shadow:0 0 0 1px rgb(238 238 255 / .1);width:100%;height:auto}
 .temas-grade{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem}
 .temas-grade img{border-radius:8px;box-shadow:0 0 0 1px rgb(238 238 255 / .1)}
-.tema-nome{display:none}
-.doca{display:none}
 @media (max-width:860px){.cap{grid-template-columns:1fr}}
 
-/* Com movimento: tudo vira um palco preso na tela */
-.movimento .palco{--degrau:40vh;height:calc(100vh + 6 * var(--degrau))}
-.movimento .palco__fixo{position:sticky;top:0;height:100vh;height:100dvh;overflow:hidden;padding:0;perspective:1700px;perspective-origin:50% 30%}
-.movimento .heroi{position:absolute;inset:0 var(--borda) auto;padding-top:calc(var(--nav) + clamp(1.5rem,5vh,3.5rem));z-index:1}
-.movimento .alvo{display:block;visibility:hidden;flex-basis:100%}
-.movimento .palco .janela{display:block;position:absolute;z-index:2;
-  --w:min(61vw,calc((100dvh - 15rem) * 1.6),1180px);width:var(--w);margin:0;right:var(--borda);top:calc(50% - var(--w) * .3125 - 1.75rem);will-change:transform;animation:sobe 1.6s var(--saida) .2s both}
-@keyframes sobe{from{opacity:0;translate:0 14%}}
-.movimento .capitulos{position:absolute;z-index:3;left:var(--borda);top:0;bottom:0;margin:0;width:min(29vw,27rem);display:grid;grid-template-columns:minmax(0,1fr);align-items:center;pointer-events:none}
-.movimento .cap{grid-area:1/1;display:block;opacity:0;visibility:hidden}
-.movimento .cap .so-estatico,.movimento .temas-grade{display:none}
-.movimento .cap--mini h2{font-size:clamp(3.2rem,7.4vw,8rem);width:min(70vw,60rem);line-height:.92}
-.movimento .tema-nome{display:flex;align-items:center;gap:.5rem;margin-top:1.4rem;font-size:.95rem;color:var(--texto)}
-.tema-nome i{width:.85rem;height:.85rem;border-radius:50%;background:var(--rosa)}
-.movimento .doca{display:flex;position:absolute;z-index:4;left:0;right:0;bottom:clamp(1rem,3vh,1.75rem);margin:0 auto;width:max-content;gap:.35rem;padding:.4rem;border-radius:99px;background:#17162a;box-shadow:0 0 0 1px var(--linha),0 18px 40px -18px rgb(0 0 0 / .8);opacity:0;visibility:hidden}
-.doca button{display:flex;align-items:center;gap:.5rem;height:2.75rem;padding:0 1rem;border:0;border-radius:99px;background:transparent;color:var(--texto-2);font-family:inherit;font-weight:600;font-size:.95rem;line-height:1;cursor:pointer;transition:background .3s,color .3s}
-.doca button:hover{color:var(--texto);background:rgb(238 238 255 / .06)}
-.doca button[aria-current="true"]{background:rgb(253 77 135 / .16);color:var(--rosa);box-shadow:inset 0 0 0 2px var(--rosa)}
-@media (max-width:1023px){
-  .movimento .palco .janela{--w:calc(100vw - 2 * var(--borda));right:auto;left:var(--borda);top:calc(var(--nav) + 1rem)}
-  .movimento .capitulos{width:auto;right:var(--borda);top:calc(var(--nav) + 2.5rem + (100vw - 2 * var(--borda)) * .625);bottom:auto;align-items:start}
-  .movimento .cap h2{font-size:clamp(1.9rem,6vw,2.8rem)}
-  .movimento .cap--mini h2{font-size:clamp(2.6rem,11vw,4.5rem);width:auto}
-  .doca button span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  .doca button{width:2.9rem;padding:0;justify-content:center}
-}
+
 
 /* ---------- Seções ---------- */
 .secao{position:relative;padding:clamp(6rem,14vw,11rem) var(--borda)}
@@ -308,58 +281,44 @@ p{text-wrap:pretty}
         <div class="alvo" aria-hidden="true"></div>
       </div>
 
-      <div class="janela" aria-hidden="true">
+      <div class="janela revela" aria-hidden="true">
         <img class="cena" data-cena="chamada" src="assets/shots/tema-tinta-dark.webp" alt="" width="2400" height="1500" fetchpriority="high">
-        <img class="cena" data-cena="quadro" src="assets/shots/board.webp" alt="" width="2400" height="1500" decoding="async">
-        <img class="cena" data-cena="conversa" src="assets/shots/call-chat.webp" alt="" width="2400" height="1500" decoding="async">
-        <img class="cena" data-cena="mini" src="assets/shots/mini.webp" alt="" width="760" height="540" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Tinta, escuro" src="assets/shots/tema-tinta-dark.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Tinta, claro" src="assets/shots/tema-tinta-light.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Ametista, escuro" src="assets/shots/tema-ametista-dark.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Ametista, claro" src="assets/shots/tema-ametista-light.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Carvão, escuro" src="assets/shots/tema-carvao-dark.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Carvão, claro" src="assets/shots/tema-carvao-light.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Oceano, escuro" src="assets/shots/tema-oceano-dark.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Oceano, claro" src="assets/shots/tema-oceano-light.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Brasa, escuro" src="assets/shots/tema-brasa-dark.webp" alt="" decoding="async">
-        <img class="cena tema" data-cena="tema" data-nome="Brasa, claro" src="assets/shots/tema-brasa-light.webp" alt="" decoding="async">
       </div>
 
       <div class="capitulos">
-        <article class="cap" data-cap="chamada">
+        <article class="cap revela" data-cap="chamada">
           <div>
             <h2>Até 16 pessoas, sem limite de tempo.</h2>
             <p>Vídeo, voz e tela vão direto para quem está na sala. Quem fala acende, e você vê na hora quem está com a palavra.</p>
           </div>
           <img class="so-estatico" src="assets/shots/tema-tinta-dark.webp" alt="Chamada do Vcall com quatro pessoas, Ana, Bruno, Lucas e Carla" loading="lazy" width="2400" height="1500">
         </article>
-        <article class="cap" data-cap="quadro">
+        <article class="cap revela" data-cap="quadro">
           <div>
             <h2>Um quadro sem fim para desenhar junto.</h2>
             <p>Rabisque, cole imagens em camadas e anote por cima da tela que alguém está mostrando.</p>
           </div>
           <img class="so-estatico" src="assets/shots/board.webp" alt="Quadro branco colaborativo do Vcall com traços desenhados" loading="lazy" width="2400" height="1500">
         </article>
-        <article class="cap" data-cap="conversa">
+        <article class="cap revela" data-cap="conversa">
           <div>
             <h2>Arquivos de até 25 MB, entregues inteiros.</h2>
             <p>Fotos e arquivos vão direto para quem está na chamada, e a conversa não fica guardada em lugar nenhum.</p>
           </div>
           <img class="so-estatico" src="assets/shots/call-chat.webp" alt="Conversa por texto aberta ao lado da chamada" loading="lazy" width="2400" height="1500">
         </article>
-        <article class="cap cap--mini" data-cap="mini">
+        <article class="cap cap--mini revela" data-cap="mini">
           <div>
             <h2>Fica por cima de tudo.</h2>
             <p>Aperte J e a chamada vira uma janelinha no canto, com quem fala e os botões que importam.</p>
           </div>
           <img class="so-estatico" src="assets/shots/mini.webp" alt="Mini-janela da chamada com três pessoas e os controles essenciais" loading="lazy" width="760" height="540">
         </article>
-        <article class="cap" data-cap="temas">
+        <article class="cap revela" data-cap="temas">
           <div>
             <h2>Cinco paletas, claro e escuro.</h2>
             <p>Tinta, Ametista, Carvão, Oceano e Brasa. Em todas, o texto passa no teste de contraste.</p>
-            <p class="tema-nome" aria-hidden="true"><i></i><span class="js-tema">Tinta, escuro</span></p>
-          </div>
+                      </div>
           <div class="temas-grade">
             <img src="assets/shots/tema-tinta-dark.webp" alt="Paleta Tinta, escura" loading="lazy">
             <img src="assets/shots/tema-ametista-dark.webp" alt="Paleta Ametista, escura" loading="lazy">
@@ -375,13 +334,6 @@ p{text-wrap:pretty}
         </article>
       </div>
 
-      <nav class="doca" aria-label="Capítulos do Vcall por dentro">
-        <button type="button" data-ir="chamada"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-video"/></svg><span>Chamada</span></button>
-        <button type="button" data-ir="quadro"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-pencil"/></svg><span>Quadro</span></button>
-        <button type="button" data-ir="conversa"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-message-square"/></svg><span>Conversa</span></button>
-        <button type="button" data-ir="mini"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-picture-in-picture-2"/></svg><span>Mini-janela</span></button>
-        <button type="button" data-ir="temas"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-palette"/></svg><span>Temas</span></button>
-      </nav>
     </div>
   </section>
 
@@ -544,31 +496,31 @@ p{text-wrap:pretty}
     <div class="acoes revela">
       <a class="btn btn--marca btn--grande js-baixar" href="https://github.com/victor-kauan-coder/Vcall/releases/latest"><svg class="ico ico--seta" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg><span class="js-rotulo">Baixar o Vcall</span></a>
     </div>
-    <p class="versao revela"><span class="js-versao">Versão 3.13.1</span>. <a href="https://github.com/victor-kauan-coder/Vcall/releases/latest" class="js-notas">O que mudou</a></p>
+    <p class="versao revela"><span class="js-versao">Versão 3.15.0</span>. <a href="https://github.com/victor-kauan-coder/Vcall/releases/latest" class="js-notas">O que mudou</a></p>
     <div class="sistemas">
       <article class="sistema revela" data-so="windows">
         <span class="so-logo so-logo--win" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         <h3>Windows</h3>
         <p>Windows 10 e 11. Instala em um clique e se atualiza sozinho.</p>
-        <a class="btn btn--marca" data-arq="exe" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/VcallSetup-3.13.1.exe"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar .exe <small>138 MB</small></a>
+        <a class="btn btn--marca" data-arq="exe" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.15.0/VcallSetup-3.15.0.exe"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar .exe <small>138 MB</small></a>
       </article>
       <article class="sistema revela" data-so="linux">
         <span class="so-logo" style="--logo:url(assets/so-linux.svg)" aria-hidden="true"></span>
         <h3>Linux</h3>
         <p>Ubuntu, Fedora, Arch e qualquer outra distribuição.</p>
-        <a class="btn btn--linha" data-arq="appimage" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x86_64.AppImage"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar AppImage <small>159 MB</small></a>
+        <a class="btn btn--linha" data-arq="appimage" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.15.0/Vcall-3.15.0-x86_64.AppImage"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar AppImage <small>159 MB</small></a>
         <div class="arquivos">
-          <a data-arq="deb" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-amd64.deb">.deb <small>115 MB</small></a>
-          <a data-arq="rpm" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x86_64.rpm">.rpm <small>115 MB</small></a>
-          <a data-arq="pacman" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x64.pacman">pacman <small>115 MB</small></a>
-          <a data-arq="targz" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1-x64.tar.gz">.tar.gz <small>152 MB</small></a>
+          <a data-arq="deb" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.15.0/Vcall-3.15.0-amd64.deb">.deb <small>115 MB</small></a>
+          <a data-arq="rpm" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.15.0/Vcall-3.15.0-x86_64.rpm">.rpm <small>115 MB</small></a>
+          <a data-arq="pacman" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.15.0/Vcall-3.15.0-x64.pacman">pacman <small>115 MB</small></a>
+          <a data-arq="targz" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.15.0/Vcall-3.15.0-x64.tar.gz">.tar.gz <small>152 MB</small></a>
         </div>
       </article>
       <article class="sistema revela" data-so="android">
         <span class="so-logo" style="--logo:url(assets/so-android.svg)" aria-hidden="true"></span>
         <h3>Android</h3>
         <p>Entre e crie chamadas pelo celular.</p>
-        <a class="btn btn--linha" data-arq="apk" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.13.1/Vcall-3.13.1.apk"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar APK <small>0,2 MB</small></a>
+        <a class="btn btn--linha" data-arq="apk" href="https://github.com/victor-kauan-coder/Vcall/releases/download/v3.15.0/Vcall-3.15.0.apk"><svg class="ico" aria-hidden="true"><use href="assets/icones.svg#i-download"/></svg>Baixar APK <small>0,2 MB</small></a>
       </article>
       <article class="sistema sistema--embreve revela" data-so="mac">
         <span class="so-logo" style="--logo:url(assets/so-apple.svg)" aria-hidden="true"></span>
@@ -630,7 +582,7 @@ p{text-wrap:pretty}
   };
   aplicarPrincipal();
 
-  // Os links acima apontam para a 3.13.1; a API do GitHub troca pela última versão.
+  // Os links acima apontam para a 3.15.0; a API do GitHub troca pela última versão.
   const PADROES = { exe: /Setup.*\.exe$/i, appimage: /\.AppImage$/i, deb: /\.deb$/i, rpm: /\.rpm$/i, pacman: /\.pacman$/i, targz: /\.tar\.gz$/i, apk: /\.apk$/i };
   const tamanho = (b) => b >= 1e6 ? `${Math.round(b / 1e6)} MB` : `${(b / 1e6).toFixed(1).replace(".", ",")} MB`;
   fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } })
@@ -648,7 +600,7 @@ p{text-wrap:pretty}
       if (rel.html_url) $(".js-notas").href = rel.html_url;
       aplicarPrincipal();
     })
-    .catch(() => {}); // sem API (limite de requisições, offline): ficam os links da 3.13.1
+    .catch(() => {}); // sem API (limite de requisições, offline): ficam os links da 3.15.0
 
   /* ---------- Vídeo ---------- */
   const tela = $(".tela");
@@ -672,127 +624,13 @@ p{text-wrap:pretty}
   document.documentElement.classList.add("movimento");
   gsap.registerPlugin(ScrollTrigger);
 
-  // Entrada: cada letra de "Direto" sobe, depois o resto.
+  // Entrada: cada letra de "Direto" sobe, depois o resto. Só transform e
+  // opacidade (nada de desfoque, que pesa), e nada preso à rolagem.
   const palavra = $(".heroi .palavra");
   palavra.innerHTML = [...palavra.textContent].map((l) => `<span class="letra">${l}</span>`).join("");
-  const janela = $(".palco .janela");
-  const alvo = $(".palco .alvo");
   gsap.timeline({ defaults: { ease: "expo.out" } })
-    .from(".heroi .letra, .heroi .ponto", { yPercent: 70, opacity: 0, filter: "blur(10px)", duration: 1.3, stagger: 0.05 })
-    .from(".heroi__lado > *", { y: 24, opacity: 0, duration: 1.1, stagger: 0.1 }, 0.35);
-  // A janela entra pelo CSS (propriedade translate): o transform é todo da rolagem.
-
-  // Onde a janela fica no herói, medida pelo .alvo (o CSS decide o lugar; o JS só mede).
-  const caixa = (el) => {
-    let x = 0, y = 0, n = el;
-    while (n && n !== janela.offsetParent) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
-    return { x, y, w: el.offsetWidth, h: el.offsetHeight };
-  };
-  const heroi = () => {
-    const a = caixa(alvo), j = caixa(janela);
-    return { x: a.x + a.w / 2 - (j.x + j.w / 2), y: a.y + a.h / 2 - (j.y + j.h / 2), s: a.w / j.w };
-  };
-  const canto = () => {
-    const j = caixa(janela), fixo = janela.offsetParent;
-    const w = Math.min(420, fixo.offsetWidth * 0.42), h = w * 0.625, m = fixo.offsetWidth < 1024 ? 16 : 40;
-    const cx = fixo.offsetWidth - m - w / 2, cy = fixo.offsetHeight - (fixo.offsetWidth < 1024 ? 96 : 110) - h / 2;
-    return { x: cx - (j.x + j.w / 2), y: cy - (j.y + j.h / 2), s: w / j.w };
-  };
-
-  const cena = (n) => $(`.janela .cena[data-cena="${n}"]`, $(".palco"));
-  const cap = (n) => $(`.cap[data-cap="${n}"]`);
-  const temas = $$(".janela .tema");
-  const entra = { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out" };
-  const sai = { autoAlpha: 0, y: -40, duration: 0.25, ease: "power2.in" };
-  const troca = (n, t) => tl.fromTo(cena(n), { opacity: 0, scale: 1.05 }, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, t);
-
-  const botoes = $$(".doca button");
-  const nomeTema = $(".js-tema");
-  const ordem = ["heroi", "chamada", "quadro", "conversa", "mini", "temas"];
-
-  gsap.set(temas, { clipPath: "circle(0% at 97.5% 3.6%)", opacity: 1 });
-
-  // A linha do tempo do palco não anda com a rolagem: cada degrau de rolagem
-  // toca o trecho até o próximo capítulo, no tempo dele. As posições dependem
-  // do tamanho da tela, então ela é refeita quando a tela muda de tamanho.
-  let tl, medida = "", passo = 0, indo = null;
-  const montar = () => {
-    const agora = `${innerWidth}x${Math.round(innerHeight / 150)}`; // a barra do celular sumindo não conta
-    if (agora === medida) return;
-    medida = agora;
-    const volta = tl ? tl.labels[ordem[passo]] : 0;
-    if (tl) {
-      indo && indo.kill();
-      tl.kill();
-      gsap.set([".heroi", janela, ".doca", ".cap", cena("quadro"), cena("conversa"), cena("mini"), temas[0]], { clearProps: "transform,opacity,visibility" });
-    }
-    gsap.set(".cap", { autoAlpha: 0, y: 50 });
-    gsap.set(temas[0], { clipPath: "circle(150% at 97.5% 3.6%)", opacity: 0 });
-    tl = gsap.timeline({ paused: true, defaults: { ease: "none" } });
-    tl.addLabel("heroi", 0)
-    // o herói sai, a janela desinclina e vai para o palco
-    .to(".heroi", { yPercent: -35, autoAlpha: 0, duration: 0.6, ease: "power1.in" }, 0)
-    .fromTo(janela, { x: () => heroi().x, y: () => heroi().y, scale: () => heroi().s, rotateX: 22 }, { x: 0, y: 0, scale: 1, rotateX: 0, duration: 1, ease: "power2.inOut", immediateRender: true }, 0)
-    .to(".doca", { autoAlpha: 1, duration: 0.25 }, 0.75)
-    .to(cap("chamada"), entra, 0.75)
-    .addLabel("chamada", 1.05)
-    // Quadro
-    .to(cap("chamada"), sai, 1.5);
-  troca("quadro", 1.55);
-  tl.to(cap("quadro"), entra, 1.75).addLabel("quadro", 2.05)
-    // Conversa
-    .to(cap("quadro"), sai, 2.5);
-  troca("conversa", 2.55);
-  tl.to(cap("conversa"), entra, 2.75).addLabel("conversa", 3.05)
-    // Mini-janela: a própria janela encolhe até o canto
-    .to(cap("conversa"), sai, 3.5)
-    .to(janela, { x: () => canto().x, y: () => canto().y, scale: () => canto().s, duration: 0.65, ease: "power3.inOut" }, 3.55)
-    .to(cena("mini"), { opacity: 1, duration: 0.3 }, 3.85)
-    .to(cap("mini"), entra, 3.95).addLabel("mini", 4.25)
-    // Volta e abre os temas
-    .to(cap("mini"), sai, 4.75)
-    .to(janela, { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power3.inOut" }, 4.8)
-    .to(cena("mini"), { opacity: 0, duration: 0.25 }, 4.85)
-    .to(temas[0], { opacity: 1, duration: 0.3 }, 5.05)
-    .to(cap("temas"), entra, 5.2).addLabel("temas", 5.5);
-    tl.seek(volta, true);
-  };
-  montar();
-
-  // Temas: chegando no capítulo, as paletas se revezam sozinhas, saindo do botão de tema.
-  const resto = temas.slice(1);
-  const ciclo = gsap.timeline({ paused: true, repeat: -1 });
-  resto.forEach((img, i) => ciclo.to(img, { clipPath: "circle(150% at 97.5% 3.6%)", duration: 0.9, ease: "power2.inOut", onStart: () => (nomeTema.textContent = img.dataset.nome) }, 0.8 + i * 1.6));
-  ciclo.to(resto, { opacity: 0, duration: 0.6, onComplete: () => (nomeTema.textContent = temas[0].dataset.nome) }, "+=1.2")
-    .set(resto, { clipPath: "circle(0% at 97.5% 3.6%)", opacity: 1 });
-  const pararTemas = () => { ciclo.pause(0); nomeTema.textContent = temas[0].dataset.nome; };
-
-  const ir = (n) => {
-    if (n === passo) return;
-    if (ordem[passo] === "temas") pararTemas();
-    passo = n;
-    indo && indo.kill();
-    const t = tl.labels[ordem[n]];
-    indo = tl.tweenTo(t, {
-      duration: Math.min(1.5, 0.6 + Math.abs(t - tl.time()) * 0.22),
-      ease: "power2.inOut",
-      onComplete: () => ordem[n] === "temas" && ciclo.play(0),
-    });
-    botoes.forEach((b) => b.setAttribute("aria-current", String(b.dataset.ir === ordem[n])));
-  };
-  const gatilho = ScrollTrigger.create({
-    trigger: ".palco", start: "top top", end: "bottom bottom",
-    // um quarto de degrau já basta para o próximo capítulo começar
-    // um degrau por capítulo, e um a mais para os temas terem onde ficar
-    onUpdate: (s) => ir(Math.max(0, Math.min(ordem.length - 1, Math.floor((s.scroll() - s.start) / ((s.end - s.start) / ordem.length) + 0.75)))),
-    onRefresh: montar,
-    // fora do palco o ciclo de temas para (é repintura de imagem grande)
-    onToggle: (s) => ordem[passo] === "temas" && (s.isActive ? ciclo.play() : ciclo.pause()),
-  });
-  botoes.forEach((b) => b.addEventListener("click", () => {
-    const degrau = (gatilho.end - gatilho.start) / ordem.length;
-    window.scrollTo({ top: gatilho.start + ordem.indexOf(b.dataset.ir) * degrau + 4, behavior: "smooth" });
-  }));
+    .from(".heroi .letra, .heroi .ponto", { yPercent: 60, opacity: 0, duration: 1, stagger: 0.045 })
+    .from(".heroi__lado > *", { y: 20, opacity: 0, duration: 0.9, stagger: 0.08 }, 0.3);
 
   // Como funciona: ao aparecer, a história toca inteira, no tempo dela.
   const direto = $(".direto");
@@ -857,11 +695,7 @@ p{text-wrap:pretty}
     });
   }
 
-  // Decodifica as capturas do palco antes de precisar delas: troca sem engasgo.
-  addEventListener("load", () => {
-    ScrollTrigger.refresh();
-    $$(".palco .janela img").forEach((i) => i.decode && i.decode().catch(() => {}));
-  });
+  addEventListener("load", () => ScrollTrigger.refresh());
 })();
 </script>
 </body>

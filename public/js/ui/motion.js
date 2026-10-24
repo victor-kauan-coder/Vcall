@@ -671,28 +671,6 @@ export function magnifyDock(dock) {
   });
 }
 
-/* ------------------------------------------------------------------ *
- * Sinal de chamada
- *
- * Três ondas saindo da logo, defasadas, enquanto a sala espera alguém. É o
- * único laço infinito da chamada — e só existe enquanto a tela de espera está
- * à vista: `stop()` cancela tudo quando a primeira pessoa entra.
- * ------------------------------------------------------------------ */
-
-export function signal(rings) {
-  if (calm()) return { stop() {} };
-  const anims = [...rings].map((r, i) =>
-    r.animate(
-      [
-        { scale: "0.6", opacity: 0.7 },
-        { scale: "2.4", opacity: 0 },
-      ],
-      { duration: 2400, delay: i * 800, iterations: Infinity, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
-    ),
-  );
-  return { stop: () => anims.forEach((a) => a.cancel()) };
-}
-
 /**
  * Botão magnético: acompanha o ponteiro alguns pixels antes do clique. Só no
  * botão principal de cada tela — em todos viraria ruído.

@@ -145,7 +145,7 @@ export class Dashboard {
       ]),
       el("div.dash__art", {}, [
         el("div.dash__stage", {}, [
-          ilustracao("hero", { largura: 466, altura: 379 }),
+          ilustracao("inicio", { largura: 380, altura: 380 }),
         ]),
         bubble("dash__bubble--a", "mic", "Oi! Tá me ouvindo?"),
         bubble("dash__bubble--b", "sparkles", "Bora desenhar?"),
@@ -200,7 +200,7 @@ export class Dashboard {
     this.#list = el("div.dash__list", { role: "list" });
     this.#maquinas = el("div.dash__rede", { hidden: true, "aria-label": "Computadores na sua rede Tailscale" });
     this.#empty = el("div.dash__empty", {}, [
-      ilustracao("empty", { largura: 72, altura: 48, classe: "dash__emptyArt" }),
+      ilustracao("lista-vazia", { largura: 72, altura: 84, classe: "dash__emptyArt" }),
       el("p.dash__emptyTitle", { text: "Nenhuma call pública no ar agora." }),
       el("p.field__hint", {
         text: "Salas privadas não aparecem aqui — o endereço delas é o segredo. Entre pelo link ou pelo código que você recebeu.",

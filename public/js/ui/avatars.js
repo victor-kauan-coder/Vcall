@@ -9,6 +9,7 @@
  * nunca uma imagem. Nada de base64 de 60 kB por participante.
  */
 import { styles, styleIds, createAvatar } from "../../vendor/avatars.js";
+import { avatarVcall } from "./avatar-vcall.js";
 import { el } from "../lib/dom.js";
 import { randomSeed } from "../lib/util.js";
 
@@ -27,9 +28,11 @@ import { randomSeed } from "../lib/util.js";
  */
 const BACKGROUND = ["fd4d87", "fe9c5f", "fbbf24", "34d399", "2dd4bf", "38bdf8"];
 
-export const AVATAR_STYLES = styleIds;
+/** O estilo da casa vem primeiro: é o que quem chega pela primeira vez recebe. */
+export const AVATAR_STYLES = ["vcall", ...styleIds];
 
 export const STYLE_LABELS = {
+  vcall: "Vcall",
   notionistsNeutral: "Traço",
   loreleiNeutral: "Retrato",
   adventurerNeutral: "Aventura",
@@ -87,7 +90,7 @@ export function isPhoto(spec) {
 }
 
 export function avatarSvg(spec) {
-  const style = styles[spec?.style] ? spec.style : "notionistsNeutral";
+  const style = spec?.style === "vcall" || styles[spec?.style] ? spec.style : "notionistsNeutral";
   const seed = spec?.seed || "vcall";
   const key = cacheKey(style, seed);
   const hit = cache.get(key);
@@ -95,7 +98,7 @@ export function avatarSvg(spec) {
 
   let svg;
   try {
-    svg = createAvatar(styles[style], {
+    svg = style === "vcall" ? avatarVcall(seed) : createAvatar(styles[style], {
       seed,
       size: 128,
       radius: 50,

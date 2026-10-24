@@ -39,7 +39,7 @@ import { escolherCompartilhamento } from "./ui/sharesheet.js";
 import { profileSection } from "./ui/profile-editor.js";
 import { Dashboard, copy, linkFor } from "./ui/dashboard.js";
 import { linkCurto, linkWhatsApp } from "./lib/invite.js";
-import { installMotion, magnifyDock, playIntro, signal, swap, stagger } from "./ui/motion.js";
+import { installMotion, magnifyDock, playIntro, swap, stagger } from "./ui/motion.js";
 import { MiniCall } from "./ui/minicall.js";
 import { watchHandsFree } from "./ui/handsfree.js";
 import { Daily, EstadoJogos, JOGOS, Poker, Retro, comArtigo, pedacosDoEstado } from "./features/jogos.js";
@@ -297,20 +297,14 @@ function buildStage() {
 
 /**
  * Sala de espera: enquanto só você está na chamada, o palco mostra o código
- * da sala, os atalhos para convidar e um sinal pulsando da logo — em vez do
- * seu próprio rosto em tela cheia, que é o que a pessoa menos precisa ver.
- * Some sozinha quando a primeira pessoa entra.
+ * da sala, os atalhos para convidar e alguém esperando ao lado de um
+ * quadrinho vazio — em vez do seu próprio rosto em tela cheia, que é o que a
+ * pessoa menos precisa ver. Some sozinha quando a primeira pessoa entra.
  */
-let waitingSignal = null;
-
 function buildWaiting() {
-  const rings = [0, 1, 2].map(() => el("span.waiting__ring"));
   const code = el("span.waiting__code", { text: app.roomCode || "······" });
   const box = el("section.waiting", { id: "waiting", "aria-label": "Aguardando participantes", hidden: true }, [
-    el("div.waiting__signal", { "aria-hidden": "true" }, [
-      ...rings,
-      el("img.waiting__mark", { src: "/assets/logo-mark.png", alt: "", width: 72, height: 72 }),
-    ]),
+    ilustracao("sala-vazia", { largura: 300, altura: 225 }),
     el("h2.waiting__title", { text: "Só você por aqui, por enquanto" }),
     el("p.waiting__lead", {
       text: "Mande o link ou dite o código. A chamada começa no instante em que alguém entrar.",
@@ -331,7 +325,6 @@ function buildWaiting() {
       ]),
     ]),
   ]);
-  box._rings = rings;
   box._code = code;
   $("#stageMain").prepend(box);
 }
@@ -348,8 +341,6 @@ function syncWaiting(alone) {
     $("#stage").classList.toggle("stage--alone", alone);
     stage?.relayout();
   });
-  waitingSignal?.stop();
-  waitingSignal = alone ? signal(box._rings) : null;
   if (alone) stagger(box.querySelectorAll(".waiting__title, .waiting__lead, .waiting__codeBtn, .waiting__actions"), { delay: 120, gap: 60 });
 }
 
@@ -703,7 +694,7 @@ function mostrarEspera(on) {
   if (tela) return;
   tela = el("div.waitRoom", { role: "status", "aria-live": "polite" }, [
     el("div.waitRoom__card", {}, [
-      el("img.brand__mark", { src: "/assets/logo-mark.png", alt: "", width: 56, height: 56 }),
+      ilustracao("sala-de-espera", { largura: 340, altura: 255 }),
       el("h2", { text: "Aguardando o anfitrião" }),
       el("p", { text: "A sala está trancada. O anfitrião já sabe que você chegou e vai decidir se você entra." }),
       el("div.waitRoom__pulse", { "aria-hidden": "true" }, [el("i"), el("i"), el("i")]),
@@ -4081,7 +4072,8 @@ function leaveCall({ motivo = null, por = "" } = {}) {
   const inicio = () => location.assign(location.origin + location.pathname);
   const tela = el("main.leave", { "aria-labelledby": "leaveTitle" }, [
     el("div.leave__art", { "aria-hidden": "true" }, [
-      ilustracao("calling", { largura: 320, altura: 275 }),
+      // Quem foi barrado fica do lado de fora da porta; quem saiu, se despede.
+      ilustracao(motivo === "kicked" || motivo === "room-locked" ? "sala-de-espera" : "chamada-encerrada", { largura: 320, altura: 240 }),
     ]),
     el("div.leave__body", {}, [
       el("img.brand__mark", { src: "/assets/logo-mark.svg", alt: "", width: 48, height: 48 }),

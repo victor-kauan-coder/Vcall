@@ -6,9 +6,10 @@
  * por isso que as ilustrações continuavam claras no tema escuro, com um painel
  * branco no meio de uma tela preta.
  *
- * Trazendo o SVG para dentro do documento, os `var(--ilu-*)` que
- * scripts/ilustracoes.mjs gravou passam a ser resolvidos pelo tema vigente — e
- * trocar de tema ou de paleta repinta o desenho na hora, sem recarregar nada.
+ * Trazendo o SVG para dentro do documento, as variáveis do tema que
+ * scripts/ilustracoes.mjs grava nas cenas (`var(--surface)`, `var(--border-strong)`…)
+ * passam a ser resolvidas pelo tema vigente — e trocar de tema ou de paleta
+ * repinta o desenho na hora, sem recarregar nada.
  *
  * O custo é uma requisição a mais na primeira vez. O cache abaixo garante que
  * seja uma só por arquivo, mesmo que a mesma ilustração apareça duas vezes.
@@ -43,7 +44,7 @@ function buscar(nome) {
  * imagem entra depois sem mexer no layout — por isso a proporção já vai no
  * contêiner, e não há salto quando o desenho aparece.
  *
- * @param {string} nome    hero | empty | calling
+ * @param {string} nome    arquivo em /assets/illustrations, sem o .svg (geradas por scripts/ilustracoes.mjs)
  * @param {object} opcoes  { largura, altura, classe }
  */
 export function ilustracao(nome, { largura, altura, classe = "" } = {}) {

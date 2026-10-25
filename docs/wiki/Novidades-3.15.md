@@ -1,5 +1,12 @@
 # Novidades da 3.15
 
+## 3.15.1: pausa no placar do Quiz com o QuizzV
+
+- Ao mandar um quiz pelo QuizzV (1.10.1 ou mais nova), dá para escolher
+  "Ranking e eu sigo": depois de revelar a resposta, a partida para no placar,
+  com o tempo parado, e só segue no toque em Próxima pergunta.
+- "Segue sozinho" mantém o avanço automático de 6 segundos.
+
 ## Tela inicial e antessala novas
 
 - A tela inicial é um ingresso: nome da sala, setor e "Aprovar quem entra" no

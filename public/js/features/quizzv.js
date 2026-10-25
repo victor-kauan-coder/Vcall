@@ -101,7 +101,8 @@ const txt = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
 
 export function vistaParaCelular(v, { eu = "", pessoas = [] } = {}) {
   const base = { v: QUIZZV_PROTOCOLO, fase: v.fase, fonte: v.fonte || v.cfg?.fonte || "vcall" };
-  if (v.quizzv) base.quizzv = { titulo: txt(v.quizzv.titulo, 80), qtd: v.quizzv.qtd, tempo: v.quizzv.tempo };
+  if (v.quizzv) base.quizzv = { titulo: txt(v.quizzv.titulo, 80), qtd: v.quizzv.qtd, tempo: v.quizzv.tempo, pausa: !!v.quizzv.pausa };
+  if (v.pausa) base.pausa = true;
   if (v.fase === "lobby") return base;
 
   const placar = (v.placar || []).map((x) => ({ nome: txt(x.nome, 40), total: Number(x.total) || 0, eu: !!x.eu }));
@@ -234,7 +235,7 @@ export class PonteQuizzV extends Emitter {
           this.#avisarCelular("Já tem um quiz em andamento na chamada. Espere acabar, ou encerre pelo celular.");
           break;
         }
-        if (!q.carregarQuizzv(a.quiz, { tempo: a.tempo, qtd: a.qtd, embaralhar: a.embaralhar, de: this.nome() })) {
+        if (!q.carregarQuizzv(a.quiz, { tempo: a.tempo, qtd: a.qtd, embaralhar: a.embaralhar, pausa: a.pausa, de: this.nome() })) {
           this.#avisarCelular("Esse quiz não tem perguntas que o Vcall consiga mostrar.");
           break;
         }

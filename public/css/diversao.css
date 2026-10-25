@@ -2121,6 +2121,13 @@ button.stop__celula:hover {
   display: flex;
   justify-content: center;
 }
+.quiz__pausa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: center;
+}
 .quiz__preparar {
   display: flex;
   flex-direction: column;

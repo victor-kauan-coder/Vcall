@@ -56,6 +56,8 @@ function celular(token) {
     ws,
     vistas,
     pedir: (a) => ws.send(JSON.stringify({ t: "quiz-do-celular", a })),
+    // Esquece o que já chegou: as próximas esperas só valem para mensagens novas.
+    limpar: () => (msgs.length = 0),
     esperar: (pred, ms = 10_000) =>
       new Promise((ok, falha) => {
         const achada = msgs.find(pred);
@@ -247,6 +249,30 @@ async function rodar(motor) {
     await bruno.page.getByRole("button", { name: "Usar as perguntas do Vcall" }).click();
     await alice.page.waitForSelector(".jg-abertura .jogos__select", { timeout: 6000 });
     check(motor, "dá para voltar às perguntas do Vcall", (await alice.page.getByRole("button", { name: /Usar “Capitais do Nordeste” \(QuizzV\)/ }).count()) === 1);
+
+    /* -- com pausa: depois de revelar, o tempo para no placar ----------- */
+    cel.limpar();
+    cel.pedir({ tipo: "carregar", quiz: QUIZ, tempo: 30, qtd: 0, pausa: true });
+    const lobbyPausa = await cel.vista((v) => v.fase === "lobby" && v.quizzv?.pausa);
+    check(motor, "o celular sabe que este quiz tem pausa", !!lobbyPausa);
+    cel.pedir({ tipo: "comecar" });
+    await cel.vista((v) => v.fase === "pergunta" && v.k === 0, 12_000);
+    cel.pedir({ tipo: "responder", k: 0, e: 0 });
+    await bruno.page.waitForSelector(".quiz__opcao:not(.is-certa):not(.is-errada)", { timeout: 8000 });
+    await bruno.page.click(".quiz__opcao--amarelo");
+    await cel.vista((v) => v.fase === "revelada" && v.k === 0 && v.pausa);
+    await alice.page.waitForSelector(".quiz__pausa", { timeout: 6000 });
+    check(motor, "a tela avisa que o tempo está parado", (await alice.page.textContent(".quiz__pausa")).includes("Tempo parado"));
+    await wait(8000); // sem pausa, a próxima viria sozinha em 6 s
+    cel.limpar();
+    const pedida = cel.vista(() => true);
+    cel.pedir({ tipo: "vista" }); // pede a vista de agora
+    const parada = await pedida;
+    check(motor, "com pausa, a próxima não vem sozinha", parada.fase === "revelada" && parada.k === 0, `${parada.fase} ${parada.k}`);
+    cel.pedir({ tipo: "proxima" });
+    const seguinte = await cel.vista((v) => v.k === 1 && (v.fase === "preparar" || v.fase === "pergunta"), 8000);
+    check(motor, "o toque em Próxima continua a partida", !!seguinte);
+    cel.pedir({ tipo: "encerrar" });
 
     const relevantes = erros.filter((e) => !/favicon|service worker|sw\.js|getUserMedia|NotAllowedError|NotFoundError|Permission|ICE failed/i.test(e));
     check(motor, "nenhum erro de JavaScript", relevantes.length === 0, relevantes.slice(0, 3).join(" | "));

@@ -79,6 +79,8 @@ export function normalizarAcao(a) {
         // 0 = todas as perguntas do quiz.
         qtd: Number.isInteger(qtd) && qtd > 0 ? Math.min(qtd, quiz.perguntas.length) : 0,
         embaralhar: !!a.embaralhar,
+        // true: depois de revelar, o jogo para no placar até alguém tocar em Próxima.
+        pausa: !!a.pausa,
       };
     }
     case "responder": {

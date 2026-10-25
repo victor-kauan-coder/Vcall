@@ -812,6 +812,7 @@ export class Quiz extends Emitter {
       tempo: [10, 15, 20, 30, 45, 60].includes(m.tempo) ? m.tempo : 20,
       qtd: Number.isInteger(m.qtd) && m.qtd >= 1 && m.qtd <= m.n ? m.qtd : m.n,
       embaralhar: m.embaralhar === true,
+      pausa: m.pausa === true,
       de: texto(m.de, 40),
     };
   }
@@ -831,7 +832,7 @@ export class Quiz extends Emitter {
    * Em lotes pequenos: cada lote vira uma mensagem do canal direto, e uma
    * mensagem grande demais simplesmente não chega.
    */
-  carregarQuizzv(quiz, { tempo = 20, qtd = 0, embaralhar = false, de = "" } = {}) {
+  carregarQuizzv(quiz, { tempo = 20, qtd = 0, embaralhar = false, pausa = false, de = "" } = {}) {
     const perguntas = (quiz?.perguntas || [])
       .filter((q) => q && typeof q.texto === "string" && Array.isArray(q.opcoes) && q.opcoes.length >= 2 && q.opcoes.length <= 5 && Number.isInteger(q.correta) && q.correta >= 0 && q.correta < q.opcoes.length)
       .slice(0, QUIZZV_MAX);
@@ -866,6 +867,7 @@ export class Quiz extends Emitter {
           tempo: [10, 15, 20, 30, 45, 60].includes(tempo) ? tempo : 20,
           qtd: Number.isInteger(qtd) && qtd > 0 ? Math.min(qtd, n) : n,
           embaralhar: !!embaralhar,
+          pausa: !!pausa,
           de: texto(de, 40),
         },
       ],
@@ -905,7 +907,7 @@ export class Quiz extends Emitter {
       const ordem = qv.embaralhar ? sortear(todas, qv.qtd) : todas.slice(0, qv.qtd);
       const id = novoId();
       this.estado.definir([
-        ["qz/jogo", { id, fonte: "quizzv", carga: qv.carga, ordem, tempo: qv.tempo, titulo: qv.titulo }],
+        ["qz/jogo", { id, fonte: "quizzv", carga: qv.carga, ordem, tempo: qv.tempo, titulo: qv.titulo, pausa: qv.pausa }],
         ["qz/p", { id, k: 0, inicio: this.agora() + 3000 }], // 3, 2, 1…
       ]);
       return;
@@ -992,7 +994,7 @@ export class Quiz extends Emitter {
     ]);
   }
 
-  /** O líder passa para a próxima pergunta 6 s depois de revelar. */
+  /** O líder passa para a próxima pergunta 6 s depois de revelar (com pausa, só no toque). */
   manter(pessoas) {
     const j = this.jogo();
     const p = this.passo();
@@ -1003,7 +1005,7 @@ export class Quiz extends Emitter {
       this.#revelouEm.set(chave, this.agora());
       this.emit("revelou", { k: p.k });
     }
-    if (lider(pessoas) === this.eu && this.#pedida !== chave && this.agora() - this.#revelouEm.get(chave) > 6000) {
+    if (j.pausa !== true && lider(pessoas) === this.eu && this.#pedida !== chave && this.agora() - this.#revelouEm.get(chave) > 6000) {
       this.#pedida = chave;
       this.proxima();
     }
@@ -1047,6 +1049,7 @@ export class Quiz extends Emitter {
       porOpcao: revelada ? q.opcoes.map((_, o) => desta.filter((r) => r.e === o).map((r) => r.nome)) : null,
       placar,
       cfg,
+      pausa: j.pausa === true,
     };
   }
 }

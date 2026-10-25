@@ -809,7 +809,12 @@ export class VistaQuiz extends Vista {
       this.#revelada = `${v.k}`;
       if (v.minha?.certo) this.c.confete();
     }
-    trocar(p.rodape, `${revelada}|${v.k}`, () => (revelada ? botao(v.k + 1 >= v.total ? "Ver o resultado" : "Próxima pergunta", { tipo: "primary", icone: "skip-forward", onClick: () => this.l.proxima() }) : el("span")));
+    trocar(p.rodape, `${revelada}|${v.k}|${v.pausa}`, () => {
+      if (!revelada) return el("span");
+      const b = botao(v.k + 1 >= v.total ? "Ver o resultado" : "Próxima pergunta", { tipo: "primary", icone: "skip-forward", onClick: () => this.l.proxima() });
+      // Com pausa, o jogo espera aqui no placar: ninguém perde tempo lendo a explicação.
+      return v.pausa ? el("div.quiz__pausa", {}, [b, el("span.muted", { text: "Tempo parado. Continua quando alguém tocar em Próxima." })]) : b;
+    });
     placar(p.placar, v.placar.slice(0, 8).map((x) => ({ id: x.id, nome: x.nome, pontos: x.total, eu: x.eu, extra: x.seq > 1 ? `${x.seq} seguidas` : "" })), { pessoas, vazio: "Ninguém respondeu ainda." });
   }
 

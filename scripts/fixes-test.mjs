@@ -41,6 +41,8 @@ import { LinkTailscale, MENSAGENS, escolherPorta, interpretarFalha, lerEstado, u
 import { ehDaRede, ehIpTailscale } from "../src/rede.js";
 import { RoomRegistry, Participant } from "../src/rooms.js";
 import { normalizeRoomMeta } from "../src/protocol.js";
+import { escolherMonitor } from "../public/js/core/screen.js";
+import { somDoComputadorNaLista } from "../desktop/captura.js";
 import { RedeVcall, limparSala, paresOnline, pareceVcall } from "../desktop/rede.js";
 import { ehIpTailscale as ehIpTailscaleNavegador } from "../public/js/core/stats.js";
 import { clientIp } from "../src/signaling.js";
@@ -288,6 +290,22 @@ const TOK = (n) => `token-${n}-abcdefghijklmnop`;
   assert.ok(await davi.esperar((m) => m.t === "welcome"), "destrancar deixa entrar quem esperava");
   ok("sala de espera: bate, espera, é admitido ou recusado; destrancar libera");
   for (const c of [host, bia, davi]) c.ws.close();
+}
+
+/* -- som do computador no Linux: vem do monitor do PulseAudio/PipeWire -- */
+{
+  assert.equal(somDoComputadorNaLista("linux"), true, "o Linux mostra a opção de som");
+  assert.equal(somDoComputadorNaLista("win32"), true);
+  assert.equal(somDoComputadorNaLista("darwin"), false);
+  const lista = [
+    { kind: "audioinput", deviceId: "mic", label: "Microfone interno" },
+    { kind: "videoinput", deviceId: "cam", label: "Monitor HD" },
+    { kind: "audioinput", deviceId: "mon", label: "Monitor of Built-in Audio Analog Stereo" },
+  ];
+  assert.equal(escolherMonitor(lista)?.deviceId, "mon", "acha o monitor entre as entradas de áudio");
+  assert.equal(escolherMonitor([{ kind: "audioinput", deviceId: "pt", label: "Monitor de Áudio interno" }])?.deviceId, "pt", "em português também");
+  assert.equal(escolherMonitor([{ kind: "audioinput", deviceId: "mic", label: "Microfone" }]), null, "sem monitor: nada");
+  ok("som do computador no Linux: a opção aparece e o monitor de som é achado");
 }
 
 /* -- aprovar quem entra: a sala já nasce com fila (como no Meet) -- */

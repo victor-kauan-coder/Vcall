@@ -1,5 +1,11 @@
 # Novidades da 3.15
 
+## 3.15.2: som do computador no Linux
+
+- No app de mesa do Linux, "Compartilhar o som do computador" agora aparece:
+  o som que sai pelos alto-falantes vai junto com a tela (monitor do
+  PulseAudio ou do PipeWire). Use fones para não gerar eco.
+
 ## 3.15.1: pausa no placar do Quiz com o QuizzV
 
 - Ao mandar um quiz pelo QuizzV (1.10.1 ou mais nova), dá para escolher

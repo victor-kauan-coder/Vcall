@@ -23,6 +23,16 @@ export function audioDoSistemaSuportado(plataforma) {
 }
 
 /**
+ * Onde a tela de compartilhar oferece "Compartilhar o som do computador".
+ * No Windows o som vem pelo loopback (acima). No Linux o Electron não tem
+ * loopback, e quem pega o som é a própria página, pelo "monitor" do
+ * PulseAudio/PipeWire (ver escolherMonitor em public/js/core/screen.js).
+ */
+export function somDoComputadorNaLista(plataforma) {
+  return plataforma === "win32" || plataforma === "linux";
+}
+
+/**
  * Transforma a lista do desktopCapturer em algo que atravessa o IPC e que a
  * página sabe desenhar. Tira a própria janela do Vcall da lista: compartilhar
  * a chamada dentro da chamada é o efeito "sala de espelhos".

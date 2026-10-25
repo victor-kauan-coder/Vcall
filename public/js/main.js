@@ -1800,7 +1800,7 @@ screen.on("start", () => {
   if (screen.wantedAudio && !screen.audioTrack) {
     toast(
       window.vcallDesktop
-        ? "O som do computador não foi capturado — neste sistema a tela vai sem som."
+        ? "O som do computador não foi capturado: não achei a saída de som neste sistema. A tela vai sem som."
         : "O som não foi capturado. No Chrome, marque “Compartilhar áudio” na janela de seleção; no Firefox e no Safari isso ainda não existe.",
       { tone: "info", ms: 6000, key: "screen-audio" },
     );

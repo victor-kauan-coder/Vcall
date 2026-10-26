@@ -36,7 +36,7 @@ import { RedeVcall } from "./rede.js";
 import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
-import { descreverFontes, montarResposta, sessaoWayland, umPorVez } from "./captura.js";
+import { descreverFontes, montarResposta, sessaoWayland, umPorVez, somDoComputadorNaLista } from "./captura.js";
 import { argsParaX11, executavelParaRegistrar, modoDeReabrir, opcoesDeExibicao, precisaSemSandbox } from "./linux.js";
 import { descartarWhisper, ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, prepararWhisper, responderModelo, WHISPER, WHISPER_PADRAO } from "./fala.js";
 
@@ -758,7 +758,7 @@ function permissoes() {
 
   ipcMain.handle("vcall:fontes", async (e) => {
     if (!doApp(e)) throw new Error("origem não autorizada");
-    if (sessaoWayland()) return { portal: true, audio: false, fontes: [] };
+    if (sessaoWayland()) return { portal: true, audio: somDoComputadorNaLista(process.platform), fontes: [] };
     const fontes = await desktopCapturer.getSources({
       types: ["screen", "window"],
       thumbnailSize: { width: 320, height: 200 },
@@ -766,7 +766,7 @@ function permissoes() {
     });
     return {
       portal: false,
-      audio: process.platform === "win32",
+      audio: somDoComputadorNaLista(process.platform),
       fontes: descreverFontes(fontes, { propria: win?.getMediaSourceId?.() }),
     };
   });

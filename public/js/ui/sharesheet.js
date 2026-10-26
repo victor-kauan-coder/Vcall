@@ -196,7 +196,7 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null, tro
         ]),
         toggle,
       ]);
-      // No app de mesa o som do sistema só existe no Windows: a lista diz.
+      // No app de mesa, quem diz se há som do computador é a lista (Windows e Linux).
       if (desktop) somBloco.node.hidden = true;
       somBloco.mostrar = (sim) => {
         somBloco.node.hidden = !sim;

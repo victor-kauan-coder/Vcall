@@ -23,6 +23,20 @@ import { Emitter } from "../lib/emitter.js";
 import { constrainScreenTrack, screenProfileFor } from "./tuning.js";
 
 /**
+ * Linux: o som do computador vem do "monitor" do PulseAudio/PipeWire (o que
+ * sai pelos alto-falantes), que o navegador lista como uma entrada de áudio
+ * ("Monitor of …", "Monitor de …"). O Electron não junta esse som à tela: o
+ * loopback dele só existe no Windows.
+ */
+export function escolherMonitor(dispositivos = []) {
+  return dispositivos.find((d) => d.kind === "audioinput" && /\bmonitor\b/i.test(d.label || "")) || null;
+}
+
+/** App de mesa no Linux: aí o som da tela vem do monitor, não da captura. */
+const somPeloMonitor = () =>
+  typeof window !== "undefined" && !!window.vcallDesktop && /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent);
+
+/**
  * Prazo para o seletor de tela responder.
  *
  * No Linux o seletor não é do navegador: é do sistema (xdg-desktop-portal).
@@ -179,7 +193,31 @@ export class ScreenShare extends Emitter {
       this.emit("error", err);
       throw err;
     }
+    if (withAudio && !stream.getAudioTracks().length && somPeloMonitor()) {
+      const faixa = await this.#somDoMonitor();
+      if (faixa) stream.addTrack(faixa);
+    }
     return stream;
+  }
+
+  /** A faixa do monitor de som, ou null quando o sistema não oferece um. */
+  async #somDoMonitor() {
+    try {
+      const monitor = escolherMonitor(await navigator.mediaDevices.enumerateDevices());
+      if (!monitor) return null;
+      const s = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { exact: monitor.deviceId },
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 2,
+        },
+      });
+      return s.getAudioTracks()[0] || null;
+    } catch {
+      return null;
+    }
   }
 
   async #adotar(stream) {

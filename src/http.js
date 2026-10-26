@@ -256,6 +256,7 @@ export function createHttpServer({
   assets = null,
   trustTailscale = config.trustTailscale,
   rede = null,
+  pessoa = null,
 } = {}) {
   const daRede = (req) => ehDaRede(req, { trustTailscale, trustProxy: config.trustProxy });
   const server = http.createServer(async (req, res) => {
@@ -298,7 +299,8 @@ export function createHttpServer({
      * padrão — nunca aparecem, porque o id delas é o próprio segredo.
      */
     if (pathname === "/api/rooms") {
-      const rooms = registry ? registry.directory({ rede: daRede(req) }) : [];
+      const daqui = daRede(req);
+      const rooms = registry ? registry.directory({ rede: daqui }) : [];
       res.writeHead(200, {
         ...SEC,
         "Content-Type": MIME[".json"],
@@ -307,8 +309,15 @@ export function createHttpServer({
       return res.end(
         method === "HEAD"
           ? undefined
-          : // `servidor` identifica um Vcall para quem procura computadores na tailnet.
-            JSON.stringify({ servidor: "vcall", versao: VERSION?.version || null, rooms, stats: registry?.stats() || null }),
+          : // `servidor` identifica um Vcall para quem procura computadores na tailnet;
+            // `pessoa` (nome e avatar de quem usa o app) só sai para a tailnet.
+            JSON.stringify({
+              servidor: "vcall",
+              versao: VERSION?.version || null,
+              rooms,
+              stats: registry?.stats() || null,
+              pessoa: (daqui && pessoa?.()) || null,
+            }),
       );
     }
 

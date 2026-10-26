@@ -32,7 +32,7 @@ import { Tunnel } from "./tunnel.js";
 import { LinkTailscale } from "./tailscale.js";
 import { lerTurn, salvarTurn, visaoDoTurn } from "./turn.js";
 import { definirTurnLocal } from "../src/ice.js";
-import { RedeVcall } from "./rede.js";
+import { RedeVcall, limparPessoa } from "./rede.js";
 import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
@@ -164,6 +164,8 @@ function escutar(server, porta) {
 async function subirServidor() {
   const registry = new RoomRegistry();
   let porta = 0;
+  // Nome e avatar de quem usa o app; a página avisa (ação "perfil").
+  let pessoa = null;
   definirTurnLocal(lerTurn(arquivoTurn()));
 
   const control = hostControl({
@@ -193,6 +195,13 @@ async function subirServidor() {
        * aplicativo de verdade a rota devolvia 404 e o bloco "Atualizações"
        * das configurações nunca respondia.
        */
+      // Para a lista da rede Tailscale mostrar quem está neste computador.
+      perfil: async (url) => {
+        const q = url.searchParams;
+        pessoa = limparPessoa({ nome: q.get("nome"), avatar: { style: q.get("estilo"), seed: q.get("semente") } });
+        return { ok: true };
+      },
+
       atualizacao: async (url) => conferir({ forcar: url.searchParams.get("forcar") === "1", atual: app.getVersion() }),
 
       "tunnel/abrir": async () => {
@@ -285,9 +294,9 @@ async function subirServidor() {
     }
   };
   const rede = new RedeVcall({
-    eu: () => ({ url: linkTs?.state === "pronto" ? linkTs.url : null, salas: registry.directory({ rede: true }) }),
+    eu: () => ({ url: linkTs?.state === "pronto" ? linkTs.url : null, salas: registry.directory({ rede: true }), pessoa }),
   });
-  const server = createHttpServer({ registry, control, trustTailscale: true, rede: () => rede.listar() });
+  const server = createHttpServer({ registry, control, trustTailscale: true, rede: () => rede.listar(), pessoa: () => pessoa });
   // O link público do app é o cloudflared nesta mesma máquina: o endereço
   // real de cada convidado vem no CF-Connecting-IP. Pelo Tailscale, no
   // X-Forwarded-For que o `tailscale serve` põe (só endereços da tailnet).

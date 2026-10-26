@@ -43,7 +43,7 @@ import { RoomRegistry, Participant } from "../src/rooms.js";
 import { normalizeRoomMeta } from "../src/protocol.js";
 import { escolherMonitor } from "../public/js/core/screen.js";
 import { somDoComputadorNaLista } from "../desktop/captura.js";
-import { RedeVcall, limparSala, paresOnline, pareceVcall } from "../desktop/rede.js";
+import { RedeVcall, limparPessoa, limparSala, paresOnline, pareceVcall } from "../desktop/rede.js";
 import { ehIpTailscale as ehIpTailscaleNavegador } from "../public/js/core/stats.js";
 import { clientIp } from "../src/signaling.js";
 import { EventEmitter } from "node:events";
@@ -889,7 +889,12 @@ server.close();
   assert.deepEqual(reg.directory({ rede: true }).map((r) => r.name).sort(), ["Do time", "Pública"], "da rede: pública e da rede, nunca a privada");
 
   // As mesmas regras pela HTTP de verdade: /api/rooms e /api/rede.
-  const srv = createHttpServer({ registry: reg, trustTailscale: true, rede: async () => ({ disponivel: true, computadores: [] }) });
+  const srv = createHttpServer({
+    registry: reg,
+    trustTailscale: true,
+    rede: async () => ({ disponivel: true, computadores: [] }),
+    pessoa: () => ({ nome: "Ana", avatar: { style: "thumbs", seed: "a" } }),
+  });
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${srv.address().port}`;
   const pegar = async (caminho, headers = {}) => {
@@ -901,8 +906,10 @@ server.close();
   assert.deepEqual(local.json.rooms.map((r) => r.name).sort(), ["Do time", "Pública"]);
   const pelaTailnet = await pegar("/api/rooms", { "x-forwarded-for": "100.101.102.103" });
   assert.equal(pelaTailnet.json.rooms.length, 2, "quem vem pela tailnet vê a sala da rede");
+  assert.equal(pelaTailnet.json.pessoa?.nome, "Ana", "pela tailnet, vê quem está no computador");
   const peloTunel = await pegar("/api/rooms", { "cf-connecting-ip": "203.0.113.9" });
   assert.deepEqual(peloTunel.json.rooms.map((r) => r.name), ["Pública"], "pelo link público, a sala da rede não existe");
+  assert.equal(peloTunel.json.pessoa, null, "pelo link público, ninguém vê quem está no computador");
   assert.equal((await pegar("/api/rede")).status, 200);
   assert.equal((await pegar("/api/rede", { "cf-connecting-ip": "203.0.113.9" })).status, 404, "a lista da rede não vaza pelo túnel");
   srv.close();
@@ -923,13 +930,18 @@ server.close();
   assert.equal(pareceVcall({ rooms: [], stats: { publicRooms: 0 } }), true, "um Vcall 3.9 (sem a marca) também conta");
   assert.equal(pareceVcall({ rooms: [] }), false);
   assert.equal(limparSala({ id: "../../etc", name: "x" }), null, "id de sala inválido é descartado");
+  assert.deepEqual(limparPessoa({ nome: " Ana ", avatar: { style: "thumbs", seed: "a", photo: "data:image/png;base64,x" } }), { nome: "Ana", avatar: { style: "thumbs", seed: "a" } }, "foto não passa");
+  assert.equal(limparPessoa({ nome: "   " }), null, "sem nome: ninguém");
+  assert.deepEqual(limparPessoa({ nome: "x".repeat(500), avatar: "<svg>" }), { nome: "x".repeat(40), avatar: null }, "nome cortado, avatar estranho some");
 
   let agora = 1_000_000;
   const pedidos = [];
   const salaAna = { id: ID("a"), code: "ABC123", name: "Planning", visibility: "rede", size: 3, max: 16, host: { name: "Ana", avatar: { style: "thumbs", seed: "a" } } };
   const pedir = async (url, ip) => {
     pedidos.push(url);
-    if (url.startsWith("https://notebook-ana.tail1.ts.net:8443/")) return { status: 200, json: { servidor: "vcall", versao: "3.10.0", rooms: [salaAna] } };
+    if (url.startsWith("https://notebook-ana.tail1.ts.net:8443/")) {
+      return { status: 200, json: { servidor: "vcall", versao: "3.10.0", rooms: [salaAna], pessoa: { nome: "Ana", avatar: { style: "thumbs", seed: "a" } } } };
+    }
     if (url.startsWith("https://malicioso.tail1.ts.net/")) {
       return { status: 200, json: { servidor: "vcall", rooms: [{ id: ID("m"), name: "y".repeat(5000), size: -5, host: { name: { toString: 1 } }, extra: "<script>" }] } };
     }
@@ -950,6 +962,8 @@ server.close();
   const ana = lista.computadores.find((c) => c.curto === "notebook-ana");
   assert.equal(ana.url, "https://notebook-ana.tail1.ts.net:8443", "achou o Vcall na porta em que ele está");
   assert.equal(ana.salas[0].name, "Planning");
+  assert.equal(ana.pessoa?.nome, "Ana", "mostra quem está no computador");
+  assert.equal(lista.computadores.find((c) => c.curto === "malicioso").pessoa, null, "Vcall antigo, sem pessoa: fica o nome da máquina");
   const mal = lista.computadores.find((c) => c.curto === "malicioso").salas[0];
   assert.equal(mal.name.length, 48, "nome gigante cortado");
   assert.equal(mal.size, 0, "número inválido zerado");

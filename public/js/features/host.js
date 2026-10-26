@@ -141,6 +141,12 @@ export class HostPanel extends Emitter {
     return corpo;
   }
 
+  /** Nome e avatar de quem usa o app, para a lista da rede Tailscale. */
+  perfil(nome, avatar) {
+    const params = { nome: nome || "", estilo: avatar?.style || "", semente: avatar?.seed || "" };
+    return this.#chamar("perfil", { params }).catch(() => {});
+  }
+
   /** Link curto do convite público, ou null (fica o do túnel). */
   async encurtar(u) {
     try {

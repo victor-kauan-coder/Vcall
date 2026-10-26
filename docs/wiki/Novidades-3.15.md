@@ -1,5 +1,11 @@
 # Novidades da 3.15
 
+## 3.15.3: quem está na rede Tailscale
+
+- Na lista "Também na sua rede Tailscale", cada computador mostra o avatar e
+  o nome de quem está usando o Vcall nele, com o nome da máquina ao lado.
+  Foto de perfil não sai do computador, e só quem é da tailnet vê.
+
 ## 3.15.2: som do computador no Linux
 
 - No app de mesa do Linux, "Compartilhar o som do computador" agora aparece:

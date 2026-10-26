@@ -733,7 +733,7 @@ try {
           url: "https://notebook-ana.tail1.ts.net:8443",
           salas: [{ id: ID_ANA, code: "ABC123", name: "Planning da Ana", visibility: "rede", size: 3, max: 16, host: { name: "Ana", avatar: null } }],
         },
-        { eu: false, curto: "pc-sala", url: "https://pc-sala.tail1.ts.net", salas: [] },
+        { eu: false, curto: "pc-sala", url: "https://pc-sala.tail1.ts.net", salas: [], pessoa: { nome: "Bia", avatar: { style: "thumbs", seed: "bia" } } },
       ],
     };
     const abrirPainel = async (viewport) => {
@@ -749,7 +749,9 @@ try {
     const linha = await pg.locator(".dashRoom", { hasText: "Planning da Ana" }).textContent();
     const pcs = await pg.locator(".dashPc__nome").allTextContents();
     check("as chamadas dos outros computadores da rede aparecem em Ao vivo agora", linha.includes("em notebook-ana") && linha.includes("só na rede"), linha.replace(/\s+/g, " ").slice(0, 80));
-    check("os computadores da rede aparecem com Criar aqui", pcs.join() === "notebook-ana,pc-sala", pcs.join());
+    check("os computadores da rede aparecem com Criar aqui", pcs.join() === "notebook-ana,Bia", pcs.join());
+    const bia = await pg.locator(".dashPc", { hasText: "Bia" }).evaluate((n) => ({ avatar: !!n.querySelector(".dashPc__quem .avatar svg"), maquina: n.querySelector(".dashPc__n").textContent }));
+    check("com quem está no computador: avatar, nome e a máquina embaixo", bia.avatar && bia.maquina === "pc-sala · livre", JSON.stringify(bia));
 
     // Entrar numa chamada de outro computador: vai até ele (no navegador, navegando).
     let foiPara = "";

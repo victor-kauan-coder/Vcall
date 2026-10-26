@@ -75,6 +75,15 @@ export function limparSala(s) {
   };
 }
 
+/** Quem está no computador: nome e avatar desenhado. Foto não entra. */
+export function limparPessoa(p) {
+  const nome = texto(p?.nome, 40).trim();
+  if (!nome) return null;
+  const style = texto(p.avatar?.style, 40);
+  const seed = texto(p.avatar?.seed, 64);
+  return { nome, avatar: style && seed ? { style, seed } : null };
+}
+
 /** GET de JSON num endereço https, conectando no IP dado (o nome vai no SNI). */
 export function pedirJson(url, ip, { prazo = PRAZO_MS } = {}) {
   return new Promise((ok, falha) => {
@@ -117,7 +126,7 @@ export class RedeVcall {
 
   /**
    * @param {object} [o] o que toca o sistema, trocável nos testes
-   * @param {() => object} [o.eu] {url, salas} deste computador
+   * @param {() => object} [o.eu] {url, salas, pessoa} deste computador
    */
   constructor({ achar = acharTailscale, rodar: rodarCli = rodar, pedir = pedirJson, eu = () => ({ url: null, salas: [] }), agora = Date.now } = {}) {
     this.achar = achar;
@@ -165,7 +174,7 @@ export class RedeVcall {
       disponivel: true,
       tailnet: e.tailnet,
       computadores: [
-        { eu: true, nome: e.nome, curto: e.nome.split(".")[0], url: eu.url || null, salas: eu.salas || [] },
+        { eu: true, nome: e.nome, curto: e.nome.split(".")[0], url: eu.url || null, salas: eu.salas || [], pessoa: eu.pessoa || null },
         ...outros,
       ],
       atualizado: this.agora(),
@@ -194,6 +203,7 @@ export class RedeVcall {
         url: urlDe(p.nome, porta),
         versao: typeof json.versao === "string" ? json.versao.slice(0, 20) : null,
         salas: json.rooms.slice(0, 50).map(limparSala).filter(Boolean),
+        pessoa: limparPessoa(json.pessoa),
       };
     } catch {
       this.#portas.delete(p.nome);

@@ -23,7 +23,7 @@ import { Dock } from "./ui/dock.js";
 import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, Sinais, validar as validarReacao } from "./features/reacoes.js";
 import { CamadaReacoes, montarMenu as montarMenuDeReacoes } from "./ui/reacoes.js";
 import { toast, chime } from "./ui/toast.js";
-import { avatarEl, colorFor, defaultAvatar } from "./ui/avatars.js";
+import { avatarEl, colorFor, defaultAvatar, isPhoto } from "./ui/avatars.js";
 import { ilustracao } from "./ui/ilustracao.js";
 import { montarTelaDeErro } from "./ui/tela-erro.js";
 import { RemoteAudio } from "./ui/audio.js";
@@ -219,9 +219,22 @@ if (!env.canShareScreen) {
  * Entrar na chamada
  * ================================================================== */
 
+/**
+ * Conta ao app de mesa quem está neste computador, para os outros da rede
+ * Tailscale verem o nome e o avatar. Foto não sai daqui: vai o avatar
+ * desenhado de reserva.
+ */
+function contarPerfil() {
+  if (!host.disponivel) return;
+  const avatar = prefs.get("avatar", null);
+  const desenho = isPhoto(avatar) ? { style: prefs.get("avatar:style", null), seed: prefs.get("avatar:seed", null) } : avatar;
+  host.perfil(prefs.get("name", ""), desenho);
+}
+
 async function enterCall(profile) {
   app.profile = profile;
   app.joined = true;
+  contarPerfil();
 
   if (location.hash.slice(1) !== app.room) {
     history.replaceState(null, "", `#${app.room}`);
@@ -3303,6 +3316,7 @@ if ($("#tunnelBtn")) {
     host.status().catch(() => {});
     host.conferirTailscale().then(syncTailscaleUi);
     avisarDeAtualizacao();
+    contarPerfil();
   });
 
 
@@ -3506,6 +3520,7 @@ function applyProfile(profile) {
   if (!app.room || !mesh?.selfId) {
     prefs.set("name", app.profile.name);
     prefs.set("avatar", app.profile.avatar);
+    contarPerfil();
     return;
   }
   mesh.updateProfile(app.profile);

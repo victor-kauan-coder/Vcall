@@ -370,18 +370,26 @@ export class Dashboard {
         el("span", { text: outros.length ? "Também na sua rede Tailscale" : "Sua rede Tailscale" }),
       ]),
       ...(outros.length
-        ? outros.map((c) =>
-            el("div.dashPc", { role: "group", "aria-label": c.curto }, [
-              el("i.dashPc__luz", { "aria-hidden": "true" }),
-              el("span.dashPc__nome", { text: c.curto }),
-              el("span.dashPc__n", { text: c.salas.length ? `${c.salas.length} ${c.salas.length === 1 ? "chamada" : "chamadas"}` : "livre" }),
+        ? outros.map((c) => {
+            const salas = c.salas.length ? `${c.salas.length} ${c.salas.length === 1 ? "chamada" : "chamadas"}` : "livre";
+            // Quem está no computador, quando o Vcall de lá conta; senão, o nome da máquina.
+            const p = c.pessoa;
+            return el("div.dashPc", { role: "group", "aria-label": p ? `${p.nome}, em ${c.curto}` : c.curto }, [
+              p
+                ? el("span.dashPc__quem", {}, [
+                    avatarEl(p.avatar, { size: 26, title: `Avatar de ${p.nome}` }),
+                    el("i.dashPc__luz", { "aria-hidden": "true" }),
+                  ])
+                : el("i.dashPc__luz", { "aria-hidden": "true" }),
+              el("span.dashPc__nome", { text: p ? p.nome : c.curto }),
+              el("span.dashPc__n", { text: p ? `${c.curto} · ${salas}` : salas }),
               el("button.btn.btn--ghost.dashPc__criar", {
                 type: "button",
                 "aria-label": `Criar chamada em ${c.curto}`,
                 onClick: () => this.opts.irPara?.(`${c.url}/?criar=1#${newRoomId()}`),
               }, [icon("plus", { size: "sm" }), el("span", { text: "Criar aqui" })]),
-            ]),
-          )
+            ]);
+          })
         : [
             el("p.field__hint", {
               text: eu?.url

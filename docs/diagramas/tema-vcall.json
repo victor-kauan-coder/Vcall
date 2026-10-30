@@ -1,0 +1,49 @@
+{
+  "theme": "base",
+  "fontFamily": "Segoe UI, ui-sans-serif, system-ui, Roboto, Helvetica Neue, Arial, sans-serif",
+  "flowchart": {
+    "curve": "basis",
+    "padding": 18,
+    "nodeSpacing": 70,
+    "rankSpacing": 70,
+    "wrappingWidth": 400
+  },
+  "sequence": {
+    "mirrorActors": false,
+    "actorMargin": 60,
+    "messageMargin": 42,
+    "noteMargin": 14
+  },
+  "themeVariables": {
+    "darkMode": true,
+    "background": "#0d1218",
+    "fontFamily": "Segoe UI, ui-sans-serif, system-ui, Roboto, Helvetica Neue, Arial, sans-serif",
+    "fontSize": "16px",
+    "primaryColor": "#1e2329",
+    "primaryTextColor": "#eef0f3",
+    "primaryBorderColor": "#fd4d87",
+    "lineColor": "#fd4d87",
+    "secondaryColor": "#262b32",
+    "tertiaryColor": "#161b21",
+    "clusterBkg": "#0d1218",
+    "clusterBorder": "#31373e",
+    "titleColor": "#b2b6ba",
+    "edgeLabelBackground": "#0d1218",
+    "actorBkg": "#1e2329",
+    "actorBorder": "#fd4d87",
+    "actorTextColor": "#eef0f3",
+    "actorLineColor": "#474e55",
+    "signalColor": "#eef0f3",
+    "signalTextColor": "#eef0f3",
+    "labelBoxBkgColor": "#262b32",
+    "labelBoxBorderColor": "#474e55",
+    "labelTextColor": "#eef0f3",
+    "loopTextColor": "#b2b6ba",
+    "noteBkgColor": "#262b32",
+    "noteTextColor": "#eef0f3",
+    "noteBorderColor": "#474e55",
+    "sequenceNumberColor": "#1a0a1e",
+    "altSectionBkgColor": "#161b21"
+  },
+  "themeCSS": "rect, path, polygon { filter: none !important; }"
+}

@@ -31,7 +31,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { jitter } from "../lib/util.js";
-import { ajustarOpus, applyProfile, cameraParaSala, preferCodecs, preferRed, PROFILES, screenCodecPreference } from "./tuning.js";
+import { ajustarInicioVideo, ajustarOpus, applyProfile, cameraParaSala, preferCodecs, preferRed, PROFILES, screenCodecPreference } from "./tuning.js";
 
 /** Ordem canônica das linhas de mídia. Não altere sem versionar o protocolo. */
 export const ROLES = ["mic", "cam", "screen", "screenAudio"];
@@ -146,9 +146,9 @@ export class Peer extends Emitter {
       for (const role of ROLES) {
         const init = { direction: "sendrecv" };
         if (role === "screen") {
-          init.sendEncodings = [{ maxBitrate: PROFILES.screenText.maxBitrate, maxFramerate: 30 }];
+          init.sendEncodings = [{ maxBitrate: PROFILES.screenText.maxBitrate, maxFramerate: PROFILES.screenText.maxFramerate }];
         } else if (role === "cam") {
-          init.sendEncodings = [{ maxBitrate: PROFILES.camera.maxBitrate, maxFramerate: 30 }];
+          init.sendEncodings = [{ maxBitrate: PROFILES.camera.maxBitrate, maxFramerate: PROFILES.camera.maxFramerate }];
         }
         this.tx[role] = pc.addTransceiver(ROLE_KIND[role], init);
       }
@@ -267,10 +267,10 @@ export class Peer extends Emitter {
   }
 
   /** Ajusta o teto da trilha de tela (usado pelo controle adaptativo). */
-  async setScreenBudget({ maxBitrate, maxFramerate, scaleResolutionDownBy, profile }) {
-    return applyProfile(this.tx.screen?.sender, profile || PROFILES.screenText, {
-      maxBitrate,
-      maxFramerate,
+  async setScreenBudget({ maxBitrate, maxFramerate, scaleResolutionDownBy, profile = PROFILES.screenText }) {
+    return applyProfile(this.tx.screen?.sender, profile, {
+      maxBitrate: Math.min(maxBitrate, profile.maxBitrate),
+      maxFramerate: Math.min(maxFramerate, profile.maxFramerateComBanda ?? profile.maxFramerate),
       scaleResolutionDownBy,
       active: !this.#viaRele.has("screen"),
     });
@@ -598,7 +598,8 @@ export class Peer extends Emitter {
         this.#settingRemoteAnswer = description.type === "answer";
         // FEC, DTX e estéreo do Opus: pedidos na descrição remota, que é a
         // que configura o nosso encoder (tuning.js, ajustarOpus).
-        const sdp = ajustarOpus(description.sdp, (mid) => this.#midRole.get(String(mid)));
+        // Idem para a banda inicial do vídeo (ajustarInicioVideo).
+        const sdp = ajustarInicioVideo(ajustarOpus(description.sdp, (mid) => this.#midRole.get(String(mid))));
         // No lado educado, isto desfaz implicitamente a oferta local pendente.
         await this.pc.setRemoteDescription({ type: description.type, sdp });
         this.#settingRemoteAnswer = false;

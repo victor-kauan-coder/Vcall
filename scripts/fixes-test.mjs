@@ -1748,6 +1748,93 @@ if (process.platform === "linux") {
   ok("TURN nas configurações do app: validado, salvo só para o dono, segredo que não volta à página, HMAC igual ao do coturn");
 }
 
+/* ------------------------------------------------------------------ *
+ * 3.17: o controle adaptativo da tela.
+ *
+ *   - O Chrome diz "bandwidth" também quando o encoder encolhe a imagem por
+ *     QP alto. O controle lia isso como rede cheia e cortava o teto 25% a
+ *     cada 2 s, até o piso: um jogo compartilhado ia a 7 qps e 500 kbps com
+ *     20 Mbps sobrando.
+ *   - Encoder de hardware que não dá conta não diz nada (motivo "none"): a
+ *     fonte manda 60 qps e saem 20. O teto de quadros tem de descer.
+ * ------------------------------------------------------------------ */
+{
+  const { StatsMonitor } = await import("../public/js/core/stats.js");
+  const { PROFILES } = await import("../public/js/core/tuning.js");
+
+  /** Um par falso com a linha de tela ligada; `tela` diz o que o getStats conta. */
+  function parFalso(tela, perfil = PROFILES.screenMotion) {
+    const enc = { maxBitrate: perfil.maxBitrate, maxFramerate: 60 };
+    let ajustes = 0;
+    const sender = {
+      track: { readyState: "live", id: "t", getSettings: () => ({ width: 1920, height: 1080, frameRate: 60 }) },
+      getParameters: () => ({ encodings: [{ ...enc }] }),
+    };
+    let t = 0;
+    return {
+      enc,
+      get ajustes() {
+        return ajustes;
+      },
+      id: "b",
+      connectionState: "connected",
+      screenProfile: perfil,
+      tx: { screen: { mid: "2", sender }, cam: { mid: "1", sender: { track: null } } },
+      async getStats() {
+        t += 2000;
+        return new Map([
+          ["OT", { id: "OT", type: "outbound-rtp", kind: "video", mid: "2", timestamp: t, bytesSent: t * 1000, mediaSourceId: "SV", framesPerSecond: tela.fps, frameWidth: tela.w, frameHeight: tela.h, qualityLimitationReason: tela.motivo, qualityLimitationDurations: { [tela.motivo]: t / 1000 }, targetBitrate: tela.alvo ?? 3_000_000 }],
+          ["SV", { id: "SV", type: "media-source", kind: "video", framesPerSecond: tela.fonte ?? 60 }],
+          ["CP", { id: "CP", type: "candidate-pair", nominated: true, state: "succeeded", availableOutgoingBitrate: 20_000_000, currentRoundTripTime: 0.01 }],
+        ]);
+      },
+      // Como o peer.js: o perfil é o teto.
+      async setScreenBudget(b) {
+        ajustes++;
+        enc.maxBitrate = Math.min(b.maxBitrate, b.profile.maxBitrate);
+        enc.maxFramerate = Math.min(b.maxFramerate, b.profile.maxFramerateComBanda ?? b.profile.maxFramerate);
+      },
+      async setCameraBudget() {},
+      async reconfigurarEncoder() {
+        return false;
+      },
+    };
+  }
+  /** Roda `voltas` ciclos do monitor sem esperar os 2 s de cada um. */
+  async function rodar(peer, voltas) {
+    const original = globalThis.setInterval;
+    let ciclo = null;
+    globalThis.setInterval = (fn) => ((ciclo = fn), 1);
+    const m = new StatsMonitor(() => [peer]);
+    m.start();
+    globalThis.setInterval = original;
+    for (let i = 0; i < voltas; i++) await ciclo();
+  }
+
+  const jogo = parFalso({ fps: 58, w: 960, h: 540, motivo: "bandwidth" });
+  await rodar(jogo, 6);
+  assert.equal(jogo.enc.maxBitrate, PROFILES.screenMotion.maxBitrate, `"bandwidth" do encoder com a rede sobrando derrubou o teto para ${jogo.enc.maxBitrate}`);
+
+  const atrasado = parFalso({ fps: 20, w: 1920, h: 1080, motivo: "none" });
+  await rodar(atrasado, 1);
+  assert.ok(atrasado.enc.maxFramerate < 60 && atrasado.enc.maxFramerate >= 30, `encoder que não acompanha a fonte: teto foi a ${atrasado.enc.maxFramerate}`);
+
+  // Monitor de 120 Hz, uma pessoa do outro lado: vídeo vai a 120 com banda para
+  // isso, fica em 60 enquanto a conexão ainda sobe, e texto fica em 60 sem o
+  // controle reaplicar o teto a cada volta.
+  const jogo120 = parFalso({ fps: 118, fonte: 120, w: 1920, h: 1080, motivo: "none", alvo: 12_000_000 });
+  await rodar(jogo120, 3);
+  assert.equal(jogo120.enc.maxFramerate, 120, `vídeo a dois num monitor de 120 Hz: teto ${jogo120.enc.maxFramerate}`);
+  const comeco = parFalso({ fps: 60, fonte: 120, w: 1920, h: 1080, motivo: "none", alvo: 4_000_000 });
+  await rodar(comeco, 3);
+  assert.equal(comeco.enc.maxFramerate, 60, `com 4 Mbps, 1080p120 congela: teto ${comeco.enc.maxFramerate}`);
+  const texto120 = parFalso({ fps: 60, fonte: 120, w: 1920, h: 1080, motivo: "none", alvo: 12_000_000 }, PROFILES.screenText);
+  await rodar(texto120, 4);
+  assert.equal(texto120.enc.maxFramerate, 60, `texto: teto ${texto120.enc.maxFramerate}`);
+  assert.ok(texto120.ajustes <= 1, `texto: o teto foi reaplicado ${texto120.ajustes} vezes em 4 voltas`);
+  ok("tela: o teto não cai quando o próprio encoder encolhe a imagem, desce um degrau quando ele não acompanha a captura, e vai a 120 qps só no vídeo");
+}
+
 console.log(`\n${passou} blocos de verificação passaram.`);
 process.exit(0);
 

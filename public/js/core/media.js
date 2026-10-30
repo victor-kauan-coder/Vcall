@@ -16,10 +16,16 @@ const AUDIO_CONSTRAINTS = {
   sampleRate: 48000,
 };
 
+/*
+ * 60 qps quando a câmera tem: o Chrome escolhe o formato pela soma das
+ * distâncias, então 720p30 continua ganhando de 480p60 numa câmera que só faz
+ * 60 em resolução baixa. Quantos quadros saem para cada pessoa quem decide é
+ * tuning.cameraParaSala.
+ */
 const VIDEO_CONSTRAINTS = {
   width: { ideal: 1280 },
   height: { ideal: 720 },
-  frameRate: { ideal: 30, max: 30 },
+  frameRate: { ideal: 60, max: 60 },
   facingMode: "user",
 };
 

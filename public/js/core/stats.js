@@ -19,7 +19,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { clamp, Ema } from "../lib/util.js";
-import { cpuCeiling, meshBudget } from "./tuning.js";
+import { cpuCeiling, meshBudget, PROFILES } from "./tuning.js";
 
 /**
  * O endereço é da rede Tailscale (100.64.0.0/10 ou fd7a:115c:a1e0::/48)?
@@ -39,7 +39,7 @@ const INTERVAL_MS = 2000;
 const HISTORY = 30;
 
 const FLOOR = { screen: 450_000, camera: 120_000 };
-const CEIL = { screen: 6_000_000, camera: 1_500_000 };
+const CEIL = { screen: PROFILES.screenMotion.maxBitrate, camera: PROFILES.camera.maxBitrate };
 
 /** Um snapshot legível por par. */
 function emptySample() {
@@ -103,7 +103,7 @@ export class StatsMonitor extends Emitter {
     const budgets = meshBudget(peers.length, { uplink: this.#uplink() });
     const cpu = cpuCeiling(peers.length, navigator.hardwareConcurrency || 4);
 
-    await Promise.all(peers.map((p) => this.#tickPeer(p, budgets, cpu)));
+    await Promise.all(peers.map((p) => this.#tickPeer(p, budgets, cpu, peers.length)));
     this.emit("update", this.samples);
   }
 
@@ -152,7 +152,7 @@ export class StatsMonitor extends Emitter {
     return this.#uplinkEma;
   }
 
-  async #tickPeer(peer, budgets, cpu) {
+  async #tickPeer(peer, budgets, cpu, pares) {
     const report = await peer.getStats();
     if (!report) return;
 
@@ -170,7 +170,7 @@ export class StatsMonitor extends Emitter {
     this.#history.set(peer.id, hist);
 
     await this.#destravar(peer, sample);
-    if (this.adaptive) await this.#adapt(peer, sample, budgets, cpu);
+    if (this.adaptive) await this.#adapt(peer, sample, budgets, cpu, pares);
   }
 
   /* ---------------------------------------------------------------- *
@@ -218,7 +218,7 @@ export class StatsMonitor extends Emitter {
       const cfg = track.getSettings?.() || {};
       const escala = enc.scaleResolutionDownBy || 1;
       const larguraEsperada = cfg.width ? cfg.width / escala : null;
-      const qpsEsperado = Math.min(enc.maxFramerate || 30, cfg.frameRate || 30);
+      const qpsEsperado = Math.min(enc.maxFramerate || 60, cfg.frameRate || 60);
       const encolhida = larguraEsperada && out.width && out.width < larguraEsperada * 0.9;
       // Na tela, pouco quadro por segundo é o normal (tela parada só manda o
       // repetido); ali só a resolução encolhida denuncia o encoder travado.
@@ -354,6 +354,9 @@ export class StatsMonitor extends Emitter {
     return {
       bitrate,
       fps: r.framesPerSecond ?? null,
+      // Quantos quadros a captura entrega: tela parada manda poucos, e aí
+      // poucos quadros codificados não é problema.
+      sourceFps: byId.get(r.mediaSourceId)?.framesPerSecond ?? null,
       width: r.frameWidth ?? null,
       height: r.frameHeight ?? null,
       limitedBy: r.qualityLimitationReason || "none",
@@ -405,7 +408,7 @@ export class StatsMonitor extends Emitter {
    * Adaptação
    * ---------------------------------------------------------------- */
 
-  async #adapt(peer, sample, budgets, cpu) {
+  async #adapt(peer, sample, budgets, cpu, pares) {
     const screen = sample.outbound.screen;
     const hasScreen = !!peer.tx.screen?.sender?.track;
     if (!hasScreen || !screen) return;
@@ -418,28 +421,86 @@ export class StatsMonitor extends Emitter {
 
     const avail = sample.transport.availableOutgoing;
     const before = budget.screen;
+    const fpsAntes = budget.framerate;
+    /*
+     * Texto fica em 60 mesmo a dois; vídeo e jogo vão até 120, mas só quando
+     * sobra bit para cada quadro. No começo da chamada a conexão ainda está em
+     * 2–6 Mbps, e 1080p120 ali congelou a imagem por quase 2 s (a 60, nada;
+     * medido). Sobe a partir de ~8 Mbps em 1080p (√2 do que 1080p60 pede) e
+     * volta abaixo de ~6 Mbps; a distância entre os dois evita o vaivém.
+     */
+    const perfil = peer.screenProfile || {};
+    const { width = 1920, height = 1080 } = peer.tx.screen.sender.track.getSettings?.() || {};
+    const porPixel = (screen.targetBitrate ?? 0) / (width * height);
+    budget.rapido = porPixel >= (budget.rapido ? 2.9 : 3.9);
+    const tetoPerfil = (budget.rapido && perfil.maxFramerateComBanda) || perfil.maxFramerate || cpu.maxFramerate;
+    const tetoFps = Math.min(cpu.maxFramerate, tetoPerfil);
+    budget.framerate ??= tetoFps;
 
-    if (screen.cpuShare > 0.3) {
+    /*
+     * Encoder que não dá conta sem dizer: o de hardware só acusa CPU acima de
+     * 150–200% de uso, e com três cópias de 1080p60 na mesma placa ele
+     * entregava 5 qps com o motivo "none" (medido). Se a captura manda
+     * quadros e o encoder não acompanha nem 60% deles, é o mesmo caso da CPU.
+     */
+    const alvo = Math.min(screen.sourceFps ?? 0, budget.framerate);
+    const atrasado = screen.limitedBy === "none" && alvo > 20 && screen.fps != null && screen.fps < alvo * 0.6;
+
+    if (screen.cpuShare > 0.3 || atrasado) {
       // Limitado por processador: derrubar quadros preserva a legibilidade
-      // muito melhor do que encolher a imagem.
+      // muito melhor do que encolher a imagem. Um degrau por vez (60, 45,
+      // 34, 25…): ir de 60 direto a 15 por um soluço da CPU era jogar fora a
+      // fluidez inteira.
+      // O degrau parte do que a captura dá: com teto de 120 e monitor de 60,
+      // descer para 90 não mudaria nada.
       budget.screen = Math.max(FLOOR.screen, budget.screen * 0.8);
-      budget.framerate = Math.min(budget.framerate ?? cpu.maxFramerate, 15);
+      budget.framerate = Math.max(15, Math.round((alvo || budget.framerate) * 0.75));
       this.emit("limited", { peerId: peer.id, reason: "cpu" });
-    } else if (screen.bwShare > 0.3 || (sample.lossSmoothed ?? 0) > 3) {
-      budget.screen = Math.max(
-        FLOOR.screen,
-        Math.min(budget.screen * 0.75, (avail || budget.screen) * 0.9),
-      );
-      this.emit("limited", { peerId: peer.id, reason: "bandwidth" });
-    } else if ((screen.fps ?? 0) >= 15 && avail && avail > budget.screen * 1.4) {
-      // Recuperação deliberadamente lenta.
-      budget.screen = Math.min(CEIL.screen, budgets.screen, budget.screen * 1.15);
-      budget.framerate = cpu.maxFramerate;
+    } else {
+      /*
+       * "bandwidth" no qualityLimitationReason não quer dizer rede cheia: o
+       * Chrome dá esse mesmo motivo quando o próprio encoder encolhe a imagem
+       * por qualidade (QP alto, comum em jogo e vídeo). Cortar o teto aí
+       * piorava o que já estava ruim, a cada 2 s, até o piso — medido: a tela
+       * de um jogo foi a 7 qps e 500 kbps com a rede sobrando. Só conta como
+       * rede cheia se a estimativa da conexão não cobre o teto, e só com mais
+       * gente: numa conexão só, o controle de congestionamento dela já manda.
+       */
+      const semBanda = pares > 1 && screen.bwShare > 0.3 && avail != null && avail < budget.screen;
+      if (semBanda || (sample.lossSmoothed ?? 0) > 3) {
+        budget.screen = Math.max(
+          FLOOR.screen,
+          Math.min(budget.screen * 0.75, (avail || budget.screen) * 0.9),
+        );
+        this.emit("limited", { peerId: peer.id, reason: "bandwidth" });
+      } else if (pares === 1) {
+        // A dois quem segura o enlace é o controle da própria conexão; a
+        // estimativa dela não passa muito do que já se envia, então esperar
+        // por ela para subir deixaria o teto baixo para sempre.
+        budget.screen = Math.min(CEIL.screen, budgets.screen, budget.screen * 1.25);
+      } else if ((screen.fps ?? 0) >= 15 && avail && avail > budget.screen * 1.4) {
+        // Recuperação deliberadamente lenta.
+        budget.screen = Math.min(CEIL.screen, budgets.screen, budget.screen * 1.15);
+      }
+      // A CPU folgou e o encoder acompanha o teto atual: os quadros voltam
+      // devagar, até o teto da sala.
+      const acompanha = screen.fps == null || alvo <= 20 || screen.fps >= alvo * 0.85;
+      if (acompanha) budget.framerate = Math.round(budget.framerate * 1.2);
     }
 
+    budget.framerate = Math.min(tetoFps, budget.framerate);
     budget.screen = clamp(budget.screen, FLOOR.screen, Math.min(CEIL.screen, budgets.screen));
 
-    if (Math.abs(budget.screen - before) / Math.max(1, before) > 0.05 || budget.framerate) {
+    // Também quando o sender diverge do orçamento: cada renegociação ou troca
+    // de trilha reaplica o perfil cheio (peer.retune) por cima do ajuste.
+    let atual = null;
+    try {
+      atual = peer.tx.screen.sender.getParameters().encodings?.[0];
+    } catch {
+      /* sender fechando */
+    }
+    const divergiu = !atual || atual.maxFramerate !== budget.framerate || atual.maxBitrate !== Math.round(Math.min(budget.screen, peer.screenProfile?.maxBitrate ?? Infinity));
+    if (Math.abs(budget.screen - before) / Math.max(1, before) > 0.05 || budget.framerate !== fpsAntes || divergiu) {
       await peer.setScreenBudget({
         maxBitrate: budget.screen,
         maxFramerate: budget.framerate ?? cpu.maxFramerate,

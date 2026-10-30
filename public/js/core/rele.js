@@ -414,7 +414,8 @@ export class Rele {
 /** Como o ajudante codifica o que repassa: no degrau da sala, nunca acima. */
 export function perfilRepasse(papel, n) {
   if (papel === "cam") return { ...PROFILES.camera, ...cameraParaSala(Math.max(1, n - 1)) };
-  if (papel === "screen") return { ...PROFILES.screenText, maxBitrate: 1_500_000 };
+  // O ajudante decodifica e codifica de novo, uma cópia por pessoa: 30 qps bastam.
+  if (papel === "screen") return { ...PROFILES.screenText, maxBitrate: 1_500_000, maxFramerate: 30 };
   if (papel === "mic") return PROFILES.mic;
   return PROFILES.screenAudio;
 }

@@ -58,6 +58,13 @@ meio já vê a tela na hora.
 A resolução (1080p/720p) e a prioridade podem ser trocadas durante a
 transmissão pela setinha ao lado do botão.
 
+A tela sai em 1080p a até **120 quadros por segundo** no modo Fluidez, quando
+o monitor de quem transmite é de 120 Hz ou mais e a internet aguenta (começa em
+60 e sobe em alguns segundos); num monitor de 60 Hz saem 60. Texto e slides ficam em 60, onde a nitidez vale mais que quadros a
+mais. Com mais gente na sala cada pessoa recebe uma cópia, tudo fica em no
+máximo 60, e a qualidade desce sozinha conforme a internet e o computador de
+quem transmite.
+
 ## Som
 
 **Desligado por padrão.** Ligue "Compartilhar o som do computador" só quando

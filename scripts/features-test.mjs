@@ -311,6 +311,41 @@ assert.ok(ajustado.includes("a=rtpmap:96 VP8/90000\r\n"), "o vídeo fica intacto
 assert.equal(ajustarOpus(sdpRemoto, () => undefined), sdpRemoto, "sem papel conhecido, nada muda");
 console.log("✓ voz: FEC e DTX no microfone, estéreo no áudio da tela, o resto da descrição intacto");
 
+/* -- vídeo: 60 qps, banda inicial e degraus por tamanho de sala -- */
+{
+  const { ajustarInicioVideo, cameraParaSala, cpuCeiling, meshBudget: orcamento, PROFILES } = await import("../public/js/core/tuning.js");
+  const sdp = [
+    "v=0",
+    "m=audio 9 UDP/TLS/RTP/SAVPF 111",
+    "a=rtpmap:111 opus/48000/2",
+    "a=fmtp:111 minptime=10",
+    "m=video 9 UDP/TLS/RTP/SAVPF 96 97 98 45",
+    "a=rtpmap:96 VP8/90000",
+    "a=rtpmap:97 rtx/90000",
+    "a=fmtp:97 apt=96",
+    "a=rtpmap:98 VP9/90000",
+    "a=fmtp:98 profile-id=0",
+    "a=rtpmap:45 AV1/90000",
+    "",
+  ].join("\r\n");
+  const v = ajustarInicioVideo(sdp, 1500);
+  assert.ok(v.includes("a=rtpmap:96 VP8/90000\r\na=fmtp:96 x-google-start-bitrate=1500"), "VP8 sem fmtp ganha um");
+  assert.ok(v.includes("a=fmtp:98 profile-id=0;x-google-start-bitrate=1500"), "VP9 mantém o perfil");
+  assert.ok(v.includes("a=fmtp:45 x-google-start-bitrate=1500"), "AV1 também");
+  assert.ok(v.includes("a=fmtp:97 apt=96\r\n"), "rtx fica intacto");
+  assert.ok(v.includes("a=fmtp:111 minptime=10\r\n"), "áudio fica intacto");
+  assert.equal(ajustarInicioVideo(v, 1500), v, "aplicar de novo não duplica");
+
+  assert.equal(orcamento(1, { uplink: 3_000_000 }).screen, PROFILES.screenMotion.maxBitrate, "a dois, a estimativa da própria conexão não vira teto");
+  assert.equal(cameraParaSala(1).maxFramerate, 60, "câmera a 60 qps a dois");
+  assert.ok(cameraParaSala(2).maxFramerate <= 30, "com mais gente, a câmera volta a 30");
+  assert.equal(cpuCeiling(1, 8).maxFramerate, 120, "a dois, a tela pode ir a 120 qps");
+  assert.equal(cpuCeiling(2, 8).maxFramerate, 60, "duas cópias: no máximo 60");
+  assert.ok(cpuCeiling(6, 8).maxFramerate <= 24, "CPU apertada: a tela desce");
+  assert.equal(PROFILES.screenText.maxFramerate, 60, "texto fica em 60");
+  console.log("✓ vídeo: até 120 qps a dois, banda inicial pedida no SDP, e degraus que descem com a sala");
+}
+
 /* -- relé: a sala ajuda quem tem conexão ruim -- */
 const { planejarRele } = await import("../public/js/core/rele.js");
 const sala = (spec) => {

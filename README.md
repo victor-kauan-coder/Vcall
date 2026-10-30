@@ -29,15 +29,15 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Windows 10/11 | `VcallSetup-3.16.0.exe` |
-| Fedora, openSUSE, RHEL | `Vcall-3.16.0-x86_64.rpm` |
-| Arch, Manjaro, EndeavourOS | `Vcall-3.16.0-x64.pacman` |
-| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.16.0-amd64.deb` |
-| Qualquer Linux | `Vcall-3.16.0-x86_64.AppImage` ou `.tar.gz` |
+| Windows 10/11 | `VcallSetup-3.17.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.17.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.17.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.17.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.17.0-x86_64.AppImage` ou `.tar.gz` |
 
 Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
-o que mudou na **[3.16.0](docs/release/v3.16.0.md)**.
+o que mudou na **[3.17.0](docs/release/v3.17.0.md)**.
 
 ## Recursos
 
@@ -252,9 +252,11 @@ zera quando alguém entra ou sai da sala.
 **4. Codec errado.** VP9 custa cerca de metade da banda de VP8 e H.264 para o
 mesmo texto a 1080p.
 
-→ A linha da tela pede VP9 (e AV1 em chamadas de duas pessoas, onde o custo de
-CPU se paga), mantendo `rtx` na lista — removê-la desliga a retransmissão e
-produz exatamente o congelamento que se estava tentando evitar.
+→ Todos os codecs ficam negociados na linha da tela, e cada um escolhe o seu
+na hora de compartilhar (`encodings[0].codec`, sem renegociar): AV1 ou VP9
+quando a placa de vídeo codifica por hardware; sem isso, H.264 para vídeo e
+jogo e VP9 para texto. A lista mantém `rtx` — removê-la desliga a
+retransmissão e produz exatamente o congelamento que se estava tentando evitar.
 
 **5. Orçamento de banda.** Cada conexão estima a banda sozinha e não sabe das
 outras. Numa malha, todas tentam ocupar o mesmo enlace de subida ao mesmo
@@ -263,7 +265,23 @@ tempo.
 → Há um teto central, dividido pelo número de participantes, e um controle
 adaptativo que lê o `getStats` a cada dois segundos: desce rápido quando falta
 banda ou sobra carga de CPU, sobe devagar. A tela tem prioridade alta e a
-câmera baixa, senão o alocador reparte igual e a tela some.
+câmera baixa, senão o alocador reparte igual e a tela some. Dois cuidados: a
+dois não há teto (a estimativa do Chrome não passa muito do que já se envia, e
+usá-la como teto prendia a tela), e `qualityLimitationReason: "bandwidth"` só
+conta como rede cheia quando a estimativa não cobre o teto — o Chrome dá o
+mesmo motivo quando o próprio encoder encolhe a imagem.
+
+**7. Preso em 30 qps.** Sem pedir, a captura sai a 30 quadros por segundo e a
+conexão começa estimando 300 kbps.
+
+→ A captura pede 120 qps, o máximo do Chromium: ela não passa da taxa do
+monitor nem repete quadro, então um monitor de 60 Hz dá 60 e um de 120 ou 144
+Hz dá 120. A dois, vídeo e jogo começam em 60 e sobem até 120 qps (e 14 Mbps)
+quando a conexão passa de ~8 Mbps: com menos, 1080p120 congelava a imagem.
+Texto e câmera param em 60, e com mais gente tudo volta a no máximo 60. A conexão começa em
+1,5 Mbps (`x-google-start-bitrate`), e a câmera já nasce em 720p em vez de 180p. O relé
+que repete o último quadro da tela parada roda num worker: na thread da
+página, cada engasgo da interface custava quadros.
 
 **6. Detalhes que quebram na prática.** `min` e `exact` são proibidos nas
 restrições de captura; o Firefox ignora `frameRate` na captura mas aceita na
@@ -288,7 +306,8 @@ para sempre. Todos estão tratados, com o porquê comentado no código.
 **Compartilhamento de tela**
 
 - Perfis de nitidez (texto/código/slides) e de fluidez (vídeo/animação)
-- Qualidade selecionável: automática, 1080p nítida, 720p fluida, 720p econômica
+- Até 1080p a 60 quadros por segundo, descendo sozinho com mais gente na sala
+- Qualidade selecionável: automática, 1080p até 120 qps, 720p60 para rede fraca, 720p econômica
 - Áudio do sistema em trilha própria, sem o processamento de voz que destrói música
 - Anotação colaborativa por cima da tela
 

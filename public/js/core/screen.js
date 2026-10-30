@@ -20,7 +20,7 @@
  *   desmancha.
  */
 import { Emitter } from "../lib/emitter.js";
-import { constrainScreenTrack, screenProfileFor } from "./tuning.js";
+import { codecDaTela, constrainScreenTrack, screenProfileFor } from "./tuning.js";
 
 /**
  * Linux: o som do computador vem do "monitor" do PulseAudio/PipeWire (o que
@@ -67,9 +67,12 @@ function comPrazo(promessa, ms = PRAZO_SELETOR_MS) {
 
 /** Resoluções oferecidas ao usuário. */
 export const SCREEN_QUALITY = {
-  auto: { label: "Automática", width: 1920, height: 1080, frameRate: 30 },
-  hd: { label: "1080p · nítida", width: 1920, height: 1080, frameRate: 30 },
-  smooth: { label: "720p · fluida", width: 1280, height: 720, frameRate: 60 },
+  // 120 é o máximo do Chromium; a captura não passa da taxa do monitor nem
+  // repete quadro, e num monitor de 60 Hz pedir 120 ainda pega mais quadros
+  // novos da tela inteira (57 em vez de 52, medido no Electron 44).
+  auto: { label: "Automática", width: 1920, height: 1080, frameRate: 120 },
+  hd: { label: "1080p · até 120 qps", width: 1920, height: 1080, frameRate: 120 },
+  smooth: { label: "720p · 60 qps, rede fraca", width: 1280, height: 720, frameRate: 60 },
   light: { label: "720p · econômica", width: 1280, height: 720, frameRate: 15 },
 };
 
@@ -94,8 +97,11 @@ export class ScreenShare extends Emitter {
     return !!this.videoTrack && this.videoTrack.readyState === "live";
   }
 
+  /** Codec escolhido para cada modo nesta máquina (tuning.codecDaTela). */
+  #codecs = {};
+
   get profile() {
-    return screenProfileFor(this.mode);
+    return { ...screenProfileFor(this.mode), codec: this.#codecs[this.mode] };
   }
 
   /**
@@ -239,6 +245,7 @@ export class ScreenShare extends Emitter {
       maxWidth: q.width,
       maxHeight: q.height,
     });
+    this.#codecs = { text: await codecDaTela("text"), motion: await codecDaTela("motion") };
 
     if (this.audioTrack) {
       // Áudio de tela é mídia, não voz: o processamento de voz o destruiria.
@@ -426,108 +433,32 @@ export class ScreenShare extends Emitter {
  */
 export function manterQuadros(captura, { intervaloMs = 1000 } = {}) {
   if (typeof MediaStreamTrackProcessor !== "function" || typeof MediaStreamTrackGenerator !== "function") return null;
-  if (typeof VideoFrame !== "function") return null;
-  let processor;
-  let gerador;
+  if (typeof VideoFrame !== "function" || typeof Worker !== "function") return null;
+  let gerador = null;
+  let worker = null;
   try {
-    processor = new MediaStreamTrackProcessor({ track: captura });
+    const processor = new MediaStreamTrackProcessor({ track: captura });
     gerador = new MediaStreamTrackGenerator({ kind: "video" });
+    // O laço roda num worker (core/quadros-worker.js): na thread da página,
+    // cada engasgo da interface custava quadros.
+    worker = new Worker(new URL("./quadros-worker.js", import.meta.url), { type: "module" });
+    worker.postMessage({ entrada: processor.readable, saida: gerador.writable, intervaloMs }, [processor.readable, gerador.writable]);
   } catch {
+    worker?.terminate();
+    gerador?.stop();
     return null;
   }
-  const leitor = processor.readable.getReader();
-  const escritor = gerador.writable.getWriter();
-  let ultimo = null;
-  let ultimoEm = 0;
-  let parado = false;
-  let escrevendo = false;
-  const t0 = performance.now();
-  // Os carimbos de tempo são refeitos num relógio só nosso, sempre crescente:
-  // misturar os da captura com os dos quadros repetidos faria o encoder
-  // descartar quadros "do passado".
-  const agora = () => Math.round((performance.now() - t0) * 1000);
-
-  const escrever = async (quadro) => {
-    if (parado) {
-      quadro.close();
-      return;
-    }
-    escrevendo = true;
-    try {
-      await escritor.write(quadro);
-    } catch {
-      quadro.close();
-    } finally {
-      escrevendo = false;
-    }
+  return {
+    track: gerador,
+    stop: () => {
+      worker.postMessage("parar");
+      try {
+        gerador.stop();
+      } catch {
+        /* já parado */
+      }
+    },
   };
-
-  const parar = () => {
-    if (parado) return;
-    parado = true;
-    clearInterval(timer);
-    try {
-      ultimo?.close();
-    } catch {
-      /* já fechado */
-    }
-    ultimo = null;
-    leitor.cancel().catch(() => {});
-    escritor.close().catch(() => {});
-    try {
-      gerador.stop();
-    } catch {
-      /* já parado */
-    }
-  };
-
-  (async () => {
-    for (;;) {
-      let r;
-      try {
-        r = await leitor.read();
-      } catch {
-        break;
-      }
-      if (r.done || parado) {
-        r.value?.close?.();
-        break;
-      }
-      const original = r.value;
-      let quadro;
-      try {
-        quadro = new VideoFrame(original, { timestamp: agora() });
-      } catch {
-        quadro = null;
-      }
-      original.close();
-      if (!quadro) continue;
-      try {
-        ultimo?.close();
-        ultimo = quadro.clone();
-      } catch {
-        ultimo = null;
-      }
-      ultimoEm = performance.now();
-      await escrever(quadro);
-    }
-    parar();
-  })();
-
-  const timer = setInterval(() => {
-    if (parado || escrevendo || !ultimo) return;
-    if (performance.now() - ultimoEm < intervaloMs) return;
-    ultimoEm = performance.now();
-    let copia;
-    try {
-      copia = new VideoFrame(ultimo, { timestamp: agora() });
-    } catch {
-      return;
-    }
-    escrever(copia);
-  }, Math.max(100, intervaloMs / 2));
-
-  return { track: gerador, stop: parar };
 }
 
 export function describeScreenError(err) {

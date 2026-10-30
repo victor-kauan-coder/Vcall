@@ -6,7 +6,7 @@
  * a pessoa se vê, escolhe dispositivo, nome e avatar, e só então entra.
  */
 import { el, icon, clear, setIcon, $ } from "../lib/dom.js";
-import { avatarEl, sampleAvatars, STYLE_LABELS, defaultAvatar, isPhoto } from "./avatars.js";
+import { avatarEl, sampleAvatars, STYLE_LABELS, defaultAvatar, isPhoto, semCartum } from "./avatars.js";
 import { preparePhoto, ACCEPTED } from "./photo.js";
 import { prefs, randomSeed, env } from "../lib/util.js";
 import { describeMediaError } from "../core/media.js";
@@ -41,6 +41,8 @@ export class Lobby {
     this.hint = $("#lobbyHint");
 
     this.nameInput.value = this.name;
+    // Quem vinha com o rostinho da casa chega com uma paisagem.
+    this.avatar = semCartum(this.avatar);
     this.joinBtn.querySelector("span").replaceChildren(
       ...(isGuest ? duo("Entrar na sala", "Entrar agora") : duo("Começar a call", "Iniciar reunião")),
     );

@@ -23,7 +23,7 @@ import { Dock } from "./ui/dock.js";
 import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, Sinais, validar as validarReacao } from "./features/reacoes.js";
 import { CamadaReacoes, montarMenu as montarMenuDeReacoes } from "./ui/reacoes.js";
 import { toast, chime } from "./ui/toast.js";
-import { avatarEl, colorFor, defaultAvatar, isPhoto } from "./ui/avatars.js";
+import { avatarEl, colorFor, defaultAvatar, isPhoto, semCartum } from "./ui/avatars.js";
 import { ilustracao } from "./ui/ilustracao.js";
 import { montarTelaDeErro } from "./ui/tela-erro.js";
 import { RemoteAudio } from "./ui/audio.js";
@@ -3618,7 +3618,7 @@ function openSettings({ naRecepcao = false } = {}) {
    */
   body.append(
     profileSection({
-      profile: app.profile || { name: prefs.get("name", ""), avatar: prefs.get("avatar", null) || defaultAvatar() },
+      profile: app.profile || { name: prefs.get("name", ""), avatar: semCartum(prefs.get("avatar", null)) || defaultAvatar() },
       onChange: (profile) => applyProfile(profile),
     }),
   );

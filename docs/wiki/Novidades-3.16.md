@@ -24,3 +24,10 @@ troca vale na hora, sem recarregar, e fica guardada neste computador.
 A paleta (Tinta, Ametista, Carvão, Oceano, Brasa) e o tema claro ou escuro
 valem nos dois visuais. No Empresa, a cor de destaque é a da paleta: o resto
 da tela fica em cinza de escritório.
+
+### Avatares de paisagem
+
+No lugar dos rostinhos do estilo da casa, dez paisagens: montanhas, lago,
+mar, floresta, dunas, colinas, neve, noite, aurora e cidade. **Sortear**
+troca a hora do dia e o relevo sem trocar a cena. Elas valem nos dois
+visuais; os outros estilos de avatar e a foto continuam lá.

@@ -374,3 +374,20 @@ console.log("✓ relé: resgate de par sem conexão, ajuda a quem tem subida fra
   assert.match(avatarVcall(""), /^<svg[^>]*viewBox="0 0 128 128"[\s\S]*<\/svg>$/, "semente vazia ainda desenha");
 }
 console.log("✓ avatar Vcall: determinístico e variado");
+
+// Avatares de paisagem: cada cena é um estilo que o servidor aceita e desenha
+// sempre a mesma vista para a mesma semente.
+{
+  const { avatarPaisagem, CENAS, estiloDaCena, cenaDoEstilo } = await import("../public/js/ui/avatar-paisagem.js");
+  const { normalizeAvatar } = await import("../src/protocol.js");
+  for (const cena of CENAS) {
+    const estilo = estiloDaCena(cena);
+    assert.equal(cenaDoEstilo(estilo), cena, `${estilo} volta para ${cena}`);
+    assert.deepEqual(normalizeAvatar({ style: estilo, seed: "ana" }), { style: estilo, seed: "ana" }, `o servidor aceita ${estilo}`);
+    assert.equal(avatarPaisagem(cena, "ana"), avatarPaisagem(cena, "ana"), `${cena}: a mesma semente, a mesma vista`);
+    assert.match(avatarPaisagem(cena, ""), /^<svg[^>]*viewBox="0 0 128 128"[\s\S]*<\/svg>$/, `${cena}: semente vazia ainda desenha`);
+    const vistas = new Set(Array.from({ length: 12 }, (_, i) => avatarPaisagem(cena, `s${i}`)));
+    assert.ok(vistas.size >= 11, `${cena}: sementes diferentes dão vistas diferentes`);
+  }
+}
+console.log("✓ avatar de paisagem: dez cenas, determinísticas e aceitas pelo servidor");

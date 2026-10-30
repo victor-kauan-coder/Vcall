@@ -422,7 +422,20 @@ export class StatsMonitor extends Emitter {
     const avail = sample.transport.availableOutgoing;
     const before = budget.screen;
     const fpsAntes = budget.framerate;
-    budget.framerate ??= cpu.maxFramerate;
+    /*
+     * Texto fica em 60 mesmo a dois; vídeo e jogo vão até 120, mas só quando
+     * sobra bit para cada quadro. No começo da chamada a conexão ainda está em
+     * 2–6 Mbps, e 1080p120 ali congelou a imagem por quase 2 s (a 60, nada;
+     * medido). Sobe a partir de ~8 Mbps em 1080p (√2 do que 1080p60 pede) e
+     * volta abaixo de ~6 Mbps; a distância entre os dois evita o vaivém.
+     */
+    const perfil = peer.screenProfile || {};
+    const { width = 1920, height = 1080 } = peer.tx.screen.sender.track.getSettings?.() || {};
+    const porPixel = (screen.targetBitrate ?? 0) / (width * height);
+    budget.rapido = porPixel >= (budget.rapido ? 2.9 : 3.9);
+    const tetoPerfil = (budget.rapido && perfil.maxFramerateComBanda) || perfil.maxFramerate || cpu.maxFramerate;
+    const tetoFps = Math.min(cpu.maxFramerate, tetoPerfil);
+    budget.framerate ??= tetoFps;
 
     /*
      * Encoder que não dá conta sem dizer: o de hardware só acusa CPU acima de
@@ -438,8 +451,10 @@ export class StatsMonitor extends Emitter {
       // muito melhor do que encolher a imagem. Um degrau por vez (60, 45,
       // 34, 25…): ir de 60 direto a 15 por um soluço da CPU era jogar fora a
       // fluidez inteira.
+      // O degrau parte do que a captura dá: com teto de 120 e monitor de 60,
+      // descer para 90 não mudaria nada.
       budget.screen = Math.max(FLOOR.screen, budget.screen * 0.8);
-      budget.framerate = Math.max(15, Math.round(budget.framerate * 0.75));
+      budget.framerate = Math.max(15, Math.round((alvo || budget.framerate) * 0.75));
       this.emit("limited", { peerId: peer.id, reason: "cpu" });
     } else {
       /*
@@ -470,10 +485,10 @@ export class StatsMonitor extends Emitter {
       // A CPU folgou e o encoder acompanha o teto atual: os quadros voltam
       // devagar, até o teto da sala.
       const acompanha = screen.fps == null || alvo <= 20 || screen.fps >= alvo * 0.85;
-      if (acompanha) budget.framerate = Math.min(cpu.maxFramerate, Math.round(budget.framerate * 1.2));
-      else budget.framerate = Math.min(cpu.maxFramerate, budget.framerate);
+      if (acompanha) budget.framerate = Math.round(budget.framerate * 1.2);
     }
 
+    budget.framerate = Math.min(tetoFps, budget.framerate);
     budget.screen = clamp(budget.screen, FLOOR.screen, Math.min(CEIL.screen, budgets.screen));
 
     // Também quando o sender diverge do orçamento: cada renegociação ou troca

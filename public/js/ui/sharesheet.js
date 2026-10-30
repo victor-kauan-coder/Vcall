@@ -71,7 +71,7 @@ const MODOS = [
     id: "motion",
     icon: "zap",
     titulo: "Fluidez",
-    texto: "Vídeo e animação. A imagem fica menor antes de engasgar.",
+    texto: "Vídeo e jogo, até 120 quadros por segundo. A imagem fica menor antes de engasgar.",
   },
 ];
 

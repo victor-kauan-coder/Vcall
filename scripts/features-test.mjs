@@ -339,9 +339,11 @@ console.log("✓ voz: FEC e DTX no microfone, estéreo no áudio da tela, o rest
   assert.equal(orcamento(1, { uplink: 3_000_000 }).screen, PROFILES.screenMotion.maxBitrate, "a dois, a estimativa da própria conexão não vira teto");
   assert.equal(cameraParaSala(1).maxFramerate, 60, "câmera a 60 qps a dois");
   assert.ok(cameraParaSala(2).maxFramerate <= 30, "com mais gente, a câmera volta a 30");
-  assert.equal(cpuCeiling(1, 8).maxFramerate, 60, "CPU folgada: tela a 60 qps");
+  assert.equal(cpuCeiling(1, 8).maxFramerate, 120, "a dois, a tela pode ir a 120 qps");
+  assert.equal(cpuCeiling(2, 8).maxFramerate, 60, "duas cópias: no máximo 60");
   assert.ok(cpuCeiling(6, 8).maxFramerate <= 24, "CPU apertada: a tela desce");
-  console.log("✓ vídeo: 60 qps a dois, banda inicial pedida no SDP, e degraus que descem com a sala");
+  assert.equal(PROFILES.screenText.maxFramerate, 60, "texto fica em 60");
+  console.log("✓ vídeo: até 120 qps a dois, banda inicial pedida no SDP, e degraus que descem com a sala");
 }
 
 /* -- relé: a sala ajuda quem tem conexão ruim -- */

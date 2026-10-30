@@ -273,8 +273,12 @@ mesmo motivo quando o próprio encoder encolhe a imagem.
 **7. Preso em 30 qps.** Sem pedir, a captura sai a 30 quadros por segundo e a
 conexão começa estimando 300 kbps.
 
-→ Captura e encoder a 60 qps; a conexão começa em 1,5 Mbps
-(`x-google-start-bitrate`), e a câmera já nasce em 720p em vez de 180p. O relé
+→ A captura pede 120 qps, o máximo do Chromium: ela não passa da taxa do
+monitor nem repete quadro, então um monitor de 60 Hz dá 60 e um de 120 ou 144
+Hz dá 120. A dois, vídeo e jogo começam em 60 e sobem até 120 qps (e 14 Mbps)
+quando a conexão passa de ~8 Mbps: com menos, 1080p120 congelava a imagem.
+Texto e câmera param em 60, e com mais gente tudo volta a no máximo 60. A conexão começa em
+1,5 Mbps (`x-google-start-bitrate`), e a câmera já nasce em 720p em vez de 180p. O relé
 que repete o último quadro da tela parada roda num worker: na thread da
 página, cada engasgo da interface custava quadros.
 
@@ -302,7 +306,7 @@ para sempre. Todos estão tratados, com o porquê comentado no código.
 
 - Perfis de nitidez (texto/código/slides) e de fluidez (vídeo/animação)
 - Até 1080p a 60 quadros por segundo, descendo sozinho com mais gente na sala
-- Qualidade selecionável: automática, 1080p60, 720p60 para rede fraca, 720p econômica
+- Qualidade selecionável: automática, 1080p até 120 qps, 720p60 para rede fraca, 720p econômica
 - Áudio do sistema em trilha própria, sem o processamento de voz que destrói música
 - Anotação colaborativa por cima da tela
 

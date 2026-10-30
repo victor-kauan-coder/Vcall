@@ -67,8 +67,11 @@ function comPrazo(promessa, ms = PRAZO_SELETOR_MS) {
 
 /** Resoluções oferecidas ao usuário. */
 export const SCREEN_QUALITY = {
-  auto: { label: "Automática", width: 1920, height: 1080, frameRate: 60 },
-  hd: { label: "1080p · 60 qps", width: 1920, height: 1080, frameRate: 60 },
+  // 120 é o máximo do Chromium; a captura não passa da taxa do monitor nem
+  // repete quadro, e num monitor de 60 Hz pedir 120 ainda pega mais quadros
+  // novos da tela inteira (57 em vez de 52, medido no Electron 44).
+  auto: { label: "Automática", width: 1920, height: 1080, frameRate: 120 },
+  hd: { label: "1080p · até 120 qps", width: 1920, height: 1080, frameRate: 120 },
   smooth: { label: "720p · 60 qps, rede fraca", width: 1280, height: 720, frameRate: 60 },
   light: { label: "720p · econômica", width: 1280, height: 720, frameRate: 15 },
 };

@@ -27,9 +27,11 @@
  * ------------------------------------------------------------------ */
 
 /*
- * 60 quadros por segundo é o teto de tudo que é vídeo. Os tetos abaixo valem
- * para uma pessoa só do outro lado; com mais gente, cameraParaSala, meshBudget
- * e cpuCeiling descem degrau por degrau (cada um codifica uma cópia por par).
+ * Vídeo e jogo vão até 120 qps, o máximo que o Chromium captura da tela
+ * (kMaxScreenCastFrameRate); texto e câmera param em 60, onde mais quadros só
+ * tirariam bits de cada um. Os tetos abaixo valem para uma pessoa só do outro
+ * lado; com mais gente, cameraParaSala, meshBudget e cpuCeiling descem degrau
+ * por degrau (cada um codifica uma cópia por par).
  */
 export const PROFILES = {
   /** Câmera: rosto em movimento, resolução é negociável. */
@@ -50,12 +52,20 @@ export const PROFILES = {
     priority: "high",
     networkPriority: "high",
   },
-  /** Tela com vídeo, jogo ou animação: fluidez acima de nitidez. 1080p60 em movimento pede ~8–10 Mbps. */
+  /**
+   * Tela com vídeo, jogo ou animação: fluidez acima de nitidez. 1080p60 em
+   * movimento pede ~10 Mbps; 120 qps pedem √2 disso (a regra do Moonlight),
+   * não o dobro: quadros vizinhos ficam mais parecidos. Num monitor de 60 Hz
+   * a captura não repete quadro, então o teto de 120 não custa nada (medido).
+   * Começa em 60: quem sobe para `maxFramerateComBanda` é o controle
+   * adaptativo, quando a conexão já tem banda para isso (StatsMonitor).
+   */
   screenMotion: {
     contentHint: "motion",
     degradationPreference: "maintain-framerate",
-    maxBitrate: 10_000_000,
+    maxBitrate: 14_000_000,
     maxFramerate: 60,
+    maxFramerateComBanda: 120,
     priority: "high",
     networkPriority: "high",
   },
@@ -485,5 +495,6 @@ export function cpuCeiling(peerCount, cores) {
   if (load > 0.8) return { maxFramerate: 15, scaleResolutionDownBy: 1.25 };
   if (load > 0.5) return { maxFramerate: 24, scaleResolutionDownBy: 1 };
   if (load > 0.3) return { maxFramerate: 30, scaleResolutionDownBy: 1 };
-  return { maxFramerate: 60, scaleResolutionDownBy: 1 };
+  // Acima de 60 só com uma cópia: cada pessoa a mais é outra codificação inteira.
+  return { maxFramerate: peerCount <= 1 ? 120 : 60, scaleResolutionDownBy: 1 };
 }

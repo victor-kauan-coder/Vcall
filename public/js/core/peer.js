@@ -270,7 +270,7 @@ export class Peer extends Emitter {
   async setScreenBudget({ maxBitrate, maxFramerate, scaleResolutionDownBy, profile = PROFILES.screenText }) {
     return applyProfile(this.tx.screen?.sender, profile, {
       maxBitrate: Math.min(maxBitrate, profile.maxBitrate),
-      maxFramerate,
+      maxFramerate: Math.min(maxFramerate, profile.maxFramerateComBanda ?? profile.maxFramerate),
       scaleResolutionDownBy,
       active: !this.#viaRele.has("screen"),
     });

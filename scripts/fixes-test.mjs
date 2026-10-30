@@ -1729,6 +1729,73 @@ if (process.platform === "linux") {
   ok("TURN nas configurações do app: validado, salvo só para o dono, segredo que não volta à página, HMAC igual ao do coturn");
 }
 
+/* ------------------------------------------------------------------ *
+ * 3.16: o controle adaptativo da tela.
+ *
+ *   - O Chrome diz "bandwidth" também quando o encoder encolhe a imagem por
+ *     QP alto. O controle lia isso como rede cheia e cortava o teto 25% a
+ *     cada 2 s, até o piso: um jogo compartilhado ia a 7 qps e 500 kbps com
+ *     20 Mbps sobrando.
+ *   - Encoder de hardware que não dá conta não diz nada (motivo "none"): a
+ *     fonte manda 60 qps e saem 20. O teto de quadros tem de descer.
+ * ------------------------------------------------------------------ */
+{
+  const { StatsMonitor } = await import("../public/js/core/stats.js");
+  const { PROFILES } = await import("../public/js/core/tuning.js");
+
+  /** Um par falso com a linha de tela ligada; `tela` diz o que o getStats conta. */
+  function parFalso(tela) {
+    const enc = { maxBitrate: PROFILES.screenMotion.maxBitrate, maxFramerate: 60 };
+    const sender = {
+      track: { readyState: "live", id: "t", getSettings: () => ({ width: 1920, height: 1080, frameRate: 60 }) },
+      getParameters: () => ({ encodings: [{ ...enc }] }),
+    };
+    let t = 0;
+    return {
+      enc,
+      id: "b",
+      connectionState: "connected",
+      screenProfile: PROFILES.screenMotion,
+      tx: { screen: { mid: "2", sender }, cam: { mid: "1", sender: { track: null } } },
+      async getStats() {
+        t += 2000;
+        return new Map([
+          ["OT", { id: "OT", type: "outbound-rtp", kind: "video", mid: "2", timestamp: t, bytesSent: t * 1000, mediaSourceId: "SV", framesPerSecond: tela.fps, frameWidth: tela.w, frameHeight: tela.h, qualityLimitationReason: tela.motivo, qualityLimitationDurations: { [tela.motivo]: t / 1000 }, targetBitrate: 3_000_000 }],
+          ["SV", { id: "SV", type: "media-source", kind: "video", framesPerSecond: 60 }],
+          ["CP", { id: "CP", type: "candidate-pair", nominated: true, state: "succeeded", availableOutgoingBitrate: 20_000_000, currentRoundTripTime: 0.01 }],
+        ]);
+      },
+      async setScreenBudget(b) {
+        enc.maxBitrate = Math.min(b.maxBitrate, PROFILES.screenMotion.maxBitrate);
+        enc.maxFramerate = b.maxFramerate;
+      },
+      async setCameraBudget() {},
+      async reconfigurarEncoder() {
+        return false;
+      },
+    };
+  }
+  /** Roda `voltas` ciclos do monitor sem esperar os 2 s de cada um. */
+  async function rodar(peer, voltas) {
+    const original = globalThis.setInterval;
+    let ciclo = null;
+    globalThis.setInterval = (fn) => ((ciclo = fn), 1);
+    const m = new StatsMonitor(() => [peer]);
+    m.start();
+    globalThis.setInterval = original;
+    for (let i = 0; i < voltas; i++) await ciclo();
+  }
+
+  const jogo = parFalso({ fps: 58, w: 960, h: 540, motivo: "bandwidth" });
+  await rodar(jogo, 6);
+  assert.equal(jogo.enc.maxBitrate, PROFILES.screenMotion.maxBitrate, `"bandwidth" do encoder com a rede sobrando derrubou o teto para ${jogo.enc.maxBitrate}`);
+
+  const atrasado = parFalso({ fps: 20, w: 1920, h: 1080, motivo: "none" });
+  await rodar(atrasado, 1);
+  assert.ok(atrasado.enc.maxFramerate < 60 && atrasado.enc.maxFramerate >= 30, `encoder que não acompanha a fonte: teto foi a ${atrasado.enc.maxFramerate}`);
+  ok("tela: o teto não cai quando o próprio encoder encolhe a imagem, e desce um degrau quando ele não acompanha a captura");
+}
+
 console.log(`\n${passou} blocos de verificação passaram.`);
 process.exit(0);
 

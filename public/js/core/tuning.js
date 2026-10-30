@@ -26,13 +26,18 @@
  * Perfis
  * ------------------------------------------------------------------ */
 
+/*
+ * 60 quadros por segundo é o teto de tudo que é vídeo. Os tetos abaixo valem
+ * para uma pessoa só do outro lado; com mais gente, cameraParaSala, meshBudget
+ * e cpuCeiling descem degrau por degrau (cada um codifica uma cópia por par).
+ */
 export const PROFILES = {
   /** Câmera: rosto em movimento, resolução é negociável. */
   camera: {
     contentHint: "motion",
     degradationPreference: "balanced",
-    maxBitrate: 1_200_000,
-    maxFramerate: 30,
+    maxBitrate: 2_000_000,
+    maxFramerate: 60,
     priority: "low",
     networkPriority: "low",
   },
@@ -40,17 +45,17 @@ export const PROFILES = {
   screenText: {
     contentHint: "text",
     degradationPreference: "maintain-resolution",
-    maxBitrate: 3_500_000,
-    maxFramerate: 30,
+    maxBitrate: 6_000_000,
+    maxFramerate: 60,
     priority: "high",
     networkPriority: "high",
   },
-  /** Tela com vídeo/animação: fluidez acima de nitidez. */
+  /** Tela com vídeo, jogo ou animação: fluidez acima de nitidez. 1080p60 em movimento pede ~8–10 Mbps. */
   screenMotion: {
     contentHint: "motion",
     degradationPreference: "maintain-framerate",
-    maxBitrate: 6_000_000,
-    maxFramerate: 30,
+    maxBitrate: 10_000_000,
+    maxFramerate: 60,
     priority: "high",
     networkPriority: "high",
   },
@@ -221,6 +226,47 @@ export function ajustarOpus(sdp, papelDoMid) {
 }
 
 /**
+ * Banda com que a conexão começa, em kbps (`x-google-start-bitrate`).
+ *
+ * Sem isto o Chrome começa estimando 300 kbps. O encoder da câmera nasce em
+ * 320×180 a 10 qps e fica lá até a estimativa subir e o #destravar
+ * (stats.js) agir: medido, os primeiros 8 a 10 s de toda chamada eram assim,
+ * e a tela levava 16 s para chegar à taxa cheia. Começando em 1,5 Mbps a
+ * câmera já nasce em 720p. Se o enlace for menor, o controle de
+ * congestionamento corrige em menos de um segundo.
+ *
+ * Como o Opus em ajustarOpus: vai na descrição REMOTA, que é a que configura
+ * o nosso envio. Parâmetro só do Chrome; os outros ignoram.
+ */
+const INICIO_KBPS = 1500;
+
+export function ajustarInicioVideo(sdp, kbps = INICIO_KBPS) {
+  if (typeof sdp !== "string" || !/\r?\nm=video /.test(sdp)) return sdp;
+  const fim = sdp.includes("\r\n") ? "\r\n" : "\n";
+  const [cabeca, ...secoes] = sdp.split(`${fim}m=`);
+  const novas = secoes.map((s) => {
+    if (!s.startsWith("video ")) return s;
+    const linhas = s.split(fim);
+    const codecs = [];
+    for (const l of linhas) {
+      const m = /^a=rtpmap:(\d+) (VP8|VP9|H264|AV1)\//i.exec(l);
+      if (m) codecs.push(m[1]);
+    }
+    for (const pt of codecs) {
+      const i = linhas.findIndex((l) => l.startsWith(`a=fmtp:${pt} `));
+      if (i >= 0) {
+        if (!linhas[i].includes("x-google-start-bitrate")) linhas[i] += `;x-google-start-bitrate=${kbps}`;
+      } else {
+        const r = linhas.findIndex((l) => l.startsWith(`a=rtpmap:${pt} `));
+        linhas.splice(r + 1, 0, `a=fmtp:${pt} x-google-start-bitrate=${kbps}`);
+      }
+    }
+    return linhas.join(fim);
+  });
+  return [cabeca, ...novas].join(`${fim}m=`);
+}
+
+/**
  * Ordem de preferência para conteúdo de tela.
  * VP9 vence por larga margem em texto — o mesmo quadro custa cerca de metade
  * da banda de VP8/H264 a 1080p. AV1 ficou de fora de propósito: sem
@@ -233,6 +279,61 @@ export function screenCodecPreference(_peerCount) {
   if (supportsCodec("video/VP9")) list.push("video/VP9");
   list.push("video/VP8");
   return list;
+}
+
+/**
+ * O codec que a tela usa NESTA máquina, escolhido na hora de compartilhar.
+ *
+ * Todos os codecs continuam negociados na linha (preferCodecs não tira
+ * nenhum); quem escolhe qual sai é `encodings[0].codec`, trocado com
+ * setParameters, sem renegociar. Cada um escolhe o seu: quem tem AV1 por
+ * hardware manda AV1, quem não tem manda o que a sua placa codifica.
+ *
+ * 1080p a 60 qps por software, uma cópia por pessoa, não cabe na CPU de
+ * quase ninguém. Por isso a ordem é: AV1 por hardware (o mais nítido por
+ * bit, com ferramentas de conteúdo de tela), VP9 por hardware, e sem nenhum
+ * dos dois, H.264 para vídeo e jogo (toda placa de vídeo tem codificador
+ * H.264) e VP9 por software para texto (tela parada custa pouco e o VP9 é
+ * muito mais nítido em letra que o H.264).
+ *
+ * O `powerEfficient` do encodingInfo é confiável para AV1 e VP9, mas não
+ * para H.264 (no Chrome do Windows ele diz "não" com o Quick Sync em uso);
+ * por isso o H.264 entra pela regra, não pela pergunta.
+ */
+const hardware = new Map(); // mime -> Promise<boolean>; a placa não muda no meio da sessão
+
+function porHardware(mime) {
+  if (!hardware.has(mime)) {
+    hardware.set(
+      mime,
+      (async () => {
+        if (!supportsCodec(mime)) return false;
+        try {
+          const r = await navigator.mediaCapabilities.encodingInfo({
+            type: "webrtc",
+            video: { contentType: mime, width: 1920, height: 1080, framerate: 60, bitrate: 8_000_000 },
+          });
+          return !!(r.supported && r.powerEfficient);
+        } catch {
+          return false;
+        }
+      })(),
+    );
+  }
+  return hardware.get(mime);
+}
+
+export async function codecDaTela(mode) {
+  if (await porHardware("video/AV1")) return "video/AV1";
+  if (await porHardware("video/VP9")) return "video/VP9";
+  return mode === "motion" && supportsCodec("video/H264") ? "video/H264" : "video/VP9";
+}
+
+/** A entrada de `params.codecs` (os negociados) para um tipo; H.264 só no modo de pacotes 1. */
+function codecNegociado(codecs, mime) {
+  return (codecs || []).find(
+    (c) => c.mimeType.toLowerCase() === mime.toLowerCase() && (!/h264/i.test(mime) || /packetization-mode=1/.test(c.sdpFmtpLine || "")),
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -271,6 +372,10 @@ export async function applyProfile(sender, profile, overrides = {}) {
   }
   if (opts.priority) enc.priority = opts.priority;
   if (opts.networkPriority) enc.networkPriority = opts.networkPriority;
+  // Codec pedido mas não negociado com este par: fica o que está (pedir um
+  // de fora da lista faz o setParameters inteiro ser recusado).
+  const codec = opts.codec && codecNegociado(params.codecs, opts.codec);
+  if (codec) enc.codec = codec;
   enc.active = opts.active !== false;
 
   try {
@@ -289,7 +394,7 @@ export async function applyProfile(sender, profile, overrides = {}) {
  * O Firefox descarta `frameRate` passado na captura, mas respeita o mesmo
  * valor aplicado depois na trilha.
  */
-export async function constrainScreenTrack(track, { frameRate = 30, maxWidth = 1920, maxHeight = 1080 } = {}) {
+export async function constrainScreenTrack(track, { frameRate = 60, maxWidth = 1920, maxHeight = 1080 } = {}) {
   if (!track) return null;
   try {
     await track.applyConstraints({
@@ -323,6 +428,14 @@ export function screenProfileFor(mode) {
  */
 export function meshBudget(peerCount, { uplink = 8_000_000 } = {}) {
   const n = Math.max(1, peerCount);
+  /*
+   * Uma pessoa só do outro lado: não há o que dividir, e o controle de
+   * congestionamento da própria conexão já acha o limite do enlace. Usar a
+   * estimativa como teto aqui era um teto que se alimentava de si mesmo: o
+   * Chrome não estima muito acima do que está sendo enviado (~1,5×), então
+   * 70% disso prendia a tela em ~3,4 Mbps em qualquer rede (medido).
+   */
+  if (n === 1) return { screen: PROFILES.screenMotion.maxBitrate, camera: PROFILES.camera.maxBitrate };
   const share = uplink / n;
 
   /*
@@ -353,7 +466,8 @@ export function meshBudget(peerCount, { uplink = 8_000_000 } = {}) {
  * num ladrilho de um nono da tela ninguém vê a diferença de 720p para 240p.
  */
 export function cameraParaSala(outros) {
-  if (outros <= 1) return { maxBitrate: 1_200_000, scaleResolutionDownBy: 1, maxFramerate: 30 };
+  // 60 qps só a dois (e só se a câmera der 60): o dobro de quadros por cópia.
+  if (outros <= 1) return { maxBitrate: 2_000_000, scaleResolutionDownBy: 1, maxFramerate: 60 };
   if (outros <= 3) return { maxBitrate: 600_000, scaleResolutionDownBy: 1.5, maxFramerate: 30 };
   if (outros <= 5) return { maxBitrate: 350_000, scaleResolutionDownBy: 2, maxFramerate: 24 };
   if (outros <= 8) return { maxBitrate: 200_000, scaleResolutionDownBy: 3, maxFramerate: 15 };
@@ -370,5 +484,6 @@ export function cpuCeiling(peerCount, cores) {
   if (load > 1.2) return { maxFramerate: 10, scaleResolutionDownBy: 1.5 };
   if (load > 0.8) return { maxFramerate: 15, scaleResolutionDownBy: 1.25 };
   if (load > 0.5) return { maxFramerate: 24, scaleResolutionDownBy: 1 };
-  return { maxFramerate: 30, scaleResolutionDownBy: 1 };
+  if (load > 0.3) return { maxFramerate: 30, scaleResolutionDownBy: 1 };
+  return { maxFramerate: 60, scaleResolutionDownBy: 1 };
 }

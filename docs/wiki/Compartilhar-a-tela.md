@@ -58,6 +58,10 @@ meio já vê a tela na hora.
 A resolução (1080p/720p) e a prioridade podem ser trocadas durante a
 transmissão pela setinha ao lado do botão.
 
+A tela sai a até **60 quadros por segundo** em 1080p, o bastante para vídeo e
+jogo. Com mais gente na sala cada pessoa recebe uma cópia, e a qualidade desce
+sozinha conforme a internet e o computador de quem transmite.
+
 ## Som
 
 **Desligado por padrão.** Ligue "Compartilhar o som do computador" só quando

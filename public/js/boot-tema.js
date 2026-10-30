@@ -17,8 +17,10 @@ try {
   const t = ler("theme");
   if (t === "dark" || t === "light") r.setAttribute("data-theme", t);
   r.setAttribute("data-paleta", ler("paleta") || "tinta");
+  r.setAttribute("data-visual", ler("visual") === "empresa" ? "empresa" : "vcall");
 } catch {
   document.documentElement.setAttribute("data-paleta", "tinta");
+  document.documentElement.setAttribute("data-visual", "vcall");
 }
 
 /*

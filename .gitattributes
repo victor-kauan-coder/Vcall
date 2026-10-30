@@ -1,0 +1,2 @@
+# Scripts que rodam no Linux (lançador e pós-instalação): CRLF quebraria o shell.
+scripts/linux/* text eol=lf

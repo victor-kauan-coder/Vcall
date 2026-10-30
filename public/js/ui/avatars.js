@@ -10,6 +10,7 @@
  */
 import { styles, styleIds, createAvatar } from "../../vendor/avatars.js";
 import { avatarVcall } from "./avatar-vcall.js";
+import { avatarPaisagem, CENAS, ROTULOS_CENA, estiloDaCena, cenaDoEstilo } from "./avatar-paisagem.js";
 import { el } from "../lib/dom.js";
 import { randomSeed } from "../lib/util.js";
 
@@ -28,8 +29,17 @@ import { randomSeed } from "../lib/util.js";
  */
 const BACKGROUND = ["fd4d87", "fe9c5f", "fbbf24", "34d399", "2dd4bf", "38bdf8"];
 
-/** O estilo da casa vem primeiro: é o que quem chega pela primeira vez recebe. */
-export const AVATAR_STYLES = ["vcall", ...styleIds];
+const PAISAGENS = CENAS.map(estiloDaCena);
+
+/**
+ * As paisagens vêm primeiro: são o que quem chega pela primeira vez recebe,
+ * nos dois visuais. Depois, os estilos do DiceBear.
+ *
+ * O estilo da casa ("vcall", os rostinhos do kit) saiu da escolha: o dono do
+ * produto achou cartunesco demais. Ele continua sendo desenhado, para quem
+ * ainda está numa versão antiga e manda esse estilo para a sala.
+ */
+export const AVATAR_STYLES = [...PAISAGENS, ...styleIds];
 
 export const STYLE_LABELS = {
   vcall: "Vcall",
@@ -43,6 +53,7 @@ export const STYLE_LABELS = {
   shapes: "Formas",
   identicon: "Geométrico",
   initials: "Iniciais",
+  ...Object.fromEntries(CENAS.map((c) => [estiloDaCena(c), ROTULOS_CENA[c]])),
 };
 
 const cache = new Map();
@@ -90,7 +101,7 @@ export function isPhoto(spec) {
 }
 
 export function avatarSvg(spec) {
-  const style = spec?.style === "vcall" || styles[spec?.style] ? spec.style : "notionistsNeutral";
+  const style = spec?.style === "vcall" || styles[spec?.style] || cenaDoEstilo(spec?.style) ? spec.style : "notionistsNeutral";
   const seed = spec?.seed || "vcall";
   const key = cacheKey(style, seed);
   const hit = cache.get(key);
@@ -98,7 +109,8 @@ export function avatarSvg(spec) {
 
   let svg;
   try {
-    svg = style === "vcall" ? avatarVcall(seed) : createAvatar(styles[style], {
+    const cena = cenaDoEstilo(style);
+    svg = style === "vcall" ? avatarVcall(seed) : cena ? avatarPaisagem(cena, seed) : createAvatar(styles[style], {
       seed,
       size: 128,
       radius: 50,
@@ -207,9 +219,26 @@ async function extrairCor(src) {
   return melhor && `#${melhor.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** Uma paisagem escolhida pela semente: a mesma semente, a mesma cena. */
+function paisagemDaSemente(seed) {
+  let h = 0;
+  for (const c of String(seed)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return PAISAGENS[h % PAISAGENS.length];
+}
+
 /** Avatar inicial para quem nunca escolheu um. */
 export function defaultAvatar() {
-  return { style: AVATAR_STYLES[0], seed: randomSeed() };
+  const seed = randomSeed();
+  return { style: paisagemDaSemente(seed), seed };
+}
+
+/**
+ * Quem tinha guardado o estilo da casa passa para a paisagem da mesma
+ * semente. A foto e os outros estilos ficam como estão.
+ */
+export function semCartum(spec) {
+  if (!spec || isPhoto(spec) || spec.style !== "vcall") return spec;
+  return { style: paisagemDaSemente(spec.seed || randomSeed()), seed: spec.seed || randomSeed() };
 }
 
 /** Uma amostra por estilo, para a grade de escolha. */

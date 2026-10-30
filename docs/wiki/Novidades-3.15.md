@@ -1,5 +1,13 @@
 # Novidades da 3.15
 
+## 3.15.4: o Vcall abre em qualquer Linux
+
+- No Ubuntu 24.04+, o `.deb` não fecha mais ao abrir (SIGTRAP). O AppImage e
+  o `.tar.gz` também abrem nesses sistemas.
+- O `.rpm` instala no openSUSE, e os pacotes pedem as bibliotecas que faltavam
+  numa instalação mínima.
+- Quem já tem a 3.15.3 no Ubuntu 24.04+ precisa instalar a 3.15.4 por cima.
+
 ## 3.15.3: quem está na rede Tailscale
 
 - Na lista "Também na sua rede Tailscale", cada computador mostra o avatar e

@@ -1,0 +1,27 @@
+%% Gera a imagem da wiki (Conexao-e-rele.md), desta pasta:
+%% npx -p @mermaid-js/mermaid-cli mmdc -c tema-vcall.json -b "#0d1218" -s 2 -i conexao.mmd -o ../wiki/imagens/diagrama-conexao.png
+sequenceDiagram
+  autonumber
+  participant A as Ana
+  participant S as Sinalização
+  participant B as Bruno
+  participant T as TURN (opcional)
+  participant C as Carla
+
+  A->>S: entra na sala
+  S-->>A: quem já está: Bruno e Carla
+  A->>S: oferta SDP + candidatos ICE
+  S->>B: repassa
+  B->>S: resposta SDP + candidatos ICE
+  S->>A: repassa
+  Note over A,B: o ICE testa os caminhos (o STUN diz o endereço público de cada um)
+
+  alt caminho direto
+    A<<->>B: mídia direta, cifrada (DTLS-SRTP)
+  else NAT bloqueia e há TURN
+    A->>T: mídia cifrada
+    T->>B: repassa sem decifrar
+  else NAT bloqueia, sem TURN
+    A->>C: mídia
+    C->>B: Carla, que já está na sala, repassa
+  end

@@ -1,13 +1,34 @@
 # Novidades da 3.16
 
-## 3.16.0: tela e câmera a 60, até 120 em Fluidez
+## 3.16.0: o visual Empresa
 
-- **Tela:** a tela compartilhada sai em 1080p a 60 quadros por segundo (antes 30), com imagem mais nítida.
-- **Até 120 em Fluidez:** vídeo e jogo vão até 120 numa chamada a dois, com monitor de 120 Hz ou mais e ~8 Mbps de internet.
-  - A chamada começa em 60 e sobe sozinha.
-  - Num monitor de 60 Hz sai a 60.
-  - O modo de texto fica em 60.
-- **Câmera:** entra em 720p a 60 já no começo. Antes passava 8 a 10 segundos em 320×180 e depois ficava em 30.
-- **Sala maior:** com mais gente, os quadros diminuem conforme a sala cresce. Se o computador não acompanha, desce para 45 e depois 34 em vez de travar.
+![Tela inicial no visual Empresa](imagens/visual-empresa.png)
 
-Mais detalhes em [Compartilhar a tela](Compartilhar-a-tela).
+O Vcall ganhou um segundo visual, sóbrio como o Teams e o Meet. Para trocar:
+**Configurações › Aparência › Visual** e escolha **Vcall** ou **Empresa**. A
+troca vale na hora, sem recarregar, e fica guardada neste computador.
+
+- **Tela inicial**: **Nova reunião** e **Entrar com código** lado a lado, e as
+  reuniões ao vivo numa lista embaixo.
+- **Antes de entrar**: a câmera grande à esquerda; nome, aparelhos e avatar à
+  direita.
+- **Na chamada**: tudo fica escuro, inclusive a conversa, também no tema
+  claro. Os botões são
+  redondos e ficam vermelhos quando o microfone ou a câmera estão desligados.
+  A conversa e as pessoas abrem num cartão ao lado.
+- **Barra enxuta**: jogos, legendas, gravação, qualidade, layout e
+  configurações ficam no botão **Mais** e voltam à barra enquanto estão
+  ligados. Os atalhos de teclado continuam valendo.
+
+![Chamada no visual Empresa](imagens/visual-empresa-chamada.jpg)
+
+A paleta (Tinta, Ametista, Carvão, Oceano, Brasa) e o tema claro ou escuro
+valem nos dois visuais. No Empresa, a cor de destaque é a da paleta: o resto
+da tela fica em cinza de escritório.
+
+### Avatares de paisagem
+
+No lugar dos rostinhos do estilo da casa, dez paisagens: montanhas, lago,
+mar, floresta, dunas, colinas, neve, noite, aurora e cidade. **Sortear**
+troca a hora do dia e o relevo sem trocar a cena. Elas valem nos dois
+visuais; os outros estilos de avatar e a foto continuam lá.

@@ -20,7 +20,7 @@ import { lerZip, montarTar, zipParaTarGz, nomeDoModelo, responderModelo } from "
 import { destinoDoLink } from "../desktop/protocol.js";
 import { linkAbrir, linkDaSala, linkDoAplicativo, linkWhatsApp, salaDoFragmento, ehCelular } from "../public/js/lib/invite.js";
 import { createBoardNotice } from "../public/js/features/board-notice.js";
-import { argsParaX11, executavelParaRegistrar, modoDeReabrir, namespacesDisponiveis, opcoesDeExibicao, precisaSemSandbox } from "../desktop/linux.js";
+import { argsParaX11, executavelParaRegistrar, lancador, modoDeReabrir, opcoesDeExibicao } from "../desktop/linux.js";
 import { adaptarEncoder, jaAdaptado } from "../desktop/whisper-curto.js";
 import { assinar, confere, nomeNaRelease, sha512DoArquivo } from "../desktop/assinatura.js";
 import { instalaAoFechar, maisNova, modoDeInstalacao } from "../desktop/atualizacao.js";
@@ -526,23 +526,7 @@ server.close();
  * Linux: Fedora, Arch, Ubuntu… (desktop/linux.js)
  * ================================================================== */
 {
-  const proc = (valores) => (caminho) => {
-    if (caminho in valores) return valores[caminho];
-    throw new Error("ENOENT");
-  };
-  const ubuntu2404 = proc({ "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": "1\n" });
-  const fedora = proc({ "/proc/sys/user/max_user_namespaces": "63432\n" });
-  const arch = proc({});
-  const debianAntigo = proc({ "/proc/sys/kernel/unprivileged_userns_clone": "0" });
-  assert.equal(namespacesDisponiveis(fedora), true);
-  assert.equal(namespacesDisponiveis(arch), true, "sem os arquivos de restrição, está liberado");
-  assert.equal(namespacesDisponiveis(ubuntu2404), false);
-  assert.equal(namespacesDisponiveis(debianAntigo), false);
-
   const appimage = { APPIMAGE: "/home/ana/Vcall-3.1.0-x86_64.AppImage" };
-  assert.equal(precisaSemSandbox({ plataforma: "linux", env: appimage, ler: ubuntu2404 }), true, "AppImage no Ubuntu 24.04: só assim abre");
-  assert.equal(precisaSemSandbox({ plataforma: "linux", env: appimage, ler: fedora }), false, "no Fedora o sandbox continua ligado");
-  assert.equal(precisaSemSandbox({ plataforma: "linux", env: {}, ler: ubuntu2404 }), false, "pacote .deb: nunca desliga");
   // Electron 38+ abre como Wayland nativo, e lá a janela não se posiciona:
   // com XWayland disponível, o Vcall reabre por ele. A opção vai na linha de
   // comando de verdade (via appendSwitch ela só chegava à GPU, e o app não
@@ -563,11 +547,46 @@ server.close();
   assert.ok(/modoDeReabrir\(\) === "execve"[\s\S]{0,80}process\.execve\(process\.execPath/.test(main), "o main.js usa o execve antes de qualquer janela");
   assert.deepEqual(opcoesDeExibicao({ plataforma: "linux" }), [["gtk-version", "3"]]);
   assert.deepEqual(opcoesDeExibicao({ plataforma: "win32", env: {} }), [], "fora do Linux, nada");
-  assert.equal(precisaSemSandbox({ plataforma: "win32", env: appimage, ler: ubuntu2404 }), false);
 
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: appimage, execPath: "/tmp/.mount_x/vcall" }), appimage.APPIMAGE, "AppImage registra o próprio arquivo");
   assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/opt/Vcall/vcall" }), null, ".deb/.rpm/pacman já têm .desktop");
-  assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/home/ana/vcall/vcall" }), "/home/ana/vcall/vcall", ".tar.gz registra onde está");
+  assert.equal(executavelParaRegistrar({ plataforma: "linux", env: {}, execPath: "/home/ana/vcall/vcall-bin" }), "/home/ana/vcall/vcall", ".tar.gz registra o lançador, não o vcall-bin");
+  assert.equal(lancador("/opt/Vcall/vcall-bin"), "/opt/Vcall/vcall", "a atualização reabre pelo lançador");
+
+  // O sandbox: quem decide é o lançador, antes de o Chromium subir (com
+  // appendSwitch, o Chromium já tinha abortado com SIGTRAP no Ubuntu 24.04).
+  const fsN = await import("node:fs");
+  const tpl = fsN.readFileSync(new URL("./linux/depois-de-instalar.tpl", import.meta.url), "utf8");
+  assert.ok(
+    /^chmod 4755 '\/opt\/\$\{sanitizedProductName\}\/chrome-sandbox'/m.test(tpl) && !/unshare --user true/.test(tpl),
+    "os pacotes deixam o chrome-sandbox setuid sempre, sem o teste do unshare como root",
+  );
+  if (process.platform === "linux") {
+    const { execFileSync } = await import("node:child_process");
+    const os = await import("node:os");
+    const dir = fsN.mkdtempSync(juntar(os.tmpdir(), "vcall-lancador-"));
+    fsN.copyFileSync(new URL("./linux/vcall.sh", import.meta.url), juntar(dir, "vcall"));
+    fsN.writeFileSync(juntar(dir, "vcall-bin"), '#!/bin/sh\necho "$@"\n');
+    fsN.writeFileSync(juntar(dir, "chrome-sandbox"), "");
+    for (const f of ["vcall", "vcall-bin"]) fsN.chmodSync(juntar(dir, f), 0o755);
+    // unshare falso no PATH: sai 0 (namespaces liberados) ou 1 (barrados, como o AppArmor faz).
+    const abrir = (saida, env = {}) => {
+      const bin = juntar(dir, `u${saida}`);
+      fsN.mkdirSync(bin, { recursive: true });
+      fsN.writeFileSync(juntar(bin, "unshare"), `#!/bin/sh\nexit ${saida}\n`, { mode: 0o755 });
+      return execFileSync(juntar(dir, "vcall"), ["vcall://sala/x"], { env: { PATH: `${bin}:/usr/bin:/bin`, ...env }, encoding: "utf8" }).trim();
+    };
+    let apparmor = false;
+    try {
+      apparmor = fsN.readFileSync("/proc/sys/kernel/apparmor_restrict_unprivileged_userns", "utf8").trim() === "1";
+    } catch {
+      /* kernel sem o AppArmor do Ubuntu */
+    }
+    assert.equal(abrir(1), "--no-sandbox vcall://sala/x", "sem namespaces nem chrome-sandbox setuid: abre sem sandbox, com o link");
+    assert.equal(abrir(1, { APPIMAGE: "/home/ana/v.AppImage" }), "--no-sandbox vcall://sala/x", "AppImage também");
+    assert.equal(abrir(0), apparmor ? "--no-sandbox vcall://sala/x" : "vcall://sala/x", "com namespaces: sandbox ligado (salvo AppArmor restringindo)");
+    fsN.rmSync(dir, { recursive: true, force: true });
+  }
   ok("Linux: sandbox, link vcall:// e XWayland sem perder o AppImage, no Fedora, Arch, Ubuntu 24.04 e Debian");
 }
 
@@ -1730,7 +1749,7 @@ if (process.platform === "linux") {
 }
 
 /* ------------------------------------------------------------------ *
- * 3.16: o controle adaptativo da tela.
+ * 3.17: o controle adaptativo da tela.
  *
  *   - O Chrome diz "bandwidth" também quando o encoder encolhe a imagem por
  *     QP alto. O controle lia isso como rede cheia e cortava o teto 25% a

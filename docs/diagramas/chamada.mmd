@@ -1,0 +1,24 @@
+%% Gera a imagem da wiki (Conexao-e-rele.md), desta pasta:
+%% npx -p @mermaid-js/mermaid-cli mmdc -c tema-vcall.json -b "#0d1218" -s 2 -i chamada.mmd -o ../wiki/imagens/diagrama-chamada.png
+flowchart TB
+  S["<b>Servidor de sinalização</b><br/>no PC de quem criou a sala"]
+
+  subgraph sala["Malha ponto a ponto · até 16 pessoas"]
+    direction LR
+    A["<b>Ana</b><br/>câmera · voz · tela"]
+    B["<b>Bruno</b><br/>câmera · voz · tela"]
+    C["<b>Carla</b><br/>câmera · voz · tela"]
+    A <== "mídia direta, cifrada" ==> B
+    B <==> C
+    A <==> C
+  end
+
+  S -. "quem entra · SDP · ICE · chat<br/>(link do túnel ou Tailscale)" .- sala
+
+  classDef pessoa fill:#1e2329,stroke:#fd4d87,stroke-width:1.5px,color:#eef0f3
+  classDef servidor fill:#161b21,stroke:#474e55,stroke-width:1px,color:#eef0f3
+  class A,B,C pessoa
+  class S servidor
+  style sala fill:#0d1218,stroke:#31373e,color:#9fa3a8
+  linkStyle 0,1,2 stroke:#fd4d87,stroke-width:2.5px
+  linkStyle 3 stroke:#9fa3a8,stroke-width:1.5px

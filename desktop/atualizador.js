@@ -30,6 +30,7 @@ import electronUpdater from "electron-updater";
 
 import { reabrirDepois, trocarAppImage } from "./appimage.js";
 import { instalarPacoteDepois } from "./pacote.js";
+import { lancador } from "./linux.js";
 import { confere, nomeNaRelease, sha512DoArquivo } from "./assinatura.js";
 import { REPO, conferir, instalaAoFechar, maisNova, modoDeInstalacao } from "./atualizacao.js";
 
@@ -167,7 +168,7 @@ function instalarPacote(reabrir) {
     const { comando } = instalarPacoteDepois({
       tipo: tipoDoPacote(),
       arquivo: baixado,
-      exe: process.execPath,
+      exe: lancador(),
       reabrir,
       log: path.join(app.getPath("logs"), "vcall.log"),
     });

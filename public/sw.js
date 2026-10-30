@@ -13,7 +13,7 @@
  *  - é registrado só em https (convidados pelo túnel), nunca no computador de
  *    quem criou a sala.
  */
-const CACHE = "vcall-erro-v2";
+const CACHE = "vcall-erro-v3";
 const ARQUIVOS = [
   "/erro.html",
   "/js/erro.js",
@@ -27,6 +27,7 @@ const ARQUIVOS = [
   "/css/app.css",
   "/css/motion.css",
   "/css/call.css",
+  "/css/empresa.css",
   "/assets/illustrations/desconectado.svg",
   "/assets/illustrations/sem-internet.svg",
   "/assets/illustrations/conectando.svg",

@@ -6,12 +6,13 @@
  * a pessoa se vê, escolhe dispositivo, nome e avatar, e só então entra.
  */
 import { el, icon, clear, setIcon, $ } from "../lib/dom.js";
-import { avatarEl, sampleAvatars, STYLE_LABELS, defaultAvatar, isPhoto } from "./avatars.js";
+import { avatarEl, sampleAvatars, STYLE_LABELS, defaultAvatar, isPhoto, semCartum } from "./avatars.js";
 import { preparePhoto, ACCEPTED } from "./photo.js";
 import { prefs, randomSeed, env } from "../lib/util.js";
 import { describeMediaError } from "../core/media.js";
 import { VoiceActivity } from "../core/vad.js";
 import { toast } from "./toast.js";
+import { duo } from "./theme.js";
 
 export class Lobby {
   constructor({ media, theme, onJoin }) {
@@ -40,8 +41,14 @@ export class Lobby {
     this.hint = $("#lobbyHint");
 
     this.nameInput.value = this.name;
-    this.joinBtn.querySelector("span").textContent = isGuest ? "Entrar na sala" : "Começar a call";
-    $("#lobbyTitulo").textContent = isGuest ? "Te chamaram para uma call." : "Sua call está pronta.";
+    // Quem vinha com o rostinho da casa chega com uma paisagem.
+    this.avatar = semCartum(this.avatar);
+    this.joinBtn.querySelector("span").replaceChildren(
+      ...(isGuest ? duo("Entrar na sala", "Entrar agora") : duo("Começar a call", "Iniciar reunião")),
+    );
+    $("#lobbyTitulo").replaceChildren(
+      ...(isGuest ? duo("Te chamaram para uma call.", "Pronto para entrar?") : duo("Sua call está pronta.", "Sua reunião está pronta")),
+    );
     $("#lobbyCanhotoTitulo").textContent = isGuest ? "Tudo certo?" : "Pode chamar.";
     const salaEl = $("#lobbySala");
     // Para o anfitrião: o nome da sala e, com aprovação, que quem chegar pede para entrar.

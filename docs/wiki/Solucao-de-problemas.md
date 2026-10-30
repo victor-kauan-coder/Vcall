@@ -80,16 +80,30 @@ processo passa para o XWayland, sem sair. Atualize; não precisa editar o
 `.desktop` (se você pôs `--ozone-platform=x11` nele, pode deixar).
 
 Em distribuições que bloqueiam o isolamento do Chromium para programas comuns
-(Ubuntu 24.04+, alguns kernels endurecidos), o Vcall detecta e abre mesmo
-assim. Se ainda falhar:
+(Ubuntu 24.04+, alguns kernels endurecidos), o AppImage e o `.tar.gz` caíam ao
+abrir até a 3.15.3. Desde a 3.15.4 o Vcall percebe isso antes de subir e abre
+sem o isolamento. Numa versão antiga:
 
 ```bash
-./Vcall-3.4.0-x86_64.AppImage --no-sandbox
+./Vcall-3.15.3-x86_64.AppImage --no-sandbox
 ```
 
 Ou instale o pacote da sua distro (`.deb`, `.rpm`, `pacman`), que configura o
 isolamento do jeito certo. Sem FUSE instalado:
-`./Vcall-3.4.0-x86_64.AppImage --appimage-extract-and-run`.
+`./Vcall-3.15.3-x86_64.AppImage --appimage-extract-and-run`.
+
+## O Vcall fecha ao abrir no Ubuntu ("fechado inesperadamente", SIGTRAP)
+
+Acontecia com o `.deb` até a 3.15.3 no Ubuntu 24.04 e mais novos: a instalação
+deixava o `chrome-sandbox` sem a permissão que o isolamento do Chromium precisa
+quando o AppArmor bloqueia o outro jeito. A 3.15.4 corrige na instalação. Para
+abrir uma versão antiga já instalada:
+
+```bash
+sudo chmod 4755 /opt/Vcall/chrome-sandbox
+```
+
+Depois, instale a versão nova por cima (`sudo apt install ./Vcall-3.15.4-amd64.deb`).
 
 ## O link do WhatsApp não abre o aplicativo
 

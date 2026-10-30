@@ -23,6 +23,7 @@ import { avatarEl } from "./avatars.js";
 import { toast } from "./toast.js";
 import { calm } from "./motion.js";
 import { newRoomId, prefs } from "../lib/util.js";
+import { duo } from "./theme.js";
 
 const POLL_MS = 5000;
 /** A rede é varrida pelo app de mesa; perguntar mais que isto não traz nada novo. */
@@ -118,9 +119,14 @@ export class Dashboard {
     this.opts.theme?.bindButton?.(tema);
 
     return el("header.dash__head", {}, [
+      // A marca só aparece no visual Empresa, onde o topo é a barra do programa.
+      el("span.dash__marca", { dataset: { so: "empresa" } }, [
+        el("img", { src: "/assets/logo-mark.png", alt: "", width: 24, height: 24 }),
+        el("span", { text: "Vcall" }),
+      ]),
       el("span.dash__greet", { text: saudacao() + (this.opts.nome ? `, ${this.opts.nome}` : "") }),
       el("span.spacer"),
-      el("span.dash__status", {}, [el("i"), el("span", { text: "Pronto para chamar" })]),
+      el("span.dash__status", {}, [el("i"), el("span", {}, duo("Pronto para chamar", "Disponível"))]),
       tema,
       acao("settings", "Configurações", () => this.opts.onSettings?.()),
     ]);
@@ -138,10 +144,14 @@ export class Dashboard {
   #hero() {
     return el("div.dash__hero", {}, [
       el("div.dash__intro", {}, [
-        el("h1.dash__headline", {}, ["Chame alguém ", el("em", { text: "agora." })]),
-        el("p.dash__lead", {
-          text: "Vídeo, voz e tela de um computador direto para o outro. Quem você chama entra pelo link, sem conta.",
-        }),
+        el("h1.dash__headline", {}, [
+          el("span", { dataset: { so: "vcall" } }, ["Chame alguém ", el("em", { text: "agora." })]),
+          el("span", { dataset: { so: "empresa" }, text: saudacao() }),
+        ]),
+        el("p.dash__lead", {}, duo(
+          "Vídeo, voz e tela de um computador direto para o outro. Quem você chama entra pelo link, sem conta.",
+          "Comece uma reunião agora ou entre com o código que você recebeu.",
+        )),
       ]),
       el("div.dash__art", {}, [this.#bilhete()]),
       this.#body(),
@@ -154,10 +164,15 @@ export class Dashboard {
     this.#nomeSala = el("input.bilhete__input", {
       type: "text",
       maxLength: 48,
-      placeholder: "Ex.: Almoço de domingo",
       autocomplete: "off",
       value: prefs.get("room:lastName", ""),
     });
+    // O exemplo acompanha o visual (o placeholder não tem como ter os dois).
+    const exemplo = () => {
+      this.#nomeSala.placeholder = document.documentElement.dataset.visual === "empresa" ? "Ex.: Reunião de equipe" : "Ex.: Almoço de domingo";
+    };
+    exemplo();
+    on(document, "themechange", exemplo);
     // Aprovar quem entra (como no Meet): a sala nasce trancada e quem chega
     // espera na fila até o anfitrião aceitar. Substitui a antiga senha.
     this.#aprovar = el("input", { type: "checkbox", checked: prefs.get("room:aprovar", false) });
@@ -184,12 +199,15 @@ export class Dashboard {
           ]),
         ]),
         el("div.bilhete__cabeca", {}, [
-          el("h2.bilhete__titulo", { text: "Nova call" }),
-          el("p.bilhete__admite", { text: "Admite quem você chamar" }),
+          el("span.bilhete__icone", { "aria-hidden": "true" }, [icon("video")]),
+          el("div", {}, [
+            el("h2.bilhete__titulo", {}, duo("Nova call", "Nova reunião")),
+            el("p.bilhete__admite", {}, duo("Admite quem você chamar", "Até 16 pessoas, com vídeo, voz e tela.")),
+          ]),
         ]),
-        el("label.bilhete__campo", {}, [el("span.bilhete__rotulo", { text: "Nome da sala (opcional)" }), this.#nomeSala]),
+        el("label.bilhete__campo", {}, [el("span.bilhete__rotulo", {}, duo("Nome da sala (opcional)", "Nome da reunião (opcional)")), this.#nomeSala]),
         el("div.bilhete__linha", {}, [
-          el("div.bilhete__campo", {}, [el("span.bilhete__rotulo", { id: "setorRotulo", text: "Setor" }), this.#setor]),
+          el("div.bilhete__campo", {}, [el("span.bilhete__rotulo", { id: "setorRotulo" }, duo("Setor", "Quem pode entrar")), this.#setor]),
           el("label.bilhete__aprovar", {}, [
             this.#aprovar,
             el("span", {}, [
@@ -199,7 +217,7 @@ export class Dashboard {
           ]),
         ]),
         el("div.bilhete__pe", {}, [
-          el("button.bilhete__chamar", { type: "submit" }, [icon("video"), el("span", { text: "Chamar agora" })]),
+          el("button.bilhete__chamar", { type: "submit" }, [icon("video"), ...duo("Chamar agora", "Iniciar reunião")]),
           el("p.bilhete__letras", { text: "Vídeo, voz e tela vão direto, criptografados. A sala some quando todos saem." }),
         ]),
       ]),
@@ -258,6 +276,8 @@ export class Dashboard {
       autocapitalize: "characters",
       spellcheck: false,
       enterKeyHint: "go",
+      // Só aparece no visual Empresa, onde o campo é visível; no Vcall as casas desenhadas cobrem.
+      placeholder: "Ex.: H48C4E",
       "aria-label": "Código da sala",
     });
     const mostrar = () => {
@@ -287,9 +307,15 @@ export class Dashboard {
     codigo.addEventListener("blur", mostrar);
 
     return el("div.bilhete__canhoto", {}, [
-      el("p.bilhete__canhotoTitulo", { text: "Já tem um ingresso?" }),
+      el("div.bilhete__canhotoCabeca", {}, [
+        el("span.bilhete__icone", { "aria-hidden": "true" }, [icon("hash")]),
+        el("div", {}, [
+          el("p.bilhete__canhotoTitulo", {}, duo("Já tem um ingresso?", "Entrar com código")),
+          el("p.bilhete__canhotoSub", { dataset: { so: "empresa" }, text: "O código de 6 caracteres do convite." }),
+        ]),
+      ]),
       el("label.bilhete__codigoCaixa", {}, [
-        el("span.bilhete__rotulo", { text: "Código da sala" }),
+        el("span.bilhete__rotulo", {}, duo("Código da sala", "Código da reunião")),
         el("span.bilhete__codigoWrap", {}, [casas, codigo]),
       ]),
       el("button.bilhete__entrar", { type: "button", onClick: () => this.#enterByCode(codigo.value) }, [
@@ -425,15 +451,18 @@ export class Dashboard {
     const todas = [...this.#rooms, ...this.#salasDaRede()];
     const n = todas.length;
     const people = todas.reduce((a, r) => a + r.size, 0);
-    this.#count.textContent = n
-      ? `${n} ${n === 1 ? "sala" : "salas"} · ${people} ${people === 1 ? "pessoa" : "pessoas"}`
-      : "";
+    const pessoas = `${people} ${people === 1 ? "pessoa" : "pessoas"}`;
+    this.#count.replaceChildren(
+      ...(n ? duo(`${n} ${n === 1 ? "sala" : "salas"} · ${pessoas}`, `${n} ${n === 1 ? "reunião" : "reuniões"} · ${pessoas}`) : []),
+    );
     this.#empty.hidden = n > 0;
     // O ponto vermelho só pulsa quando há mesmo alguma call no ar.
     this.#node?.querySelector(".dash__body")?.classList.toggle("is-vazio", n === 0);
-    this.#empty.querySelector(".dash__emptyTitle").textContent = this.#rede
-      ? "Nenhuma call no ar na sua rede agora."
-      : "Nenhuma call pública no ar agora.";
+    this.#empty.querySelector(".dash__emptyTitle").replaceChildren(
+      ...(this.#rede
+        ? duo("Nenhuma call no ar na sua rede agora.", "Nenhuma reunião na sua rede agora.")
+        : duo("Nenhuma call pública no ar agora.", "Nenhuma reunião pública agora.")),
+    );
 
     // A tela inicial não rola: mostra as mais cheias e resume o resto.
     const ordenadas = todas.sort((a, b) => b.size - a.size);
@@ -573,7 +602,13 @@ export class Dashboard {
     this.#roomIdFixo = roomId;
     this.#node?.querySelector(".bilhete")?.classList.add("is-pedido");
     this.#nomeSala?.focus();
-    toast("Dê um nome à sala, se quiser, e toque em Chamar agora para criar a call aqui.", { tone: "info", ms: 6000 });
+    const empresa = document.documentElement.dataset.visual === "empresa";
+    toast(
+      empresa
+        ? "Dê um nome à reunião, se quiser, e toque em Iniciar reunião para criá-la aqui."
+        : "Dê um nome à sala, se quiser, e toque em Chamar agora para criar a call aqui.",
+      { tone: "info", ms: 6000 },
+    );
   }
 
   /**
@@ -599,7 +634,8 @@ export class Dashboard {
         meta: { name, visibility: this.#visibilidade, aprovar },
       });
     bilhete.classList.add("is-destacado");
-    if (calm()) entrar();
+    // No visual Empresa não há ingresso para destacar: entra direto.
+    if (calm() || document.documentElement.dataset.visual === "empresa") entrar();
     else setTimeout(entrar, 520);
   }
 }

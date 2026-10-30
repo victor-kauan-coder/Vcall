@@ -4,6 +4,25 @@ O Vcall liga cada pessoa direto nas outras, sem servidor de mídia, e por isso a
 chamada é criptografada de ponta a ponta. Esta página explica o que ele faz para
 a voz não picotar e a chamada não cair.
 
+## Como a chamada funciona
+
+![Servidor de sinalização ligado à sala; Ana, Bruno e Carla ligados direto uns aos outros](imagens/diagrama-chamada.png)
+
+O servidor roda no computador de quem criou a sala, e os outros chegam a ele
+pelo link (túnel do Cloudflare) ou pelo Tailscale. Ele só apresenta as pessoas:
+quem entra, as ofertas e respostas de conexão (SDP), os caminhos possíveis (ICE)
+e o texto do chat, sem guardar nada. Câmera, voz, tela, quadro e arquivos vão
+direto de um computador ao outro, criptografados (DTLS-SRTP).
+
+Cada pessoa manda uma cópia da própria câmera para cada uma das outras. Por isso
+a sala vai até 16 pessoas, e o Vcall baixa a qualidade sozinho conforme ela
+enche.
+
+![Passo a passo: entrar, trocar ofertas pela sinalização e ligar direto, pelo TURN ou pela Carla](imagens/diagrama-conexao.png)
+
+Quando a conexão direta não fecha, a mídia passa por um [servidor TURN](#servidor-turn),
+se houver um configurado, ou por outra pessoa da sala ([relé](#relé-a-sala-se-ajuda)).
+
 ## Voz que aguenta rede ruim
 
 - **Redundância (RED):** cada pacote de voz leva junto uma cópia do anterior. Se

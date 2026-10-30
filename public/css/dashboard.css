@@ -531,6 +531,10 @@
 .bilhete__codigo::selection {
   background: transparent;
 }
+/* O exemplo é do visual Empresa, onde o campo aparece; aqui as casas cobrem. */
+.bilhete__codigo::placeholder {
+  color: transparent;
+}
 .bilhete__codigoWrap:has(.bilhete__codigo:focus-visible) .bilhete__casas {
   border-radius: 12px;
   outline: 2px solid var(--acento-claro);

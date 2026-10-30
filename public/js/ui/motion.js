@@ -196,7 +196,8 @@ export async function playIntro() {
   } catch {
     /* sem armazenamento: mostra */
   }
-  if (seen || calm()) {
+  // O visual Empresa abre direto, como programa de escritório: sem vinheta.
+  if (seen || calm() || document.documentElement.dataset.visual === "empresa") {
     root.remove();
     document.dispatchEvent(new CustomEvent("vcall:intro-done"));
     return;
@@ -611,8 +612,10 @@ export function magnifyDock(dock) {
 
   const paint = () => {
     raf = 0;
+    // No visual Empresa os botões ficam parados, como no Meet e no Teams.
+    const parado = document.documentElement.dataset.visual === "empresa";
     for (const b of dock.querySelectorAll(".ctrl")) {
-      if (px === null || !b.offsetParent) {
+      if (px === null || parado || !b.offsetParent) {
         b.style.scale = "";
         b.style.translate = "";
         continue;

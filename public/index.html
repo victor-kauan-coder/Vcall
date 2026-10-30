@@ -36,6 +36,8 @@
     <link rel="stylesheet" href="/css/call.css" />
     <!-- Por último de propósito: é a última palavra sobre telas pequenas. -->
     <link rel="stylesheet" href="/css/mobile.css" />
+    <!-- O visual Empresa vem depois de tudo: só vale com [data-visual="empresa"]. -->
+    <link rel="stylesheet" href="/css/empresa.css" />
   </head>
 
   <body>
@@ -216,7 +218,7 @@
     <dialog class="modal" id="inviteModal" aria-labelledby="inviteTitle">
       <form method="dialog" class="modal__card">
         <div class="modal__head">
-          <h2 class="modal__title" id="inviteTitle">Convidar para a sala</h2>
+          <h2 class="modal__title" id="inviteTitle"><span data-so="vcall">Convidar para a sala</span><span data-so="empresa">Convidar para a reunião</span></h2>
           <button class="btn btn--icon btn--ghost" value="close" aria-label="Fechar">
             <svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#i-x" /></svg>
           </button>

@@ -12,7 +12,8 @@ troca vale na hora, sem recarregar, e fica guardada neste computador.
   reuniões ao vivo numa lista embaixo.
 - **Antes de entrar**: a câmera grande à esquerda; nome, aparelhos e avatar à
   direita.
-- **Na chamada**: o palco é escuro também no tema claro. Os botões são
+- **Na chamada**: tudo fica escuro, inclusive a conversa, também no tema
+  claro. Os botões são
   redondos e ficam vermelhos quando o microfone ou a câmera estão desligados.
   A conversa e as pessoas abrem num cartão ao lado.
 - **Barra enxuta**: jogos, legendas, gravação, qualidade, layout e

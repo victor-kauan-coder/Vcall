@@ -934,14 +934,16 @@
 /* ============================== Chamada ============================== */
 
 /*
- * O palco é escuro nos dois temas, como no Meet: o topo, a grade e a barra
- * de controles recebem os neutros do palco no lugar dos do tema. O painel
- * lateral, irmão da grade, continua na luz do tema, como um cartão por cima.
+ * A chamada é escura nos dois temas: o topo, a grade, a barra de controles
+ * e o painel lateral recebem os neutros do palco no lugar dos do tema. Um
+ * painel branco ao lado dos rostos ofuscava, sobretudo à noite, e partia a
+ * tela em dois programas. O tema claro vale fora da chamada (início,
+ * antessala) e nos diálogos.
  */
 :root[data-visual="empresa"] .stage {
   background: var(--palco);
 }
-:root[data-visual="empresa"] :is(.topbar, .stage__main, .dock) {
+:root[data-visual="empresa"] :is(.topbar, .stage__main, .dock, .panel) {
   --bg: var(--palco);
   --bg-elevated: var(--palco-elevado);
   --surface: var(--palco-superficie);
@@ -1132,13 +1134,13 @@
   color: var(--accent-text);
 }
 
-/* -- painel lateral: um cartão flutuando no palco, abas com sublinhado -- */
+/* -- painel lateral: um cartão escuro no palco, um degrau acima dele -- */
 :root[data-visual="empresa"] .panel {
   margin: var(--sp-3) var(--sp-3) var(--sp-3) 0;
-  border: 0;
+  border: 1px solid var(--palco-borda);
   border-radius: var(--radius-xl);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-lg);
+  background: var(--palco-elevado);
+  box-shadow: none;
   overflow: hidden;
 }
 :root[data-visual="empresa"] .panel__tabs {

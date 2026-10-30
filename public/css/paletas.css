@@ -450,6 +450,668 @@
   }
 }
 
+/* ==================== Visual Empresa ==================== */
+
+/* Empresa · Tinta (escuro) */
+:root[data-visual="empresa"][data-paleta="tinta"]:not([data-theme="light"]) {
+  --bg: #1a1c1e;
+  --bg-elevated: #232527;
+  --surface: #232527;
+  --surface-2: #2c2e30;
+  --surface-3: #37393c;
+  --surface-hover: #323436;
+  --border: #353739;
+  --border-strong: #515355;
+  --border-subtle: #2a2c2e;
+  --text: #f3f3f4;
+  --text-secondary: #c3c4c5;
+  --text-muted: #adaeaf;
+  --text-inverse: #1a1c1e;
+  --board-paper: #1a1c1e;
+  --board-ink: #f3f3f4;
+  --scrim: #050607;
+  --palco: #161719;
+  --palco-elevado: #212325;
+  --palco-superficie: #303234;
+  --palco-superficie-2: #3b3d40;
+  --palco-hover: #46484a;
+  --palco-borda: #404345;
+  --palco-texto: #f4f5f6;
+  --palco-texto-2: #c6c7c8;
+  --palco-texto-3: #b0b1b2;
+  --tile-bg: #282a2c;
+  --tile-glow: #353739;
+  --accent-text: #161719;
+  --palco-accent: #fd4d87;
+  --palco-accent-text: #161719;
+  --accent: #fd4d87;
+  --accent-hover: color-mix(in oklab, #fd4d87 86%, #f3f3f4);
+  --accent-soft: #fd4d8729;
+  --accent-2: #fe9c5f;
+  --accent-2-soft: #fe9c5f29;
+  --brand-pink: #fd4d87;
+  --brand-orange: #fe9c5f;
+}
+
+/* Empresa · Tinta (claro) */
+:root[data-visual="empresa"][data-paleta="tinta"][data-theme="light"] {
+  --bg: #f3f4f6;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f0f1f3;
+  --surface-3: #e6e7e9;
+  --surface-hover: #ebedee;
+  --border: #dcdee0;
+  --border-strong: #c1c3c4;
+  --border-subtle: #e8eaeb;
+  --text: #222324;
+  --text-secondary: #48494a;
+  --text-muted: #5f6162;
+  --text-inverse: #ffffff;
+  --board-paper: #ffffff;
+  --board-ink: #222324;
+  --scrim: #212223;
+  --palco: #161719;
+  --palco-elevado: #212325;
+  --palco-superficie: #303234;
+  --palco-superficie-2: #3b3d40;
+  --palco-hover: #46484a;
+  --palco-borda: #404345;
+  --palco-texto: #f4f5f6;
+  --palco-texto-2: #c6c7c8;
+  --palco-texto-3: #b0b1b2;
+  --tile-bg: #282a2c;
+  --tile-glow: #353739;
+  --accent-text: #ffffff;
+  --palco-accent: #fd4d87;
+  --palco-accent-text: #161719;
+  --ok: #0b6e4c;
+  --ok-soft: #0b6e4c1f;
+  --warn: #8a5300;
+  --warn-soft: #8a53001f;
+  --accent: #c21f55;
+  --accent-hover: color-mix(in oklab, #c21f55 86%, #222324);
+  --accent-soft: #c21f5529;
+  --accent-2: #9c5212;
+  --accent-2-soft: #9c521229;
+  --brand-pink: #c21f55;
+  --brand-orange: #9c5212;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-visual="empresa"][data-paleta="tinta"]:not([data-theme]) {
+    --bg: #f3f4f6;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f0f1f3;
+    --surface-3: #e6e7e9;
+    --surface-hover: #ebedee;
+    --border: #dcdee0;
+    --border-strong: #c1c3c4;
+    --border-subtle: #e8eaeb;
+    --text: #222324;
+    --text-secondary: #48494a;
+    --text-muted: #5f6162;
+    --text-inverse: #ffffff;
+    --board-paper: #ffffff;
+    --board-ink: #222324;
+    --scrim: #212223;
+    --palco: #161719;
+    --palco-elevado: #212325;
+    --palco-superficie: #303234;
+    --palco-superficie-2: #3b3d40;
+    --palco-hover: #46484a;
+    --palco-borda: #404345;
+    --palco-texto: #f4f5f6;
+    --palco-texto-2: #c6c7c8;
+    --palco-texto-3: #b0b1b2;
+    --tile-bg: #282a2c;
+    --tile-glow: #353739;
+    --accent-text: #ffffff;
+    --palco-accent: #fd4d87;
+    --palco-accent-text: #161719;
+    --ok: #0b6e4c;
+    --ok-soft: #0b6e4c1f;
+    --warn: #8a5300;
+    --warn-soft: #8a53001f;
+    --accent: #c21f55;
+    --accent-hover: color-mix(in oklab, #c21f55 86%, #222324);
+    --accent-soft: #c21f5529;
+    --accent-2: #9c5212;
+    --accent-2-soft: #9c521229;
+    --brand-pink: #c21f55;
+    --brand-orange: #9c5212;
+  }
+}
+
+/* Empresa · Ametista (escuro) */
+:root[data-visual="empresa"][data-paleta="ametista"]:not([data-theme="light"]) {
+  --bg: #1a1a27;
+  --bg-elevated: #232331;
+  --surface: #232331;
+  --surface-2: #2c2c3a;
+  --surface-3: #383846;
+  --surface-hover: #323240;
+  --border: #353544;
+  --border-strong: #515160;
+  --border-subtle: #2a2a38;
+  --text: #f3f3f9;
+  --text-secondary: #c3c3cb;
+  --text-muted: #adadb6;
+  --text-inverse: #1a1a27;
+  --board-paper: #1a1a27;
+  --board-ink: #f3f3f9;
+  --scrim: #05050f;
+  --palco: #161622;
+  --palco-elevado: #21212f;
+  --palco-superficie: #30303e;
+  --palco-superficie-2: #3b3b4a;
+  --palco-hover: #464655;
+  --palco-borda: #414150;
+  --palco-texto: #f4f4fa;
+  --palco-texto-2: #c6c6ce;
+  --palco-texto-3: #b0b0b9;
+  --tile-bg: #292836;
+  --tile-glow: #353544;
+  --accent-text: #161622;
+  --palco-accent: #fd4d87;
+  --palco-accent-text: #161622;
+  --accent: #fd4d87;
+  --accent-hover: color-mix(in oklab, #fd4d87 86%, #f3f3f9);
+  --accent-soft: #fd4d8729;
+  --accent-2: #fe9c5f;
+  --accent-2-soft: #fe9c5f29;
+  --brand-pink: #fd4d87;
+  --brand-orange: #fe9c5f;
+}
+
+/* Empresa · Ametista (claro) */
+:root[data-visual="empresa"][data-paleta="ametista"][data-theme="light"] {
+  --bg: #f3f4fb;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f0f0fa;
+  --surface-3: #e6e6f1;
+  --surface-hover: #ebebf6;
+  --border: #dddde8;
+  --border-strong: #c1c1ce;
+  --border-subtle: #e8e8f2;
+  --text: #222229;
+  --text-secondary: #484851;
+  --text-muted: #5f5f6a;
+  --text-inverse: #ffffff;
+  --board-paper: #ffffff;
+  --board-ink: #222229;
+  --scrim: #212129;
+  --palco: #161622;
+  --palco-elevado: #21212f;
+  --palco-superficie: #30303e;
+  --palco-superficie-2: #3b3b4a;
+  --palco-hover: #464655;
+  --palco-borda: #414150;
+  --palco-texto: #f4f4fa;
+  --palco-texto-2: #c6c6ce;
+  --palco-texto-3: #b0b0b9;
+  --tile-bg: #292836;
+  --tile-glow: #353544;
+  --accent-text: #ffffff;
+  --palco-accent: #fd4d87;
+  --palco-accent-text: #161622;
+  --ok: #0b6e4c;
+  --ok-soft: #0b6e4c1f;
+  --warn: #8a5300;
+  --warn-soft: #8a53001f;
+  --accent: #c21f55;
+  --accent-hover: color-mix(in oklab, #c21f55 86%, #222229);
+  --accent-soft: #c21f5529;
+  --accent-2: #9c5212;
+  --accent-2-soft: #9c521229;
+  --brand-pink: #c21f55;
+  --brand-orange: #9c5212;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-visual="empresa"][data-paleta="ametista"]:not([data-theme]) {
+    --bg: #f3f4fb;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f0f0fa;
+    --surface-3: #e6e6f1;
+    --surface-hover: #ebebf6;
+    --border: #dddde8;
+    --border-strong: #c1c1ce;
+    --border-subtle: #e8e8f2;
+    --text: #222229;
+    --text-secondary: #484851;
+    --text-muted: #5f5f6a;
+    --text-inverse: #ffffff;
+    --board-paper: #ffffff;
+    --board-ink: #222229;
+    --scrim: #212129;
+    --palco: #161622;
+    --palco-elevado: #21212f;
+    --palco-superficie: #30303e;
+    --palco-superficie-2: #3b3b4a;
+    --palco-hover: #464655;
+    --palco-borda: #414150;
+    --palco-texto: #f4f4fa;
+    --palco-texto-2: #c6c6ce;
+    --palco-texto-3: #b0b0b9;
+    --tile-bg: #292836;
+    --tile-glow: #353544;
+    --accent-text: #ffffff;
+    --palco-accent: #fd4d87;
+    --palco-accent-text: #161622;
+    --ok: #0b6e4c;
+    --ok-soft: #0b6e4c1f;
+    --warn: #8a5300;
+    --warn-soft: #8a53001f;
+    --accent: #c21f55;
+    --accent-hover: color-mix(in oklab, #c21f55 86%, #222229);
+    --accent-soft: #c21f5529;
+    --accent-2: #9c5212;
+    --accent-2-soft: #9c521229;
+    --brand-pink: #c21f55;
+    --brand-orange: #9c5212;
+  }
+}
+
+/* Empresa · Carvão (escuro) */
+:root[data-visual="empresa"][data-paleta="carvao"]:not([data-theme="light"]) {
+  --bg: #1c1c1c;
+  --bg-elevated: #242424;
+  --surface: #242424;
+  --surface-2: #2e2e2e;
+  --surface-3: #393939;
+  --surface-hover: #333333;
+  --border: #373737;
+  --border-strong: #525252;
+  --border-subtle: #2b2b2b;
+  --text: #f3f3f3;
+  --text-secondary: #c4c4c4;
+  --text-muted: #aeaeae;
+  --text-inverse: #1c1c1c;
+  --board-paper: #1c1c1c;
+  --board-ink: #f3f3f3;
+  --scrim: #060606;
+  --palco: #171717;
+  --palco-elevado: #232323;
+  --palco-superficie: #313131;
+  --palco-superficie-2: #3d3d3d;
+  --palco-hover: #484848;
+  --palco-borda: #424242;
+  --palco-texto: #f5f5f5;
+  --palco-texto-2: #c7c7c7;
+  --palco-texto-3: #b1b1b1;
+  --tile-bg: #2a2a2a;
+  --tile-glow: #373737;
+  --accent-text: #171717;
+  --palco-accent: #ffb020;
+  --palco-accent-text: #171717;
+  --accent: #ffb020;
+  --accent-hover: color-mix(in oklab, #ffb020 86%, #f3f3f3);
+  --accent-soft: #ffb02029;
+  --accent-2: #ff7a45;
+  --accent-2-soft: #ff7a4529;
+  --brand-pink: #ffb020;
+  --brand-orange: #ff7a45;
+}
+
+/* Empresa · Carvão (claro) */
+:root[data-visual="empresa"][data-paleta="carvao"][data-theme="light"] {
+  --bg: #f4f4f4;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f1f1f1;
+  --surface-3: #e7e7e7;
+  --surface-hover: #ececec;
+  --border: #dedede;
+  --border-strong: #c2c2c2;
+  --border-subtle: #e9e9e9;
+  --text: #232323;
+  --text-secondary: #494949;
+  --text-muted: #606060;
+  --text-inverse: #ffffff;
+  --board-paper: #ffffff;
+  --board-ink: #232323;
+  --scrim: #222222;
+  --palco: #171717;
+  --palco-elevado: #232323;
+  --palco-superficie: #313131;
+  --palco-superficie-2: #3d3d3d;
+  --palco-hover: #484848;
+  --palco-borda: #424242;
+  --palco-texto: #f5f5f5;
+  --palco-texto-2: #c7c7c7;
+  --palco-texto-3: #b1b1b1;
+  --tile-bg: #2a2a2a;
+  --tile-glow: #373737;
+  --accent-text: #ffffff;
+  --palco-accent: #ffb020;
+  --palco-accent-text: #171717;
+  --ok: #0b6e4c;
+  --ok-soft: #0b6e4c1f;
+  --warn: #8a5300;
+  --warn-soft: #8a53001f;
+  --accent: #8a5200;
+  --accent-hover: color-mix(in oklab, #8a5200 86%, #232323);
+  --accent-soft: #8a520029;
+  --accent-2: #963612;
+  --accent-2-soft: #96361229;
+  --brand-pink: #8a5200;
+  --brand-orange: #963612;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-visual="empresa"][data-paleta="carvao"]:not([data-theme]) {
+    --bg: #f4f4f4;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f1f1f1;
+    --surface-3: #e7e7e7;
+    --surface-hover: #ececec;
+    --border: #dedede;
+    --border-strong: #c2c2c2;
+    --border-subtle: #e9e9e9;
+    --text: #232323;
+    --text-secondary: #494949;
+    --text-muted: #606060;
+    --text-inverse: #ffffff;
+    --board-paper: #ffffff;
+    --board-ink: #232323;
+    --scrim: #222222;
+    --palco: #171717;
+    --palco-elevado: #232323;
+    --palco-superficie: #313131;
+    --palco-superficie-2: #3d3d3d;
+    --palco-hover: #484848;
+    --palco-borda: #424242;
+    --palco-texto: #f5f5f5;
+    --palco-texto-2: #c7c7c7;
+    --palco-texto-3: #b1b1b1;
+    --tile-bg: #2a2a2a;
+    --tile-glow: #373737;
+    --accent-text: #ffffff;
+    --palco-accent: #ffb020;
+    --palco-accent-text: #171717;
+    --ok: #0b6e4c;
+    --ok-soft: #0b6e4c1f;
+    --warn: #8a5300;
+    --warn-soft: #8a53001f;
+    --accent: #8a5200;
+    --accent-hover: color-mix(in oklab, #8a5200 86%, #232323);
+    --accent-soft: #8a520029;
+    --accent-2: #963612;
+    --accent-2-soft: #96361229;
+    --brand-pink: #8a5200;
+    --brand-orange: #963612;
+  }
+}
+
+/* Empresa · Oceano (escuro) */
+:root[data-visual="empresa"][data-paleta="oceano"]:not([data-theme="light"]) {
+  --bg: #121e22;
+  --bg-elevated: #1b272b;
+  --surface: #1b272b;
+  --surface-2: #243035;
+  --surface-3: #2f3b41;
+  --surface-hover: #29363b;
+  --border: #2d393e;
+  --border-strong: #48555a;
+  --border-subtle: #212d32;
+  --text: #f0f4f6;
+  --text-secondary: #bfc5c8;
+  --text-muted: #a8afb2;
+  --text-inverse: #121e22;
+  --board-paper: #121e22;
+  --board-ink: #f0f4f6;
+  --scrim: #01070b;
+  --palco: #0e191e;
+  --palco-elevado: #19252a;
+  --palco-superficie: #283439;
+  --palco-superficie-2: #333f45;
+  --palco-hover: #3d4a4f;
+  --palco-borda: #38454a;
+  --palco-texto: #f1f6f8;
+  --palco-texto-2: #c2c8cb;
+  --palco-texto-3: #abb2b6;
+  --tile-bg: #202c31;
+  --tile-glow: #2d393e;
+  --accent-text: #0e191e;
+  --palco-accent: #38bdf8;
+  --palco-accent-text: #0e191e;
+  --accent: #38bdf8;
+  --accent-hover: color-mix(in oklab, #38bdf8 86%, #f0f4f6);
+  --accent-soft: #38bdf829;
+  --accent-2: #2dd4bf;
+  --accent-2-soft: #2dd4bf29;
+  --brand-pink: #38bdf8;
+  --brand-orange: #2dd4bf;
+}
+
+/* Empresa · Oceano (claro) */
+:root[data-visual="empresa"][data-paleta="oceano"][data-theme="light"] {
+  --bg: #eff6f8;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #ebf3f6;
+  --surface-3: #e0e9ed;
+  --surface-hover: #e6eef2;
+  --border: #d7e0e4;
+  --border-strong: #bac4c9;
+  --border-subtle: #e3ebee;
+  --text: #1e2426;
+  --text-secondary: #434a4e;
+  --text-muted: #596266;
+  --text-inverse: #ffffff;
+  --board-paper: #ffffff;
+  --board-ink: #1e2426;
+  --scrim: #1c2326;
+  --palco: #0e191e;
+  --palco-elevado: #19252a;
+  --palco-superficie: #283439;
+  --palco-superficie-2: #333f45;
+  --palco-hover: #3d4a4f;
+  --palco-borda: #38454a;
+  --palco-texto: #f1f6f8;
+  --palco-texto-2: #c2c8cb;
+  --palco-texto-3: #abb2b6;
+  --tile-bg: #202c31;
+  --tile-glow: #2d393e;
+  --accent-text: #ffffff;
+  --palco-accent: #38bdf8;
+  --palco-accent-text: #0e191e;
+  --ok: #0b6e4c;
+  --ok-soft: #0b6e4c1f;
+  --warn: #8a5300;
+  --warn-soft: #8a53001f;
+  --accent: #0369a1;
+  --accent-hover: color-mix(in oklab, #0369a1 86%, #1e2426);
+  --accent-soft: #0369a129;
+  --accent-2: #0f766e;
+  --accent-2-soft: #0f766e29;
+  --brand-pink: #0369a1;
+  --brand-orange: #0f766e;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-visual="empresa"][data-paleta="oceano"]:not([data-theme]) {
+    --bg: #eff6f8;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #ebf3f6;
+    --surface-3: #e0e9ed;
+    --surface-hover: #e6eef2;
+    --border: #d7e0e4;
+    --border-strong: #bac4c9;
+    --border-subtle: #e3ebee;
+    --text: #1e2426;
+    --text-secondary: #434a4e;
+    --text-muted: #596266;
+    --text-inverse: #ffffff;
+    --board-paper: #ffffff;
+    --board-ink: #1e2426;
+    --scrim: #1c2326;
+    --palco: #0e191e;
+    --palco-elevado: #19252a;
+    --palco-superficie: #283439;
+    --palco-superficie-2: #333f45;
+    --palco-hover: #3d4a4f;
+    --palco-borda: #38454a;
+    --palco-texto: #f1f6f8;
+    --palco-texto-2: #c2c8cb;
+    --palco-texto-3: #abb2b6;
+    --tile-bg: #202c31;
+    --tile-glow: #2d393e;
+    --accent-text: #ffffff;
+    --palco-accent: #38bdf8;
+    --palco-accent-text: #0e191e;
+    --ok: #0b6e4c;
+    --ok-soft: #0b6e4c1f;
+    --warn: #8a5300;
+    --warn-soft: #8a53001f;
+    --accent: #0369a1;
+    --accent-hover: color-mix(in oklab, #0369a1 86%, #1e2426);
+    --accent-soft: #0369a129;
+    --accent-2: #0f766e;
+    --accent-2-soft: #0f766e29;
+    --brand-pink: #0369a1;
+    --brand-orange: #0f766e;
+  }
+}
+
+/* Empresa · Brasa (escuro) */
+:root[data-visual="empresa"][data-paleta="brasa"]:not([data-theme="light"]) {
+  --bg: #211a17;
+  --bg-elevated: #2a2320;
+  --surface: #2a2320;
+  --surface-2: #332c29;
+  --surface-3: #3f3734;
+  --surface-hover: #39322e;
+  --border: #3c3532;
+  --border-strong: #58514d;
+  --border-subtle: #312a26;
+  --text: #f6f3f1;
+  --text-secondary: #c7c3c1;
+  --text-muted: #b1adab;
+  --text-inverse: #211a17;
+  --board-paper: #211a17;
+  --board-ink: #f6f3f1;
+  --scrim: #090503;
+  --palco: #1c1613;
+  --palco-elevado: #28211e;
+  --palco-superficie: #37302d;
+  --palco-superficie-2: #433b38;
+  --palco-hover: #4e4642;
+  --palco-borda: #48413d;
+  --palco-texto: #f7f4f3;
+  --palco-texto-2: #cac6c5;
+  --palco-texto-3: #b4b0ae;
+  --tile-bg: #2f2825;
+  --tile-glow: #3c3532;
+  --accent-text: #1c1613;
+  --palco-accent: #ff8a5b;
+  --palco-accent-text: #1c1613;
+  --accent: #ff8a5b;
+  --accent-hover: color-mix(in oklab, #ff8a5b 86%, #f6f3f1);
+  --accent-soft: #ff8a5b29;
+  --accent-2: #ffc94d;
+  --accent-2-soft: #ffc94d29;
+  --brand-pink: #ff8a5b;
+  --brand-orange: #ffc94d;
+}
+
+/* Empresa · Brasa (claro) */
+:root[data-visual="empresa"][data-paleta="brasa"][data-theme="light"] {
+  --bg: #f7f3f2;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f5f0ee;
+  --surface-3: #ece6e3;
+  --surface-hover: #f0ebe9;
+  --border: #e2ddda;
+  --border-strong: #c7c1be;
+  --border-subtle: #ede8e6;
+  --text: #252220;
+  --text-secondary: #4d4846;
+  --text-muted: #655f5d;
+  --text-inverse: #ffffff;
+  --board-paper: #ffffff;
+  --board-ink: #252220;
+  --scrim: #25211f;
+  --palco: #1c1613;
+  --palco-elevado: #28211e;
+  --palco-superficie: #37302d;
+  --palco-superficie-2: #433b38;
+  --palco-hover: #4e4642;
+  --palco-borda: #48413d;
+  --palco-texto: #f7f4f3;
+  --palco-texto-2: #cac6c5;
+  --palco-texto-3: #b4b0ae;
+  --tile-bg: #2f2825;
+  --tile-glow: #3c3532;
+  --accent-text: #ffffff;
+  --palco-accent: #ff8a5b;
+  --palco-accent-text: #1c1613;
+  --ok: #0b6e4c;
+  --ok-soft: #0b6e4c1f;
+  --warn: #8a5300;
+  --warn-soft: #8a53001f;
+  --accent: #99390a;
+  --accent-hover: color-mix(in oklab, #99390a 86%, #252220);
+  --accent-soft: #99390a29;
+  --accent-2: #6f4c00;
+  --accent-2-soft: #6f4c0029;
+  --brand-pink: #99390a;
+  --brand-orange: #6f4c00;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-visual="empresa"][data-paleta="brasa"]:not([data-theme]) {
+    --bg: #f7f3f2;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f5f0ee;
+    --surface-3: #ece6e3;
+    --surface-hover: #f0ebe9;
+    --border: #e2ddda;
+    --border-strong: #c7c1be;
+    --border-subtle: #ede8e6;
+    --text: #252220;
+    --text-secondary: #4d4846;
+    --text-muted: #655f5d;
+    --text-inverse: #ffffff;
+    --board-paper: #ffffff;
+    --board-ink: #252220;
+    --scrim: #25211f;
+    --palco: #1c1613;
+    --palco-elevado: #28211e;
+    --palco-superficie: #37302d;
+    --palco-superficie-2: #433b38;
+    --palco-hover: #4e4642;
+    --palco-borda: #48413d;
+    --palco-texto: #f7f4f3;
+    --palco-texto-2: #cac6c5;
+    --palco-texto-3: #b4b0ae;
+    --tile-bg: #2f2825;
+    --tile-glow: #3c3532;
+    --accent-text: #ffffff;
+    --palco-accent: #ff8a5b;
+    --palco-accent-text: #1c1613;
+    --ok: #0b6e4c;
+    --ok-soft: #0b6e4c1f;
+    --warn: #8a5300;
+    --warn-soft: #8a53001f;
+    --accent: #99390a;
+    --accent-hover: color-mix(in oklab, #99390a 86%, #252220);
+    --accent-soft: #99390a29;
+    --accent-2: #6f4c00;
+    --accent-2-soft: #6f4c0029;
+    --brand-pink: #99390a;
+    --brand-orange: #6f4c00;
+  }
+}
+
 /* Amostras dos botões de escolha de paleta. */
 .paletaOpcao[data-paleta-amostra="tinta"] .paletaOpcao__fundo { background: #0d1218; }
 .paletaOpcao[data-paleta-amostra="tinta"] .paletaOpcao__superficie { background: #262b32; }

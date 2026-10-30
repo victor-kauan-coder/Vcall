@@ -14,7 +14,7 @@ import { LocalMedia, describeMediaError } from "./core/media.js";
 import { ScreenShare, SCREEN_QUALITY, describeScreenError } from "./core/screen.js";
 import { Mesh } from "./core/mesh.js";
 
-import { Theme } from "./ui/theme.js";
+import { Theme, duo } from "./ui/theme.js";
 import { PALETAS } from "./ui/paletas.js";
 import { Lobby } from "./ui/lobby.js";
 import { Stage } from "./ui/stage.js";
@@ -23,7 +23,7 @@ import { Dock } from "./ui/dock.js";
 import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, Sinais, validar as validarReacao } from "./features/reacoes.js";
 import { CamadaReacoes, montarMenu as montarMenuDeReacoes } from "./ui/reacoes.js";
 import { toast, chime } from "./ui/toast.js";
-import { avatarEl, colorFor, defaultAvatar, isPhoto } from "./ui/avatars.js";
+import { avatarEl, colorFor, defaultAvatar, isPhoto, semCartum } from "./ui/avatars.js";
 import { ilustracao } from "./ui/ilustracao.js";
 import { montarTelaDeErro } from "./ui/tela-erro.js";
 import { RemoteAudio } from "./ui/audio.js";
@@ -318,10 +318,11 @@ function buildWaiting() {
   const code = el("span.waiting__code", { text: app.roomCode || "······" });
   const box = el("section.waiting", { id: "waiting", "aria-label": "Aguardando participantes", hidden: true }, [
     ilustracao("sala-vazia", { largura: 300, altura: 225 }),
-    el("h2.waiting__title", { text: "Só você por aqui, por enquanto" }),
-    el("p.waiting__lead", {
-      text: "Mande o link ou dite o código. A chamada começa no instante em que alguém entrar.",
-    }),
+    el("h2.waiting__title", {}, duo("Só você por aqui, por enquanto", "Sua reunião está pronta")),
+    el("p.waiting__lead", {}, duo(
+      "Mande o link ou dite o código. A chamada começa no instante em que alguém entrar.",
+      "Compartilhe o link ou o código com quem vai participar.",
+    )),
     el("button.waiting__codeBtn", {
       type: "button",
       "aria-label": "Copiar código da sala",
@@ -330,7 +331,7 @@ function buildWaiting() {
     el("div.waiting__actions", {}, [
       el("button.btn.btn--primary.btn--lg", { type: "button", onClick: () => copy(roomLink(), "Link copiado") }, [
         icon("link"),
-        el("span", { text: "Copiar link da sala" }),
+        el("span", {}, duo("Copiar link da sala", "Copiar link da reunião")),
       ]),
       el("button.btn.btn--lg", { type: "button", onClick: () => openInvite() }, [
         icon("user-plus"),
@@ -1179,9 +1180,9 @@ export function carga(texto = "") {
   ]);
 }
 
-/** A fileira de botões claro / escuro / sistema. */
+/** A fileira de botões claro / escuro / sistema, com o rótulo. */
 function themeRowDeConfiguracoes() {
-  const linha = el("div.row");
+  const linha = el("div.row.temaLinha", { role: "group", "aria-label": "Tema" });
   for (const [mode, label, iconName] of [
     ["system", "Sistema", "laptop"],
     ["light", "Claro", "sun"],
@@ -1199,7 +1200,7 @@ function themeRowDeConfiguracoes() {
     b.append(icon(iconName, { size: "sm" }), el("span", { text: label }));
     linha.append(b);
   }
-  return linha;
+  return el("div.stack", {}, [el("div.field__label", { text: "Tema" }), linha]);
 }
 
 /**
@@ -1245,8 +1246,52 @@ function seletorDePaletas() {
   return el("div.stack", {}, [
     el("div.field__label", { text: "Paleta" }),
     grade,
-    el("div.field__hint", { text: "Vale junto com o tema claro ou escuro — são duas escolhas, não dez." }),
+    el("div.field__hint", { text: "A paleta vale nos dois visuais, com o tema claro ou o escuro." }),
   ]);
+}
+
+/**
+ * O visual: a cara do Vcall ou a de programa de empresa.
+ *
+ * Como as paletas, cada opção mostra o que é em vez de só nomear: uma
+ * miniatura da forma (cantos, títulos, botão) desenhada com as cores da
+ * paleta ligada, que vale para os dois visuais.
+ */
+function seletorDeVisual() {
+  const grade = el("div.visualGrade", { role: "radiogroup", "aria-label": "Visual" });
+  const opcoes = [
+    ["vcall", "Vcall", "Expressivo, com o ingresso e o anel de quem fala."],
+    ["empresa", "Empresa", "Sóbrio, para reuniões de trabalho."],
+  ];
+  for (const [id, nome, descricao] of opcoes) {
+    const botao = el("button.visualOpcao", {
+      type: "button",
+      role: "radio",
+      "aria-checked": String(theme.visual === id),
+      dataset: { visualAmostra: id },
+      onClick: () => {
+        theme.setVisual(id);
+        for (const outro of grade.children) {
+          outro.setAttribute("aria-checked", String(outro.dataset.visualAmostra === id));
+        }
+        toast(`Visual ${nome}`, { tone: "ok", ms: 1600, key: "visual" });
+      },
+    });
+    botao.append(
+      el("span.visualOpcao__amostra", { "aria-hidden": "true" }, [
+        el("i.visualOpcao__barra"),
+        el("i.visualOpcao__titulo"),
+        el("i.visualOpcao__linha"),
+        el("i.visualOpcao__botao"),
+      ]),
+      el("span.visualOpcao__texto", {}, [
+        el("strong", { text: nome }),
+        el("small", { text: descricao }),
+      ]),
+    );
+    grade.append(botao);
+  }
+  return el("div.stack", {}, [el("div.field__label", { text: "Visual" }), grade]);
 }
 
 /**
@@ -3573,7 +3618,7 @@ function openSettings({ naRecepcao = false } = {}) {
    */
   body.append(
     profileSection({
-      profile: app.profile || { name: prefs.get("name", ""), avatar: prefs.get("avatar", null) || defaultAvatar() },
+      profile: app.profile || { name: prefs.get("name", ""), avatar: semCartum(prefs.get("avatar", null)) || defaultAvatar() },
       onChange: (profile) => applyProfile(profile),
     }),
   );
@@ -3607,7 +3652,7 @@ function openSettings({ naRecepcao = false } = {}) {
    * erro ou, pior, números zerados com cara de medição de verdade.
    */
   if (naRecepcao) {
-    section("Aparência", [themeRowDeConfiguracoes(), seletorDePaletas()]);
+    section("Aparência", [seletorDeVisual(), themeRowDeConfiguracoes(), seletorDePaletas()]);
     if (host.disponivel) section("Atualizações", [blocoDeAtualizacao()]);
     if (host.disponivel) secaoAvancada("Rede Tailscale", [blocoDaRede()]);
     if (host.disponivel) secaoAvancada("Redes que bloqueiam a chamada", [blocoDoTurn()]);
@@ -3849,7 +3894,7 @@ function openSettings({ naRecepcao = false } = {}) {
 
   // -- tema --
   const themeRow = themeRowDeConfiguracoes();
-  section("Aparência", [themeRow, seletorDePaletas()]);
+  section("Aparência", [seletorDeVisual(), themeRow, seletorDePaletas()]);
 
   // -- diagnóstico de áudio: responde "por que não ouço ninguém?" --
   const audioReport = el("div.field__hint", { text: "Medindo…" });
@@ -4093,29 +4138,29 @@ function leaveCall({ motivo = null, por = "" } = {}) {
     ]),
     el("div.leave__body", {}, [
       el("img.brand__mark", { src: "/assets/logo-mark.svg", alt: "", width: 48, height: 48 }),
-      el("h1.leave__title", {
-        id: "leaveTitle",
-        text:
-          motivo === "kicked"
-            ? "Você foi removido da sala"
-            : motivo === "room-locked"
-              ? "Esta sala está trancada"
-              : "Você saiu da chamada",
-      }),
-      el("p.leave__lead", {
-        text:
-          motivo === "kicked"
-            ? `${por || "O anfitrião"} removeu você desta chamada. Se foi um engano, peça para ele deixar você voltar e tente de novo.`
-            : motivo === "room-locked"
-              ? "O anfitrião trancou a sala ou não liberou a sua entrada. Combine com quem te convidou e tente de novo."
-              : `Foram ${minutos} de conversa. A sala continua aberta enquanto alguém estiver nela — dá para voltar pelo mesmo link.`,
-      }),
+      el("h1.leave__title", { id: "leaveTitle" },
+        motivo === "kicked"
+          ? duo("Você foi removido da sala", "Você foi removido da reunião")
+          : motivo === "room-locked"
+            ? duo("Esta sala está trancada", "Esta reunião está trancada")
+            : duo("Você saiu da chamada", "Você saiu da reunião"),
+      ),
+      el("p.leave__lead", {},
+        motivo === "kicked"
+          ? [`${por || "O anfitrião"} removeu você desta chamada. Se foi um engano, peça para ele deixar você voltar e tente de novo.`]
+          : motivo === "room-locked"
+            ? ["O anfitrião trancou a sala ou não liberou a sua entrada. Combine com quem te convidou e tente de novo."]
+            : duo(
+                `Foram ${minutos} de conversa. A sala continua aberta enquanto alguém estiver nela — dá para voltar pelo mesmo link.`,
+                `Foram ${minutos} de reunião. Ela continua aberta enquanto houver alguém: dá para voltar pelo mesmo link.`,
+              ),
+      ),
       el("div.leave__actions", {}, [
         el("button.btn.btn--primary.btn--lg", { type: "button", onClick: () => location.reload() }, [
           icon("rotate-ccw"),
-          el("span", {
-            text: motivo === "kicked" ? "Tentar entrar de novo" : motivo === "room-locked" ? "Tentar de novo" : "Voltar para a sala",
-          }),
+          el("span", {},
+            motivo === "kicked" ? ["Tentar entrar de novo"] : motivo === "room-locked" ? ["Tentar de novo"] : duo("Voltar para a sala", "Participar novamente"),
+          ),
         ]),
         el("button.btn.btn--lg", { type: "button", onClick: inicio }, [
           icon("layout-grid"),
@@ -4127,7 +4172,7 @@ function leaveCall({ motivo = null, por = "" } = {}) {
             location.hash = newRoomId();
             location.reload();
           },
-        }, [icon("plus"), el("span", { text: "Nova sala" })]),
+        }, [icon("plus"), el("span", {}, duo("Nova sala", "Nova reunião"))]),
       ]),
     ]),
   ]);

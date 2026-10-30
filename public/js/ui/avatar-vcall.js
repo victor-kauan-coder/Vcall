@@ -21,7 +21,7 @@ const ESTILOS = ["curto", "coque", "cacheado", "black", "rabo", "longo", "tranca
 const ATRAS = new Set(["longo", "black", "trancas", "rabo"]);
 
 /** FNV-1a da semente alimentando um mulberry32: rápido, estável, sem dependência. */
-function sorteador(semente) {
+export function sorteador(semente) {
   let h = 2166136261;
   for (const c of String(semente)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return () => {

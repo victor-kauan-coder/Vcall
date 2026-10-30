@@ -29,15 +29,15 @@ conteúdo de conversa fica em disco.
 
 | Sistema | Arquivo |
 | --- | --- |
-| Windows 10/11 | `VcallSetup-3.15.4.exe` |
-| Fedora, openSUSE, RHEL | `Vcall-3.15.4-x86_64.rpm` |
-| Arch, Manjaro, EndeavourOS | `Vcall-3.15.4-x64.pacman` |
-| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.15.4-amd64.deb` |
-| Qualquer Linux | `Vcall-3.15.4-x86_64.AppImage` ou `.tar.gz` |
+| Windows 10/11 | `VcallSetup-3.16.0.exe` |
+| Fedora, openSUSE, RHEL | `Vcall-3.16.0-x86_64.rpm` |
+| Arch, Manjaro, EndeavourOS | `Vcall-3.16.0-x64.pacman` |
+| Ubuntu, Debian, Mint, Pop!_OS | `Vcall-3.16.0-amd64.deb` |
+| Qualquer Linux | `Vcall-3.16.0-x86_64.AppImage` ou `.tar.gz` |
 
 Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest)** ·
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
-o que mudou na **[3.15.4](docs/release/v3.15.4.md)**.
+o que mudou na **[3.16.0](docs/release/v3.16.0.md)**.
 
 ## Recursos
 
@@ -58,6 +58,7 @@ o que mudou na **[3.15.4](docs/release/v3.15.4.md)**.
 - Link pela sua rede **Tailscale**: privado, com HTTPS, e um caminho a mais para a mídia em redes que bloqueiam a conexão direta
 - **Chamadas ativas de toda a rede Tailscale** na tela inicial, chamadas "Na minha rede" e criar chamadas pelo celular
 - **Foco na voz** (quem fala acende, quem está calado apaga) e **modo jogo** com sobreposição e atalhos globais
+- **Dois visuais**: o Vcall de sempre ou o **Empresa**, sóbrio como Teams e Meet, com a mesma paleta e a troca na hora
 - App para **Windows** e **Linux** (AppImage, .deb, .rpm, pacman, .tar.gz)
 
 <p align="center">

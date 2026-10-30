@@ -179,6 +179,78 @@ function rampa({ h, c }, tema) {
   };
 }
 
+/**
+ * A rampa do visual Empresa.
+ *
+ * Mesma paleta, outra sala: cinzas de escritório (os degraus do Teams e do
+ * Meet), com só um resto do matiz da paleta, e o acento dela inteiro. O croma
+ * cai para um terço porque um chão violeta ou marrom não passa por programa
+ * de empresa; o que identifica a paleta aqui é o acento.
+ *
+ * O palco (`--palco-*`) é a chamada: escuro nos dois temas, como no Meet. Os
+ * rostos pedem fundo escuro com qualquer luz, e o painel lateral continua na
+ * luz do tema, como um cartão por cima.
+ */
+function rampaEmpresa({ h, c }, tema) {
+  const n = (L, mult = 1) => hex(L, c * 0.34 * mult, h);
+  const palco = {
+    "--palco": n(0.205),
+    "--palco-elevado": n(0.255),
+    "--palco-superficie": n(0.315),
+    "--palco-superficie-2": n(0.36),
+    "--palco-hover": n(0.4),
+    "--palco-borda": n(0.38),
+    "--palco-texto": n(0.97, 0.3),
+    "--palco-texto-2": n(0.83, 0.4),
+    "--palco-texto-3": n(0.76, 0.5),
+    "--tile-bg": n(0.285),
+    "--tile-glow": n(0.335),
+  };
+  if (tema === "escuro") {
+    return {
+      "--bg": n(0.225),
+      "--bg-elevated": n(0.262),
+      "--surface": n(0.262),
+      "--surface-2": n(0.3),
+      "--surface-3": n(0.345),
+      "--surface-hover": n(0.322),
+      "--border": n(0.335),
+      "--border-strong": n(0.44),
+      "--border-subtle": n(0.29),
+      "--text": n(0.965, 0.3),
+      "--text-secondary": n(0.82, 0.4),
+      "--text-muted": n(0.75, 0.5),
+      "--text-inverse": n(0.225),
+      "--board-paper": n(0.225),
+      "--board-ink": n(0.965, 0.3),
+      "--scrim": n(0.12),
+      ...palco,
+    };
+  }
+  return {
+    "--bg": n(0.968, 0.4),
+    "--bg-elevated": n(1, 0),
+    "--surface": n(1, 0),
+    "--surface-2": n(0.958, 0.5),
+    "--surface-3": n(0.928, 0.6),
+    "--surface-hover": n(0.944, 0.55),
+    "--border": n(0.9, 0.6),
+    "--border-strong": n(0.815, 0.7),
+    "--border-subtle": n(0.935, 0.5),
+    "--text": n(0.255, 0.5),
+    "--text-secondary": n(0.405, 0.6),
+    "--text-muted": n(0.49, 0.7),
+    "--text-inverse": n(1, 0),
+    "--board-paper": n(1, 0),
+    "--board-ink": n(0.255, 0.5),
+    "--scrim": n(0.25, 0.6),
+    ...palco,
+  };
+}
+
+/** Texto sobre o botão de acento: o que der mais contraste, branco ou o chão escuro. */
+const sobreAcento = (acento, escuro) => (razao(acento, "#ffffff") >= razao(acento, escuro) ? "#ffffff" : escuro);
+
 /* ------------------------------------------------------------------ *
  * Conferência
  * ------------------------------------------------------------------ */
@@ -209,11 +281,11 @@ function conferir(paleta, tema, vars, acentos) {
  * Saída
  * ------------------------------------------------------------------ */
 
-const bloco = (seletor, vars, acentos) => {
+const bloco = (seletor, vars, acentos, hover = acentos[0]) => {
   const linhas = Object.entries(vars).map(([k, v]) => `  ${k}: ${v};`);
   const [a1, a2] = acentos;
   linhas.push(`  --accent: ${a1};`);
-  linhas.push(`  --accent-hover: ${a1};`);
+  linhas.push(`  --accent-hover: ${hover};`);
   linhas.push(`  --accent-soft: ${a1}29;`);
   linhas.push(`  --accent-2: ${a2};`);
   linhas.push(`  --accent-2-soft: ${a2}29;`);
@@ -260,6 +332,83 @@ for (const p of PALETAS) {
           vars,
           acentos,
         )
+          .split("\n")
+          .join("\n  ")}\n}`,
+      );
+    }
+  }
+}
+
+/*
+ * O visual Empresa, por paleta.
+ *
+ * Vem depois das paletas e com um atributo a mais no seletor, então ganha
+ * delas sem `!important`. O claro do tema automático repete a regra dentro da
+ * consulta de mídia, como lá em cima.
+ */
+partes.push(`/* ==================== Visual Empresa ==================== */`);
+for (const p of PALETAS) {
+  for (const [tema, rotulo] of [
+    ["escuro", "dark"],
+    ["claro", "light"],
+  ]) {
+    const vars = rampaEmpresa(p, tema);
+    const [a1, a2] = p.acentos[tema];
+    const [palcoAcento] = p.acentos.escuro;
+    const tinta = rampaEmpresa(p, "escuro")["--palco"];
+    const extras = {
+      "--accent-text": sobreAcento(a1, tinta),
+      "--palco-accent": palcoAcento,
+      "--palco-accent-text": sobreAcento(palcoAcento, tinta),
+    };
+    // No claro, os estados descem um tom: o selo "Disponível" e o "Aguardando
+    // alguém" são texto pequeno sobre o próprio fundo suave.
+    if (tema === "claro") {
+      Object.assign(extras, {
+        "--ok": "#0b6e4c",
+        "--ok-soft": "#0b6e4c1f",
+        "--warn": "#8a5300",
+        "--warn-soft": "#8a53001f",
+      });
+    }
+    // O hover do botão de acento: o acento puxado para o texto do tema.
+    const hover = `color-mix(in oklab, ${a1} 86%, ${vars["--text"]})`;
+    conferir({ id: `empresa/${p.id}` }, tema, vars, [a1, a2]);
+    const palcoVars = {
+      "--bg": vars["--palco"],
+      "--bg-elevated": vars["--palco-elevado"],
+      "--surface": vars["--palco-superficie"],
+      "--surface-2": vars["--palco-superficie"],
+      "--surface-3": vars["--palco-superficie-2"],
+      "--text": vars["--palco-texto"],
+      "--text-secondary": vars["--palco-texto-2"],
+      "--text-muted": vars["--palco-texto-3"],
+    };
+    conferir({ id: `empresa/${p.id}/palco` }, tema, palcoVars, [palcoAcento]);
+    // Selo de estado: o texto sobre o fundo suave dele, composto sobre o cartão.
+    const sobreCartao = (cor, alfa) => {
+      const c = parseInt(cor.slice(1), 16);
+      const f = parseInt(vars["--bg-elevated"].slice(1), 16);
+      const mix = (d) => Math.round(((c >> d) & 255) * alfa + ((f >> d) & 255) * (1 - alfa));
+      return "#" + [16, 8, 0].map((d) => mix(d).toString(16).padStart(2, "0")).join("");
+    };
+    const estados = tema === "claro" ? ["--ok", "--warn"] : [];
+    for (const [fundo, texto, nome] of [
+      [a1, extras["--accent-text"], "texto sobre o acento"],
+      [palcoAcento, extras["--palco-accent-text"], "texto sobre o acento do palco"],
+      ...estados.map((k) => [sobreCartao(extras[k], 0x1f / 255), extras[k], `${k} sobre o fundo suave`]),
+    ]) {
+      const r = razao(fundo, texto);
+      if (r < MINIMO) falhas.push(`empresa/${p.id}/${tema}: ${nome} = ${r.toFixed(2)}:1`);
+    }
+
+    const todas = { ...vars, ...extras };
+    const base = `:root[data-visual="empresa"][data-paleta="${p.id}"]`;
+    const alvo = rotulo === "dark" ? `${base}:not([data-theme="light"])` : `${base}[data-theme="light"]`;
+    partes.push(`/* Empresa · ${p.nome} (${tema}) */\n${bloco(alvo, todas, [a1, a2], hover)}`);
+    if (rotulo === "light") {
+      partes.push(
+        `@media (prefers-color-scheme: light) {\n  ${bloco(`${base}:not([data-theme])`, todas, [a1, a2], hover)
           .split("\n")
           .join("\n  ")}\n}`,
       );

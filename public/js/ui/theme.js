@@ -6,11 +6,24 @@
  * sessão (o modo noturno automático do macOS e do Windows faz isso).
  */
 import { prefs } from "../lib/util.js";
-import { setIcon } from "../lib/dom.js";
+import { el, setIcon } from "../lib/dom.js";
 import { PALETAS, PADRAO } from "./paletas.js";
 
 const KEY = "theme";
 const KEY_PALETA = "paleta";
+const KEY_VISUAL = "visual";
+/** "vcall" é a cara da marca; "empresa", a de programa de escritório. */
+export const VISUAIS = ["vcall", "empresa"];
+
+/**
+ * Um texto para cada visual. Os dois ficam na página e o CSS mostra o do
+ * visual ligado ([data-so], em empresa.css): trocar de visual não redesenha
+ * nada, e o leitor de tela só lê o que está à vista.
+ */
+export const duo = (vcall, empresa) => [
+  el("span", { dataset: { so: "vcall" }, text: vcall }),
+  el("span", { dataset: { so: "empresa" }, text: empresa }),
+];
 const ORDER = ["system", "light", "dark"];
 const ICON = { system: "laptop", light: "sun", dark: "moon" };
 const LABEL = { system: "Tema do sistema", light: "Tema claro", dark: "Tema escuro" };
@@ -23,6 +36,7 @@ export class Theme {
     this.paleta = PALETAS.some((p) => p.id === prefs.get(KEY_PALETA, PADRAO))
       ? prefs.get(KEY_PALETA, PADRAO)
       : PADRAO;
+    this.visual = VISUAIS.includes(prefs.get(KEY_VISUAL, "vcall")) ? prefs.get(KEY_VISUAL, "vcall") : "vcall";
     media.addEventListener("change", () => {
       if (this.mode === "system") this.#apply();
     });
@@ -59,6 +73,17 @@ export class Theme {
     return this.paleta;
   }
 
+  /**
+   * Troca o visual: a mesma interface com outra forma (cantos, tipos,
+   * telas). É ortogonal ao tema e à paleta, como os dois são entre si.
+   */
+  setVisual(id) {
+    this.visual = VISUAIS.includes(id) ? id : "vcall";
+    prefs.set(KEY_VISUAL, this.visual);
+    this.#apply();
+    return this.visual;
+  }
+
   label() {
     return LABEL[this.mode];
   }
@@ -88,6 +113,7 @@ export class Theme {
     if (this.mode === "system") root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", this.mode);
     root.setAttribute("data-paleta", this.paleta);
+    root.setAttribute("data-visual", this.visual);
 
     /*
      * A cor da barra do navegador em celular acompanha o tema E a paleta.

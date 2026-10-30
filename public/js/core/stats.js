@@ -19,7 +19,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { clamp, Ema } from "../lib/util.js";
-import { cpuCeiling, meshBudget, PROFILES } from "./tuning.js";
+import { cpuCeiling, escalaPelaBanda, meshBudget, PROFILES } from "./tuning.js";
 
 /**
  * O endereço é da rede Tailscale (100.64.0.0/10 ou fd7a:115c:a1e0::/48)?
@@ -271,6 +271,16 @@ export class StatsMonitor extends Emitter {
     const keyOf = (role) =>
       role === "screen" ? "screen" : role === "cam" ? "cam" : role === "mic" ? "mic" : null;
 
+    // O par em uso é o que o transporte aponta. `nominated` sozinho não serve:
+    // um par nomeado antes continua "succeeded" depois de uma troca, e era ele
+    // que se lia. Com os bytes dele parados, o vigia de conexão congelada
+    // (rele.js) reiniciava uma conexão viva a cada ~10 s, e a tela travava
+    // junto (medido pela internet). O Firefox não tem o campo e marca `selected`.
+    let parEmUso = null;
+    report.forEach((r) => {
+      if (r.type === "transport" && r.selectedCandidatePairId) parEmUso = r.selectedCandidatePairId;
+    });
+
     report.forEach((r) => {
       if (r.type === "outbound-rtp") {
         const key = keyOf(roleOf(r, "out"));
@@ -282,7 +292,7 @@ export class StatsMonitor extends Emitter {
         if (!key) return;
         const before = prev?.get(r.id);
         sample.inbound[key] = this.#inbound(r, before);
-      } else if (r.type === "candidate-pair" && (r.nominated || r.selected) && r.state === "succeeded") {
+      } else if (r.type === "candidate-pair" && (parEmUso ? r.id === parEmUso : (r.nominated || r.selected) && r.state === "succeeded")) {
         sample.transport.rtt = r.currentRoundTripTime != null ? r.currentRoundTripTime * 1000 : null;
         sample.transport.availableOutgoing = r.availableOutgoingBitrate ?? null;
         sample.transport.availableIncoming = r.availableIncomingBitrate ?? null;
@@ -432,7 +442,10 @@ export class StatsMonitor extends Emitter {
     const perfil = peer.screenProfile || {};
     const { width = 1920, height = 1080 } = peer.tx.screen.sender.track.getSettings?.() || {};
     const porPixel = (screen.targetBitrate ?? 0) / (width * height);
-    budget.rapido = porPixel >= (budget.rapido ? 2.9 : 3.9);
+    // Monitor de 60 Hz: a captura não passa de 60, e cada degrau do teto até
+    // 120 só reconfigurava o encoder (um congelamento no caminho, medido).
+    const fonteRapida = (screen.sourceFps ?? 0) > 66;
+    budget.rapido = fonteRapida && porPixel >= (budget.rapido ? 2.9 : 3.9);
     const tetoPerfil = (budget.rapido && perfil.maxFramerateComBanda) || perfil.maxFramerate || cpu.maxFramerate;
     const tetoFps = Math.min(cpu.maxFramerate, tetoPerfil);
     budget.framerate ??= tetoFps;
@@ -467,7 +480,15 @@ export class StatsMonitor extends Emitter {
        * gente: numa conexão só, o controle de congestionamento dela já manda.
        */
       const semBanda = pares > 1 && screen.bwShare > 0.3 && avail != null && avail < budget.screen;
-      if (semBanda || (sample.lossSmoothed ?? 0) > 3) {
+      /*
+       * Perda: a da própria tela, que tem pacotes de sobra para o número
+       * valer, e não a maior entre as quatro linhas. Na câmera e no microfone
+       * 1 pacote em 20 já dá 5%, e o corte de 25% a cada 2 s levava a tela ao
+       * piso de 450 kbps com 1% de perda real (medido). A dois, quem responde
+       * à perda é o controle de congestionamento da própria conexão.
+       */
+      const perdendo = pares > 1 && (screen.lossPct ?? 0) > 5;
+      if (semBanda || perdendo) {
         budget.screen = Math.max(
           FLOOR.screen,
           Math.min(budget.screen * 0.75, (avail || budget.screen) * 0.9),
@@ -490,6 +511,11 @@ export class StatsMonitor extends Emitter {
 
     budget.framerate = Math.min(tetoFps, budget.framerate);
     budget.screen = clamp(budget.screen, FLOOR.screen, Math.min(CEIL.screen, budgets.screen));
+    // Vídeo e jogo encolhem com a banda, para os quadros não caírem (tuning.js).
+    const qps = Math.min(budget.framerate, Math.max(30, screen.sourceFps ?? budget.framerate));
+    const escalaAntes = budget.escala ?? 1;
+    budget.escala = perfil.contentHint === "motion" ? escalaPelaBanda(screen.targetBitrate, width * height, qps, escalaAntes) : 1;
+    const escala = Math.max(cpu.scaleResolutionDownBy, budget.escala);
 
     // Também quando o sender diverge do orçamento: cada renegociação ou troca
     // de trilha reaplica o perfil cheio (peer.retune) por cima do ajuste.
@@ -499,12 +525,16 @@ export class StatsMonitor extends Emitter {
     } catch {
       /* sender fechando */
     }
-    const divergiu = !atual || atual.maxFramerate !== budget.framerate || atual.maxBitrate !== Math.round(Math.min(budget.screen, peer.screenProfile?.maxBitrate ?? Infinity));
-    if (Math.abs(budget.screen - before) / Math.max(1, before) > 0.05 || budget.framerate !== fpsAntes || divergiu) {
+    const divergiu =
+      !atual ||
+      atual.maxFramerate !== budget.framerate ||
+      atual.maxBitrate !== Math.round(Math.min(budget.screen, peer.screenProfile?.maxBitrate ?? Infinity)) ||
+      (atual.scaleResolutionDownBy ?? 1) !== escala;
+    if (Math.abs(budget.screen - before) / Math.max(1, before) > 0.05 || budget.framerate !== fpsAntes || budget.escala !== escalaAntes || divergiu) {
       await peer.setScreenBudget({
         maxBitrate: budget.screen,
         maxFramerate: budget.framerate ?? cpu.maxFramerate,
-        scaleResolutionDownBy: cpu.scaleResolutionDownBy,
+        scaleResolutionDownBy: escala,
         profile: peer.screenProfile,
       });
     }

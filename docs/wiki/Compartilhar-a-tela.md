@@ -65,6 +65,11 @@ mais. Com mais gente na sala cada pessoa recebe uma cópia, tudo fica em no
 máximo 60, e a qualidade desce sozinha conforme a internet e o computador de
 quem transmite.
 
+Pela internet, com pouca banda de envio, vídeo e jogo diminuem a imagem
+(1080p, 720p, 540p…) em vez de perder quadros: fica menos nítido, mas fluido.
+A imagem volta a crescer quando a conexão melhora. O modo de texto nunca
+diminui, para a letra continuar legível.
+
 ## Som
 
 **Desligado por padrão.** Ligue "Compartilhar o som do computador" só quando

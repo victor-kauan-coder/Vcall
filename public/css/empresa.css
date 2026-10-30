@@ -977,6 +977,8 @@
 :root[data-visual="empresa"] .topbar {
   padding: var(--sp-3) var(--sp-4) var(--sp-1);
   padding-top: max(var(--sp-3), env(safe-area-inset-top));
+  /* No app de mesa, o "Convidar" fica à esquerda dos botões da janela. */
+  padding-right: calc(var(--sp-4) + var(--titlebar-controls, 0px));
   background: var(--palco);
 }
 :root[data-visual="empresa"] .topbar__room {

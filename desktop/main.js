@@ -163,6 +163,7 @@ async function subirServidor() {
   let porta = 0;
   // Nome e avatar de quem usa o app; a página avisa (ação "perfil").
   let pessoa = null;
+  let abrindoTunel = null;
   definirTurnLocal(lerTurn(arquivoTurn()));
 
   const control = hostControl({
@@ -201,9 +202,12 @@ async function subirServidor() {
 
       atualizacao: async (url) => conferir({ forcar: url.searchParams.get("forcar") === "1", atual: app.getVersion() }),
 
+      // O túnel já sobe ao criar a sala: um pedido no meio disso espera o
+      // mesmo túnel, em vez de derrubá-lo e começar outro.
       "tunnel/abrir": async () => {
         if (tunnel?.url && tunnel.state === "pronto") return { estado: "pronto", url: tunnel.url };
-        return { estado: "pronto", url: await ligarTunel() };
+        abrindoTunel ??= ligarTunel().finally(() => (abrindoTunel = null));
+        return { estado: "pronto", url: await abrindoTunel };
       },
       // Link novo sem sair da chamada: o túnel atual cai e outro sobe.
       "tunnel/renovar": async () => ({ estado: "pronto", url: await ligarTunel() }),

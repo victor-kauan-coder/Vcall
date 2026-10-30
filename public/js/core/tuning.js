@@ -485,6 +485,29 @@ export function cameraParaSala(outros) {
 }
 
 /**
+ * Quanto encolher a tela em movimento para caber na banda sem perder quadros.
+ *
+ * Com pouca banda para a imagem cheia, o encoder de tempo real estoura a meta
+ * e joga quadros fora aos trancos: medido, 6 Mbps de subida com 1% de perda
+ * davam 1,5 a 3 Mbps de meta, e um jogo em 1080p/720p chegava do outro lado
+ * a 14–50 qps, com congelamentos a cada 2 s. Jogo e vídeo a 60 qps pedem
+ * perto de 0,06 bit por pixel; abaixo disso vale mais a imagem menor com
+ * todos os quadros. Encolhe na hora e só cresce com 30% de folga, senão a
+ * imagem vai e volta a cada oscilação da banda.
+ */
+const DEGRAUS = [1, 1.25, 1.5, 2, 2.5, 3];
+const BITS_POR_PIXEL = 0.06;
+
+export function escalaPelaBanda(bps, pixels, qps, atual = 1) {
+  if (!bps || !pixels || !qps) return atual;
+  const cabe = (e, folga = 1) => bps >= (pixels / (e * e)) * qps * BITS_POR_PIXEL * folga;
+  const precisa = DEGRAUS.find((e) => cabe(e)) ?? DEGRAUS.at(-1);
+  if (precisa >= atual) return precisa;
+  const cresce = DEGRAUS.find((e) => e >= precisa && cabe(e, 1.3));
+  return cresce != null && cresce < atual ? cresce : atual;
+}
+
+/**
  * Teto de codificação sugerido pela CPU: numa malha codificamos N vezes.
  * Máquinas modestas com muitos pares precisam abrir mão de quadros antes de
  * abrir mão de resolução (texto ilegível é pior que texto que anda devagar).

@@ -159,7 +159,11 @@ if (isGuest) {
 } else {
   $("#lobby").hidden = true;
   dashboard = new Dashboard({
-    onEnter: ({ roomId, pass, meta, roomName }) => {
+    onEnter: ({ roomId, pass, meta, roomName, isNew }) => {
+      // No app de mesa a sala nova já nasce com o link público: o túnel sobe
+      // enquanto a pessoa ajeita câmera e nome na antessala. Se falhar, o
+      // Convidar mostra o erro e o botão de gerar outro, como antes.
+      if (isNew && host.disponivel) host.abrirTunel().catch(() => {});
       app.room = roomId;
       app.roomPass = pass || "";
       app.roomMeta = meta || null;
@@ -329,7 +333,7 @@ function buildWaiting() {
       onClick: () => copy(app.roomCode || "", "Código copiado"),
     }, [code, icon("copy", { size: "sm" })]),
     el("div.waiting__actions", {}, [
-      el("button.btn.btn--primary.btn--lg", { type: "button", onClick: () => copy(roomLink(), "Link copiado") }, [
+      el("button.btn.btn--primary.btn--lg", { type: "button", onClick: copiarLinkDaReuniao }, [
         icon("link"),
         el("span", {}, duo("Copiar link da sala", "Copiar link da reunião")),
       ]),
@@ -3174,6 +3178,21 @@ function startTimer() {
 
 function roomLink() {
   return linkFor(app.room);
+}
+
+/**
+ * O "Copiar link" da sala vazia. No app de mesa a página vem de 127.0.0.1,
+ * que não abre em nenhum outro aparelho: vale o link público (o túnel sobe ao
+ * criar a sala) ou o do Tailscale. Com o túnel ainda subindo, espera por ele.
+ */
+async function copiarLinkDaReuniao() {
+  if (host.disponivel && ["abrindo", "baixando", "verificando"].includes(host.estado)) {
+    toast("Gerando o link público… ele é copiado assim que ficar pronto.", { tone: "info", ms: 6000 });
+    await host.abrirTunel().catch(() => {});
+  }
+  const link = host.linkPublico(roomLink()) || host.linkTailscale(roomLink()) || roomLink();
+  const local = /^http:\/\/(127\.|localhost)/.test(link);
+  copy(link, host.url ? "Link público copiado" : local ? "Link copiado, mas ele só abre neste computador" : "Link copiado");
 }
 
 function openInvite() {

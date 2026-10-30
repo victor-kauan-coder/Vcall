@@ -108,10 +108,14 @@ window.addEventListener("DOMContentLoaded", () => {
   let ultimo = null;
   const sincronizar = () => {
     const tema = root.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-    const escuro = tema !== "light";
+    // No visual Empresa a chamada é escura nos dois temas (empresa.css).
+    const palco = root.dataset.visual === "empresa" && !!document.querySelector("#topbar:not([hidden])");
+    const escuro = tema !== "light" || palco;
     if (escuro !== ultimo) ipcRenderer.send("vcall:tema", (ultimo = escuro));
   };
-  new MutationObserver(sincronizar).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  new MutationObserver(sincronizar).observe(root, { attributes: true, attributeFilter: ["data-theme", "data-visual"] });
+  const topo = document.getElementById("topbar");
+  if (topo) new MutationObserver(sincronizar).observe(topo, { attributes: true, attributeFilter: ["hidden"] });
   matchMedia("(prefers-color-scheme: light)").addEventListener("change", sincronizar);
   sincronizar();
 });

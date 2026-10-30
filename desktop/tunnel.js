@@ -14,9 +14,9 @@
  *    é procurado na máquina e, se não houver, baixado da página oficial de
  *    versões do Cloudflare na primeira vez que alguém pedir um link público.
  *
- * 2. O DOWNLOAD É EXPLÍCITO. Nada é baixado ao abrir o app: só quando você
- *    clica em gerar o link. Um programa que busca coisas na internet sozinho,
- *    sem avisar, é exatamente o que não se quer num app de chamada.
+ * 2. O DOWNLOAD TEM MOTIVO. Nada é baixado ao abrir o app: só quando você
+ *    cria uma sala (o link público já sai com ela) ou pede o link no
+ *    Convidar. O painel do Convidar mostra que está baixando.
  *
  * 3. O ENDEREÇO SAI DA SAÍDA DO PROCESSO. O cloudflared imprime o domínio
  *    sorteado no stderr; não há API para perguntar. A leitura é por expressão

@@ -1783,8 +1783,15 @@ if (process.platform === "linux") {
       async getStats() {
         t += 2000;
         return new Map([
-          ["OT", { id: "OT", type: "outbound-rtp", kind: "video", mid: "2", timestamp: t, bytesSent: t * 1000, mediaSourceId: "SV", framesPerSecond: tela.fps, frameWidth: tela.w, frameHeight: tela.h, qualityLimitationReason: tela.motivo, qualityLimitationDurations: { [tela.motivo]: t / 1000 }, targetBitrate: tela.alvo ?? 3_000_000 }],
+          ["OT", { id: "OT", type: "outbound-rtp", kind: "video", mid: "2", timestamp: t, bytesSent: t * 1000, mediaSourceId: "SV", framesPerSecond: tela.fps, frameWidth: tela.w, frameHeight: tela.h, qualityLimitationReason: tela.motivo, qualityLimitationDurations: { [tela.motivo]: t / 1000 }, targetBitrate: tela.alvo ?? 3_000_000, remoteId: "RI" }],
+          ["RI", { id: "RI", type: "remote-inbound-rtp", kind: "video", fractionLost: tela.perda ?? 0 }],
           ["SV", { id: "SV", type: "media-source", kind: "video", framesPerSecond: tela.fonte ?? 60 }],
+          ...(tela.parEmUso
+            ? [
+                ["T", { id: "T", type: "transport", selectedCandidatePairId: "CP2" }],
+                ["CP2", { id: "CP2", type: "candidate-pair", nominated: false, state: "succeeded", availableOutgoingBitrate: 7_000_000, currentRoundTripTime: 0.05 }],
+              ]
+            : []),
           ["CP", { id: "CP", type: "candidate-pair", nominated: true, state: "succeeded", availableOutgoingBitrate: 20_000_000, currentRoundTripTime: 0.01 }],
         ]);
       },
@@ -1793,6 +1800,7 @@ if (process.platform === "linux") {
         ajustes++;
         enc.maxBitrate = Math.min(b.maxBitrate, b.profile.maxBitrate);
         enc.maxFramerate = Math.min(b.maxFramerate, b.profile.maxFramerateComBanda ?? b.profile.maxFramerate);
+        enc.scaleResolutionDownBy = b.scaleResolutionDownBy;
       },
       async setCameraBudget() {},
       async reconfigurarEncoder() {
@@ -1809,6 +1817,7 @@ if (process.platform === "linux") {
     m.start();
     globalThis.setInterval = original;
     for (let i = 0; i < voltas; i++) await ciclo();
+    return m;
   }
 
   const jogo = parFalso({ fps: 58, w: 960, h: 540, motivo: "bandwidth" });
@@ -1833,6 +1842,42 @@ if (process.platform === "linux") {
   assert.equal(texto120.enc.maxFramerate, 60, `texto: teto ${texto120.enc.maxFramerate}`);
   assert.ok(texto120.ajustes <= 1, `texto: o teto foi reaplicado ${texto120.ajustes} vezes em 4 voltas`);
   ok("tela: o teto não cai quando o próprio encoder encolhe a imagem, desce um degrau quando ele não acompanha a captura, e vai a 120 qps só no vídeo");
+
+  // 3.17.1 (o bloco seguinte conta a história).
+  const pelaInternet = parFalso({ fps: 60, w: 1920, h: 1080, motivo: "bandwidth", alvo: 2_000_000, perda: 0.04, parEmUso: true });
+  const monitor = await rodar(pelaInternet, 6);
+  assert.equal(monitor.samples.get("b").transport.availableOutgoing, 7_000_000, "a banda disponível vem do par que o transporte usa");
+  assert.equal(pelaInternet.enc.maxBitrate, PROFILES.screenMotion.maxBitrate, `4% de perda a dois derrubou o teto para ${pelaInternet.enc.maxBitrate}`);
+  assert.equal(pelaInternet.enc.scaleResolutionDownBy, 2, `jogo com 2 Mbps: escala ${pelaInternet.enc.scaleResolutionDownBy}`);
+  const textoApertado = parFalso({ fps: 60, w: 1920, h: 1080, motivo: "bandwidth", alvo: 2_000_000 }, PROFILES.screenText);
+  await rodar(textoApertado, 2);
+  assert.equal(textoApertado.enc.scaleResolutionDownBy, 1, "texto nunca encolhe pela banda: a letra tem de continuar legível");
+  ok("tela pela internet: banda lida do par em uso, perda pequena não derruba o teto e o jogo encolhe com a banda");
+}
+
+/* ------------------------------------------------------------------ *
+ * 3.17.1: a tela travando pela internet.
+ *
+ * Medido com 6 Mbps de subida, 50 ms e 1% de perda: o jogo chegava a 14–50
+ * qps, congelado metade do tempo.
+ *   - A banda e os bytes recebidos vinham de um par `nominated` antigo, não
+ *     do par em uso: com os bytes dele parados, o vigia de conexão congelada
+ *     reiniciava a conexão a cada ~10 s.
+ *   - A maior perda entre as quatro linhas (1 pacote em 20 da câmera = 5%)
+ *     cortava a tela 25% a cada 2 s, até o piso.
+ *   - Com pouca banda, a imagem cheia fazia o encoder jogar quadros fora.
+ * ------------------------------------------------------------------ */
+{
+  const { escalaPelaBanda } = await import("../public/js/core/tuning.js");
+  const px = 1920 * 1080;
+  assert.equal(escalaPelaBanda(10_000_000, px, 60), 1, "com banda, a imagem cheia");
+  assert.equal(escalaPelaBanda(2_000_000, px, 60), 2, "2 Mbps a 60 qps: 960×540");
+  assert.equal(escalaPelaBanda(800_000, px, 60), 3, "pouca banda: o menor degrau");
+  assert.equal(escalaPelaBanda(4_500_000, px, 60, 2), 1.5, "a banda subiu: cresce");
+  assert.equal(escalaPelaBanda(6_000_000, px, 60, 1.5), 1.5, "sem 30% de folga, não cresce (6 Mbps cabe em 1,25 por pouco)");
+  assert.equal(escalaPelaBanda(3_000_000, px, 60, 1), 2, "a banda caiu: encolhe na hora");
+  assert.equal(escalaPelaBanda(0, px, 60, 1.5), 1.5, "sem medida, fica como está");
+  ok("tela: vídeo e jogo encolhem com a banda em vez de perder quadros, e crescem só com folga");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

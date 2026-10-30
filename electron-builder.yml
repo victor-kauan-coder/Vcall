@@ -38,6 +38,10 @@ files:
 
 asar: true
 
+# Linux: o executável "vcall" vira um lançador que decide o sandbox antes do
+# Chromium subir (scripts/linux/vcall.sh); o Electron vira o vcall-bin.
+afterPack: scripts/linux/depois-de-empacotar.cjs
+
 # Atualização automática (desktop/atualizador.js). Com isto o build grava o
 # app-update.yml dentro do app e gera latest.yml / latest-linux.yml, que o
 # workflow de release publica junto dos instaladores. O CI usa --publish never:
@@ -92,8 +96,9 @@ mac:
 #   rpm       Fedora, openSUSE, RHEL, Rocky, Alma
 #   pacman    Arch, Manjaro, EndeavourOS, CachyOS
 #   tar.gz    qualquer distro, descompactar e rodar
-# Os pacotes instalam o .desktop (link vcall://) e ajustam o chrome-sandbox;
-# o AppImage cuida disso sozinho na primeira execução (desktop/linux.js).
+# Os pacotes instalam o .desktop (link vcall://) e deixam o chrome-sandbox
+# setuid root (scripts/linux/depois-de-instalar.tpl); o AppImage registra o
+# .desktop sozinho na primeira execução (desktop/linux.js).
 linux:
   target:
     - target: AppImage
@@ -128,11 +133,29 @@ linux:
     Keywords: video;call;chamada;reuniao;webrtc;
 
 # Dependências de sistema que os pacotes pedem ao gerenciador. O compartilhar
-# tela no Wayland usa o portal (xdg-desktop-portal) com PipeWire.
+# tela no Wayland usa o portal (xdg-desktop-portal) com PipeWire. libgbm e
+# libasound (e libexpat no Fedora) o Electron carrega direto: sem elas, numa
+# instalação mínima o app não abre.
 deb:
-  depends: [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0]
+  depends: [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0, libgbm1, libasound2]
   recommends: [xdg-desktop-portal, pipewire]
+  afterInstall: scripts/linux/depois-de-instalar.tpl
+# No .rpm, pelo nome da biblioteca: o Fedora e o openSUSE dão nomes diferentes
+# aos pacotes (libXtst / libXtst6), mas as duas publicam o mesmo libXtst.so.6.
 rpm:
-  depends: [gtk3, libnotify, nss, libXScrnSaver, libXtst, xdg-utils, at-spi2-core, libuuid]
+  depends:
+    - libgtk-3.so.0()(64bit)
+    - libnotify.so.4()(64bit)
+    - libnss3.so()(64bit)
+    - libXss.so.1()(64bit)
+    - libXtst.so.6()(64bit)
+    - libatspi.so.0()(64bit)
+    - libuuid.so.1()(64bit)
+    - libgbm.so.1()(64bit)
+    - libasound.so.2()(64bit)
+    - libexpat.so.1()(64bit)
+    - xdg-utils
+  afterInstall: scripts/linux/depois-de-instalar.tpl
 pacman:
-  depends: [gtk3, libnotify, nss, libxss, libxtst, xdg-utils, at-spi2-core, util-linux-libs]
+  depends: [gtk3, libnotify, nss, libxss, libxtst, xdg-utils, at-spi2-core, util-linux-libs, alsa-lib]
+  afterInstall: scripts/linux/depois-de-instalar.tpl

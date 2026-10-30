@@ -37,7 +37,7 @@ import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
 import { descreverFontes, montarResposta, sessaoWayland, umPorVez, somDoComputadorNaLista } from "./captura.js";
-import { argsParaX11, executavelParaRegistrar, modoDeReabrir, opcoesDeExibicao, precisaSemSandbox } from "./linux.js";
+import { argsParaX11, executavelParaRegistrar, modoDeReabrir, opcoesDeExibicao } from "./linux.js";
 import { descartarWhisper, ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, prepararWhisper, responderModelo, WHISPER, WHISPER_PADRAO } from "./fala.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -111,9 +111,6 @@ if (process.platform === "linux") {
     }
   }
   for (const [chave, valor] of opcoesDeExibicao()) app.commandLine.appendSwitch(chave, valor);
-  // AppImage em distro que restringe user namespaces (Ubuntu 24.04+, kernels
-  // endurecidos): sem isto o app nem abre. Ver desktop/linux.js.
-  if (precisaSemSandbox()) app.commandLine.appendSwitch("no-sandbox");
 }
 
 /*
@@ -944,7 +941,7 @@ if (!app.requestSingleInstanceLock()) {
       );
     }
     if (process.platform === "linux" && app.commandLine.hasSwitch("no-sandbox")) {
-      registrar("sem-sandbox", { motivo: "AppImage sem user namespaces" });
+      registrar("sem-sandbox", { motivo: "sem user namespaces nem chrome-sandbox setuid (scripts/linux/vcall.sh)" });
     }
 
     try {

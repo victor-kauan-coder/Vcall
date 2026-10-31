@@ -32,7 +32,7 @@ import path from "node:path";
 import https from "node:https";
 
 /** Onde o binário fica guardado depois de baixado. */
-const HOME = path.join(os.homedir(), ".vcall");
+export const HOME = path.join(os.homedir(), ".vcall");
 
 /** Endereço oficial da última versão, por plataforma. */
 const RELEASES = {
@@ -93,8 +93,8 @@ export async function findCloudflared() {
   return ok ? exeName() : null;
 }
 
-/** Baixa o binário oficial, seguindo os redirecionamentos do GitHub. */
-function baixar(url, destino, onProgress) {
+/** Baixa um binário oficial (cloudflared, LiveKit), seguindo os redirecionamentos do GitHub. */
+export function baixar(url, destino, onProgress) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { headers: { "user-agent": "vcall" } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
@@ -104,7 +104,7 @@ function baixar(url, destino, onProgress) {
       }
       if (res.statusCode !== 200) {
         res.resume();
-        reject(new Error(`resposta ${res.statusCode} ao baixar o cloudflared`));
+        reject(new Error(`resposta ${res.statusCode} ao baixar ${path.basename(new URL(url).pathname)}`));
         return;
       }
       const total = Number(res.headers["content-length"] || 0);

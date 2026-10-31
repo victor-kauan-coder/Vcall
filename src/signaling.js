@@ -7,6 +7,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { WebSocketServer } from "ws";
+import { entradaNoSfu, proxySfuUpgrade } from "./sfu.js";
 import { config } from "./config.js";
 import { log, redactRoom } from "./logger.js";
 import { RoomRegistry, Participant } from "./rooms.js";
@@ -177,7 +178,7 @@ export function attachSignaling(
   const perIp = new Map();
 
   const wss = new WebSocketServer({
-    server: httpServer,
+    noServer: true,
     maxPayload: L.wsPayload,
     // Compressão ajuda no fallback de quadro branco pelo servidor; o custo é
     // irrelevante no volume de sinalização.
@@ -205,6 +206,11 @@ export function attachSignaling(
   // Sem ouvinte, isso virava exceção não tratada e a janela de erro do
   // Electron; quem é dono do servidor já trata o erro nele.
   wss.on("error", () => {});
+  // /sfu/ é a sinalização do LiveKit (src/sfu.js); o resto é a da sala.
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (proxySfuUpgrade(req, socket, head)) return;
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  });
 
   wss.on("connection", (socket, req) => {
     const ip = ipDe(req);
@@ -220,6 +226,8 @@ export function attachSignaling(
       room: null,
       limiter: new RateLimiter(L.rateBurst, L.rateWindowMs),
       ip,
+      // A janela do próprio app (nem túnel, nem Tailscale): só ela publica no SFU.
+      local: /^(127\.|::1$|::ffff:127\.)/.test(req.socket.remoteAddress || "") && !req.headers["cf-connecting-ip"] && !req.headers["x-forwarded-for"],
       passGuard,
       graca,
     };
@@ -342,6 +350,16 @@ export function attachSignaling(
 
         case C2S.PING: {
           me.send({ t: S2C.PONG, n: msg.n, at: Date.now() });
+          break;
+        }
+
+        case C2S.SFU: {
+          entradaNoSfu({ id: me.id, nome: me.profile?.name || "", sala: room.id, local: ctx.local })
+            .catch((err) => {
+              log.warn("SFU indisponível", { erro: String(err?.message || err).slice(0, 160) });
+              return null;
+            })
+            .then((entrada) => me.send({ t: S2C.SFU, entrada }));
           break;
         }
 

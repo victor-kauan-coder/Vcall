@@ -28,6 +28,8 @@ export const C2S = Object.freeze({
   MODERATE: "moderate",
   LEAVE: "leave",
   PING: "ping",
+  /** Pede a entrada no SFU de quem transmite (src/sfu.js). */
+  SFU: "sfu",
 
   /* Celular com o QuizzV (src/quizzv.js). */
   /** Participante pede o token para parear o celular. */
@@ -68,6 +70,8 @@ export const S2C = Object.freeze({
   BANNED: "banned",
   ERROR: "error",
   PONG: "pong",
+  /** Resposta ao pedido de SFU: {url, token} ou null (fica na malha). */
+  SFU: "sfu",
 
   /** Token de pareamento, para quem pediu. */
   QUIZ_PAREAMENTO: "quiz-pareamento",
@@ -327,6 +331,9 @@ export function parseClientMessage(raw) {
 
     case C2S.QUIZ_PAREAR:
       return { ok: true, msg: { t: C2S.QUIZ_PAREAR } };
+
+    case C2S.SFU:
+      return { ok: true, msg: { t: C2S.SFU } };
 
     case C2S.QUIZ_OLA: {
       const t = token(m.token);

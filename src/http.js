@@ -18,6 +18,7 @@ import { VERSION } from "./version.js";
 import { ehDaRede } from "./rede.js";
 import { ROTA_CURTA, origemPublica, paginaDoConvite } from "./convite.js";
 import { log } from "./logger.js";
+import { proxySfuHttp } from "./sfu.js";
 
 /**
  * Raiz do projeto.
@@ -260,6 +261,8 @@ export function createHttpServer({
 } = {}) {
   const daRede = (req) => ehDaRede(req, { trustTailscale, trustProxy: config.trustProxy });
   const server = http.createServer(async (req, res) => {
+    // A sinalização do SFU de quem transmite (só no app de mesa).
+    if (proxySfuHttp(req, res)) return;
     const SEC = headersFor(req);
     const method = req.method || "GET";
 

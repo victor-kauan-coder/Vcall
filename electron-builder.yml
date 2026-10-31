@@ -66,6 +66,9 @@ win:
   extraFiles:
     - from: .cache-cloudflared/win32-cloudflared.exe
       to: cloudflared.exe
+    # O SFU de quem transmite (desktop/sfu.js), conferido por SHA256 no build.
+    - from: .cache-livekit/livekit-server.exe
+      to: livekit-server.exe
 
 nsis:
   oneClick: false
@@ -119,6 +122,8 @@ linux:
   extraFiles:
     - from: .cache-cloudflared/linux-cloudflared
       to: cloudflared
+    - from: .cache-livekit/livekit-server
+      to: livekit-server
   maintainer: Victor Kauan <victor.kufpi@gmail.com>
   vendor: Vcall
   synopsis: Chamadas de vídeo P2P criptografadas, com canvas colaborativo

@@ -338,6 +338,8 @@ export class Rele {
         if (h === y || mesh.peers.get(h)?.connectionState !== "connected") continue;
         for (const p of lista(i.rele?.[eu]?.[y])) if (PAPEIS_VIDEO.includes(p)) papeis.add(p);
       }
+      // Quem já recebe a tela pelo SFU (core/sfu.js) também não precisa dela direto.
+      for (const p of mesh.sfu?.papeisPara(y) || []) papeis.add(p);
       peer.rotearPorRele([...papeis]);
     }
   }

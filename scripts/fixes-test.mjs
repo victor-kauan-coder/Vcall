@@ -380,6 +380,95 @@ const TOK = (n) => `token-${n}-abcdefghijklmnop`;
   ok("segurança: CF-Connecting-IP forjado não fura o limite de conexões");
 }
 
+/* -- SFU de quem transmite (fase 1): ficha, proxy e configuração -- */
+{
+  const { assinarFicha, conferirPacote, montarConfig, salaNoSfu } = await import("../desktop/sfu.js");
+  const { definirSfu } = await import("../src/sfu.js");
+  const { createHmac } = await import("node:crypto");
+  const http = await import("node:http");
+  const { WebSocketServer } = await import("ws");
+
+  // Configuração: sinalização só local e vídeo que não pausa (as pausas e
+  // trocas de camada eram as travadas de até 3 s da fase 0).
+  const conf = montarConfig({ porta: 7880, portaUdp: 50000, chave: "k", segredo: "s" });
+  assert.match(conf, /bind_addresses: \["127\.0\.0\.1"\]/);
+  assert.match(conf, /allow_pause: false/);
+  assert.match(conf, /use_external_ip: true/);
+
+  // Ficha: JWT HS256 que o LiveKit aceita; só quem é local publica.
+  const ficha = assinarFicha({ chave: "k", segredo: "s", id: "ana", nome: "Ana", sala: "abc", publica: false });
+  const [c, b, a] = ficha.split(".");
+  assert.equal(createHmac("sha256", "s").update(`${c}.${b}`).digest("base64url"), a, "assinatura confere");
+  const corpo = JSON.parse(Buffer.from(b, "base64url").toString());
+  assert.equal(corpo.video.canPublish, false, "quem assiste não publica");
+  assert.equal(corpo.video.canPublishData, false);
+  assert.ok(!salaNoSfu("sala-secreta").includes("secreta"), "o id da sala não vai para o LiveKit");
+
+  // Pacote com SHA256 diferente do fixado não roda.
+  const pasta = mkdtempSync(juntar(tmpdir(), "vcall-sfu-"));
+  gravar(juntar(pasta, "x.zip"), "não é o LiveKit");
+  await assert.rejects(conferirPacote(juntar(pasta, "x.zip"), "0".repeat(64)), /SHA256/);
+
+  // Sem SFU (servidor puro): a sala fica na malha.
+  const sem = cliente();
+  await sem.entrar(sala("sfu0"));
+  sem.send({ t: "sfu" });
+  assert.equal((await sem.esperar((m) => m.t === "sfu")).entrada, null);
+
+  // Um "LiveKit" de mentira atrás do /sfu/: HTTP e WebSocket.
+  const caminhos = [];
+  const lk = http.createServer((req, res) => (caminhos.push(req.url), res.end("ok")));
+  const lkWs = new WebSocketServer({ server: lk });
+  lkWs.on("connection", (w, req) => w.send(`oi ${req.url}`));
+  await new Promise((r) => lk.listen(0, "127.0.0.1", r));
+  const porta = lk.address().port;
+  let ligado = false;
+  definirSfu({
+    porta: () => (ligado ? porta : null),
+    ligar: async () => ((ligado = true), porta),
+    ficha: (id, nome, s, publica) => `ficha-${publica}`,
+  });
+
+  // Quem chega pelo túnel (CF-Connecting-IP) não liga o SFU nem publica.
+  const id = sala("sfu1");
+  const fora = new WebSocket(`ws://localhost:${PORT}`, { headers: { "cf-connecting-ip": "203.0.113.9" } });
+  const msgsFora = [];
+  fora.on("message", (r) => msgsFora.push(JSON.parse(String(r))));
+  await new Promise((r) => fora.on("open", r));
+  const esperarFora = async (pred) => {
+    for (let i = 0; i < 60 && !msgsFora.some(pred); i++) await new Promise((r) => setTimeout(r, 50));
+    return msgsFora.find(pred);
+  };
+  fora.send(JSON.stringify({ t: "join", room: id, profile: { name: "Fora" }, state: {} }));
+  await esperarFora((m) => m.t === "welcome");
+  fora.send(JSON.stringify({ t: "sfu" }));
+  assert.equal((await esperarFora((m) => m.t === "sfu")).entrada, null, "de fora, com o SFU parado: malha");
+  assert.equal(ligado, false, "quem é de fora não liga o SFU");
+
+  // A janela do app liga e publica; depois, quem é de fora entra só para assistir.
+  const local = cliente();
+  await local.entrar(id);
+  local.send({ t: "sfu" });
+  assert.deepEqual((await local.esperar((m) => m.t === "sfu")).entrada, { url: "/sfu", token: "ficha-true" });
+  msgsFora.length = 0;
+  fora.send(JSON.stringify({ t: "sfu" }));
+  assert.deepEqual((await esperarFora((m) => m.t === "sfu")).entrada, { url: "/sfu", token: "ficha-false" });
+
+  // Proxy: /sfu/rtc vira /rtc no LiveKit, no HTTP e no WebSocket.
+  const r = await fetch(`http://localhost:${PORT}/sfu/rtc/validate?access_token=x`);
+  assert.equal(await r.text(), "ok");
+  assert.equal(caminhos.at(-1), "/rtc/validate?access_token=x");
+  const viaProxy = new WebSocket(`ws://localhost:${PORT}/sfu/rtc?access_token=x`);
+  const eco = await new Promise((res, rej) => (viaProxy.on("message", (d) => res(String(d))), viaProxy.on("error", rej)));
+  assert.equal(eco, "oi /rtc?access_token=x");
+
+  for (const w of [viaProxy, fora, local.ws, sem.ws]) w.close();
+  lkWs.close();
+  lk.close();
+  definirSfu(null);
+  ok("SFU: só a janela do app publica, o id da sala não vaza e /sfu/ chega ao LiveKit");
+}
+
 server.close();
 
 /* ================================================================== *
@@ -2038,6 +2127,42 @@ if (process.platform === "linux") {
   assert.equal(avSync({ screen: { playoutMs: 1000 }, screenAudio: { playoutMs: null } }), null, "sem sincronia, sem número");
   assert.equal(avSync({ screen: null, screenAudio: null }), null);
   ok("estatísticas: avSyncMs = playout do som da tela − o da imagem");
+}
+
+/* -- SFU no navegador (fases 2 e 3): quando entra, camadas, chave e troca sem buraco -- */
+{
+  const { usarSfu, escalasDasCamadas, chaveValida, SFU_MIN_PESSOAS } = await import("../public/js/core/sfu.js");
+  const { readFileSync } = await import("node:fs");
+
+  // Só quem transmite numa sala de 3 ou mais; a dois, a malha é direta e mais rápida.
+  assert.equal(SFU_MIN_PESSOAS, 3);
+  assert.equal(usarSfu({ transmitindo: true, pessoas: 2 }), false);
+  assert.equal(usarSfu({ transmitindo: true, pessoas: 3 }), true);
+  assert.equal(usarSfu({ transmitindo: false, pessoas: 16 }), false);
+  assert.equal(usarSfu({ transmitindo: true, pessoas: 16, negado: true }), false, "sem SFU para mim: malha");
+
+  // Captura de 1440p: camada de cima em 1080p, de baixo em 360p; nunca amplia.
+  assert.deepEqual(escalasDasCamadas(1440), [4, 1440 / 1080]);
+  assert.deepEqual(escalasDasCamadas(720), [2, 1]);
+
+  // A chave chega de outra pessoa: só base64 curto.
+  assert.ok(chaveValida(btoa("x".repeat(32))));
+  assert.ok(!chaveValida("<script>"));
+  assert.ok(!chaveValida(123));
+
+  const sfu = readFileSync(new URL("../public/js/core/sfu.js", import.meta.url), "utf8");
+  const mesh = readFileSync(new URL("../public/js/core/mesh.js", import.meta.url), "utf8");
+  const rele = readFileSync(new URL("../public/js/core/rele.js", import.meta.url), "utf8");
+  // Cifra ponta a ponta ligada antes de conectar; chave nova a cada transmissão.
+  assert.match(sfu, /setE2EEEnabled\(true\);\s*const ws = /);
+  assert.match(sfu, /crypto\.getRandomValues\(new Uint8Array\(32\)\)/);
+  // Quem assiste só confirma (e a origem só desliga a direta) com a imagem chegando.
+  assert.match(sfu, /papeis\.includes\("screen"\) \? papeis : \[\]/);
+  // A interface só troca para o SFU com quadros (ou sem a direta).
+  assert.match(mesh, /peloSfu = !!sfu\?\.stream && \(sfu\.live \|\| !direta\?\.live\)/);
+  // O relé não religa a direta de quem já recebe pelo SFU.
+  assert.match(rele, /mesh\.sfu\?\.papeisPara\(y\)/);
+  ok("SFU no navegador: entra em sala de 3+, cifra ponta a ponta e troca sem deixar ninguém sem imagem");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

@@ -33,6 +33,8 @@ import { Tunnel } from "./tunnel.js";
 import { LinkTailscale } from "./tailscale.js";
 import { lerTurn, salvarTurn, visaoDoTurn } from "./turn.js";
 import { definirTurnLocal } from "../src/ice.js";
+import { definirSfu } from "../src/sfu.js";
+import { Sfu } from "./sfu.js";
 import { RedeVcall, limparPessoa } from "./rede.js";
 import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
@@ -53,6 +55,8 @@ let baseUrl = "";
 let tunnel = null;
 /** O link pela rede Tailscale da pessoa (`tailscale serve`), quando pedido. */
 let linkTs = null;
+/** O LiveKit de quem transmite (desktop/sfu.js); liga sob demanda. */
+let sfu = null;
 /** Sobe o link do Tailscale (usado pelo Convidar e pelo "sempre disponível"). */
 let ligarTailscale = async () => null;
 
@@ -341,6 +345,14 @@ async function subirServidor() {
   // real de cada convidado vem no CF-Connecting-IP. Pelo Tailscale, no
   // X-Forwarded-For que o `tailscale serve` põe (só endereços da tailnet).
   attachSignaling(server, { registry, trustCloudflare: true, trustTailscale: true });
+  // O SFU só liga quando a janela deste app pede para transmitir por ele.
+  sfu = new Sfu();
+  sfu.on("caiu", (d) => registrar("sfu-caiu", d));
+  definirSfu({
+    porta: () => sfu.porta,
+    ligar: () => sfu.ligar().catch((err) => (registrar("sfu-falhou", { erro: String(err?.message || err) }), Promise.reject(err))),
+    ficha: (...a) => sfu.ficha(...a),
+  });
 
   for (const p of PORTAS) {
     const obtida = await escutar(server, p);
@@ -1027,7 +1039,7 @@ Detalhe: ${err?.message || err}`);
   // O túnel é a parte exposta à internet: cai junto com o app, sempre. O link
   // do Tailscale também (e, mesmo que o app morra sem passar aqui, o
   // `tailscale serve` em primeiro plano se desfaz sozinho com o processo).
-  app.on("before-quit", () => (tunnel?.stop(), linkTs?.stop({ silencioso: true })));
+  app.on("before-quit", () => (tunnel?.stop(), linkTs?.stop({ silencioso: true }), sfu?.parar()));
   app.on("will-quit", () => globalShortcut.unregisterAll());
-  process.on("exit", () => (tunnel?.stop(), linkTs?.stop({ silencioso: true })));
+  process.on("exit", () => (tunnel?.stop(), linkTs?.stop({ silencioso: true }), sfu?.parar()));
 }

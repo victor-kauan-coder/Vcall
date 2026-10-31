@@ -77,6 +77,19 @@ mais. Com mais gente na sala cada pessoa recebe uma cópia, tudo fica em no
 máximo 60, e a qualidade desce sozinha conforme a internet e o computador de
 quem transmite.
 
+### Sala de 3 ou mais pelo aplicativo de mesa
+
+Quem transmite pelo aplicativo de mesa para 3 ou mais pessoas codifica a
+tela uma vez só. Um servidor de mídia (LiveKit) dentro do próprio app
+repassa a imagem para cada pessoa, cifrada de ponta a ponta: ele não
+consegue ver a imagem. A tela sai em duas camadas, até 1080p a 3,5 Mbps e
+uma de 360p, e cada pessoa recebe a que cabe na conexão dela.
+
+Quantas pessoas cabem depende da sua internet de **subida**: cada uma usa
+até ~3,7 Mbps. Com 70 Mbps, ficam ~16 pessoas. Quem não consegue se
+conectar ao seu PC (operadora com CGNAT, por exemplo) continua recebendo
+direto, como numa sala pequena.
+
 Pela internet, com pouca banda de envio, vídeo e jogo diminuem a imagem
 (1080p, 720p, 540p…) em vez de perder quadros: fica menos nítido, mas fluido.
 A imagem volta a crescer quando a conexão melhora. O modo de texto nunca

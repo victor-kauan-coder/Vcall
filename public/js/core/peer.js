@@ -115,9 +115,14 @@ export class Peer extends Emitter {
   #closed = false;
   #config;
   /**
-   * Tela e som da tela saem no mesmo stream: é pelo stream (msid no SDP) que
-   * quem recebe sabe que os dois andam juntos e sincroniza o som com a
-   * imagem. Sem isso, cada um tocava no próprio ritmo.
+   * Só a imagem da tela vai neste stream; o som da tela vai sem stream.
+   *
+   * Na 3.17.3 os dois iam no mesmo stream (msid no SDP) para o Chromium
+   * sincronizar o som com a imagem. Só que essa sincronia segue a imagem sem
+   * limite e solta devagar (80 ms por segundo): quando a imagem engasgava,
+   * o som ia junto a 2–2,7 s de atraso e levava mais de 25 s para voltar
+   * (medido pela internet simulada). Agora quem recebe sincroniza com teto
+   * (alvoDoSom em tuning.js, aplicado em stats.js).
    */
   #telaStream = null;
 
@@ -152,7 +157,7 @@ export class Peer extends Emitter {
     if (this.#mayOffer) {
       for (const role of ROLES) {
         const init = { direction: "sendrecv" };
-        if (role === "screen" || role === "screenAudio") init.streams = [this.#telaStream];
+        if (role === "screen") init.streams = [this.#telaStream];
         if (role === "screen") {
           init.sendEncodings = [{ maxBitrate: PROFILES.screenText.maxBitrate, maxFramerate: PROFILES.screenText.maxFramerate }];
         } else if (role === "cam") {
@@ -666,7 +671,7 @@ export class Peer extends Emitter {
       adoptedAny = true;
       // A oferta chegou como sendrecv/recvonly; precisamos poder enviar.
       if (t.direction !== "sendrecv") t.direction = "sendrecv";
-      if (role === "screen" || role === "screenAudio") t.sender.setStreams?.(this.#telaStream);
+      if (role === "screen") t.sender.setStreams?.(this.#telaStream);
       if (role === "screen") preferCodecs(t, screenCodecPreference(this.peerCount));
       if (role === "mic") preferRed(t);
     }

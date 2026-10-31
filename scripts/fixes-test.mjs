@@ -2001,6 +2001,35 @@ if (process.platform === "linux") {
 }
 
 /* ------------------------------------------------------------------ *
+ * 3.17.4: o som da tela era arrastado pela imagem. No mesmo stream, a
+ * sincronia do Chromium segurava o som até 2–2,7 s quando a imagem
+ * engasgava, e soltava a 80 ms por segundo. Agora o som vai noutro stream
+ * e a sincronia é nossa, com teto.
+ * ------------------------------------------------------------------ */
+{
+  const { alvoDoSom, SINCRONIA_MAX_MS } = await import("../public/js/core/tuning.js");
+  assert.equal(alvoDoSom({ videoMs: 120, alvo: 0 }), 120, "o som espera o mesmo que a imagem");
+  assert.equal(alvoDoSom({ videoMs: 125, alvo: 120 }), 120, "mudança < 30 ms: fica");
+  assert.equal(alvoDoSom({ videoMs: 130, alvo: 120 }), 120, "não acumula leitura a leitura");
+  assert.equal(alvoDoSom({ videoMs: 380, alvo: 0 }), SINCRONIA_MAX_MS, "nunca segura mais que o teto");
+  assert.equal(alvoDoSom({ videoMs: 1500, alvo: 250 }), 0, "imagem engasgada: o som segue sozinho");
+  assert.equal(alvoDoSom({ videoMs: 100, alvo: 250, videoParado: true }), 0, "imagem parada: solta o som");
+  assert.equal(alvoDoSom({ videoMs: 60, alvo: 120 }), 60, "a imagem adiantou: o som solta");
+  assert.ok(SINCRONIA_MAX_MS <= 300);
+
+  const fs = await import("node:fs");
+  const peer = fs.readFileSync(new URL("../public/js/core/peer.js", import.meta.url), "utf8");
+  assert.ok(!/screenAudio"\) (init\.streams|t\.sender\.setStreams)/.test(peer) && !/role === "screenAudio"\) (init\.streams|t\.sender\.setStreams)/.test(peer), "o som da tela não pode ir no stream da imagem");
+  assert.ok(/role === "screen"\) init\.streams = \[this\.#telaStream\]/.test(peer));
+
+  // A congestão passou: o teto volta inteiro em vez de subir 15% por leitura.
+  const stats = fs.readFileSync(new URL("../public/js/core/stats.js", import.meta.url), "utf8");
+  assert.ok(!/budget\.screen \* 1\.15/.test(stats), "sem a recuperação de 15% por leitura");
+  assert.ok(/FLOOR = \{ screen: 600_000/.test(stats), "piso da tela em 600 kbps");
+  ok("som da tela: stream próprio e sincronia com teto de 250 ms; banda volta inteira após a congestão");
+}
+
+/* ------------------------------------------------------------------ *
  * 3.17.4: indicador de sincronia (som da tela − imagem da tela).
  * ------------------------------------------------------------------ */
 {

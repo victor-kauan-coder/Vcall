@@ -162,6 +162,27 @@ const TOK = (n) => `token-${n}-abcdefghijklmnop`;
   for (const c of [a, b2, b3]) c.ws.close();
 }
 
+/* -- porta em uso: o erro chega a quem é dono do servidor, sem exceção solta -- */
+{
+  const ocupado = createHttpServer({});
+  await new Promise((r) => ocupado.listen(0, "127.0.0.1", r));
+  const srv = createHttpServer({});
+  attachSignaling(srv);
+  const soltas = [];
+  const pegaSolta = (e) => soltas.push(e);
+  process.on("uncaughtException", pegaSolta);
+  const erro = await new Promise((r) => {
+    srv.once("error", r);
+    srv.listen(ocupado.address().port, "127.0.0.1");
+    setTimeout(() => r(null), 1000);
+  });
+  process.off("uncaughtException", pegaSolta);
+  assert.equal(soltas.length, 0, "a sinalização não transforma o erro do servidor em exceção não tratada");
+  assert.equal(erro?.code, "EADDRINUSE", "o erro chega a quem é dono do servidor (e o app de mesa tenta a próxima porta)");
+  ocupado.close();
+  ok("porta em uso: o erro chega ao servidor, sem janela de erro no app de mesa");
+}
+
 /* -- queda sem aviso: a saída espera a mesma aba voltar; sair pelo botão é na hora -- */
 {
   const PORTA2 = PORT - 1;
@@ -1861,9 +1882,16 @@ if (process.platform === "linux") {
   const comPlaca = parFalso({ fps: 60, w: 1920, h: 1080, motivo: "none", alvo: 12_000_000, hw: true });
   await rodar(comPlaca, 2);
   assert.equal(comPlaca.enc.scaleResolutionDownBy, 1, "com hardware, a imagem fica cheia");
-  const capturaJa720 = parFalso({ fps: 45, w: 1280, h: 720, motivo: "none", alvo: 12_000_000, hw: false, alturaFonte: 720 });
-  await rodar(capturaJa720, 2);
-  assert.equal(capturaJa720.enc.scaleResolutionDownBy, 1, "a captura já sai em 720p (screen.js): não encolhe de novo");
+  const janela720 = parFalso({ fps: 45, w: 1280, h: 720, motivo: "none", alvo: 12_000_000, hw: false, alturaFonte: 720 });
+  await rodar(janela720, 2);
+  assert.equal(janela720.enc.scaleResolutionDownBy, 1, "janela de 720p não encolhe de novo");
+  // A Fluidez captura no tamanho da janela (screen.js): o teto da qualidade fica no encoder.
+  const janela4k = parFalso({ fps: 60, w: 3840, h: 2160, motivo: "none", alvo: 12_000_000, hw: true, alturaFonte: 2160 }, { ...PROFILES.screenMotion, alturaMax: 1080 });
+  await rodar(janela4k, 2);
+  assert.equal(janela4k.enc.scaleResolutionDownBy, 2, `janela 4K com placa: escala ${janela4k.enc.scaleResolutionDownBy} (tem de sair em 1080p)`);
+  const leve = parFalso({ fps: 60, w: 1920, h: 1080, motivo: "none", alvo: 12_000_000, hw: true }, { ...PROFILES.screenMotion, alturaMax: 720 });
+  await rodar(leve, 2);
+  assert.equal(leve.enc.scaleResolutionDownBy, 1.5, `qualidade de 720p com placa: escala ${leve.enc.scaleResolutionDownBy}`);
   const textoSemPlaca = parFalso({ fps: 30, w: 1920, h: 1080, motivo: "none", alvo: 6_000_000, hw: false }, PROFILES.screenText);
   await rodar(textoSemPlaca, 2);
   assert.equal(textoSemPlaca.enc.scaleResolutionDownBy, 1, "texto não perde resolução por causa do encoder");

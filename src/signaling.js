@@ -201,6 +201,11 @@ export function attachSignaling(
     },
   });
 
+  // O ws repete aqui os erros do servidor HTTP (porta em uso, por exemplo).
+  // Sem ouvinte, isso virava exceção não tratada e a janela de erro do
+  // Electron; quem é dono do servidor já trata o erro nele.
+  wss.on("error", () => {});
+
   wss.on("connection", (socket, req) => {
     const ip = ipDe(req);
     perIp.set(ip, (perIp.get(ip) || 0) + 1);

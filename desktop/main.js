@@ -18,6 +18,7 @@
  * cada abertura, a pessoa perderia tudo toda vez que abrisse o app.
  */
 import { app, BrowserWindow, Menu, dialog, desktopCapturer, globalShortcut, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
+import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
@@ -141,6 +142,45 @@ function registrar(evento, dados = {}) {
   } catch {
     /* sem disco para log não é motivo para derrubar nada */
   }
+}
+
+/*
+ * Windows 11: com a janela do Vcall minimizada, o sistema põe o processo em
+ * modo de economia (EcoQoS) e ignora o pedido de timer fino. A captura de
+ * tela roda neste processo (thread desktopCaptureThread do Chromium), e caía
+ * de ~43 para ~20 qps (medido). O Chromium só protege a GPU e o áudio, e o
+ * Electron não expõe SetProcessInformation: um PowerShell desliga as duas
+ * economias para este processo, uma vez, na primeira captura. O Windows
+ * guarda a escolha até o processo acabar.
+ */
+let economiaDesligada = false;
+function semEconomiaDoWindows() {
+  if (process.platform !== "win32" || economiaDesligada) return;
+  economiaDesligada = true;
+  const script = `Add-Type @'
+using System; using System.Runtime.InteropServices;
+public static class VcallEco {
+  [StructLayout(LayoutKind.Sequential)] public struct S { public uint V; public uint C; public uint E; }
+  [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr OpenProcess(uint a, bool h, int p);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetProcessInformation(IntPtr h, int c, ref S s, int n);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+  public static bool Desligar(int pid) {
+    IntPtr h = OpenProcess(0x0200, false, pid);
+    if (h == IntPtr.Zero) return false;
+    S s = new S { V = 1, C = 1 | 4, E = 0 }; // EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION, ambas desligadas
+    bool ok = SetProcessInformation(h, 4, ref s, Marshal.SizeOf(s));
+    CloseHandle(h);
+    return ok;
+  }
+}
+'@
+[VcallEco]::Desligar(${process.pid})`;
+  execFile(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
+    { windowsHide: true, timeout: 30_000 },
+    (err, saida) => registrar("sem-economia", { ok: !err && /True/.test(String(saida)), erro: err ? String(err.message || err).slice(0, 160) : undefined }),
+  );
 }
 
 /* ==================================================================== *
@@ -766,12 +806,14 @@ function permissoes() {
   // Só a nossa página e as salas abertas por convite falam com estes canais.
   const doApp = (e) => origemPermitida(e.senderFrame?.url || "");
 
-  ipcMain.handle("vcall:fontes", async (e) => {
+  // Sem miniaturas a lista sai em ~0,6 s; com elas, 3,5 a 4,5 s (medido no
+  // Windows com 12 janelas). O seletor pede as duas e mostra a rápida antes.
+  ipcMain.handle("vcall:fontes", async (e, { miniaturas = true } = {}) => {
     if (!doApp(e)) throw new Error("origem não autorizada");
     if (sessaoWayland()) return { portal: true, audio: somDoComputadorNaLista(process.platform), fontes: [] };
     const fontes = await desktopCapturer.getSources({
       types: ["screen", "window"],
-      thumbnailSize: { width: 320, height: 200 },
+      thumbnailSize: miniaturas ? { width: 320, height: 200 } : { width: 0, height: 0 },
       fetchWindowIcons: true,
     });
     return {
@@ -869,6 +911,7 @@ function permissoes() {
   const vezDeCaptura = umPorVez();
   ses.setDisplayMediaRequestHandler(
     async (pedido, callback) => {
+      semEconomiaDoWindows();
       let respondido = false;
       const vez = vezDeCaptura.pegar();
       let prazo = 0;

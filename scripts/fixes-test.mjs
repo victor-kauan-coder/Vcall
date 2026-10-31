@@ -1783,9 +1783,9 @@ if (process.platform === "linux") {
       async getStats() {
         t += 2000;
         return new Map([
-          ["OT", { id: "OT", type: "outbound-rtp", kind: "video", mid: "2", timestamp: t, bytesSent: t * 1000, mediaSourceId: "SV", framesPerSecond: tela.fps, frameWidth: tela.w, frameHeight: tela.h, qualityLimitationReason: tela.motivo, qualityLimitationDurations: { [tela.motivo]: t / 1000 }, targetBitrate: tela.alvo ?? 3_000_000, remoteId: "RI" }],
+          ["OT", { id: "OT", type: "outbound-rtp", kind: "video", mid: "2", timestamp: t, bytesSent: t * 1000, mediaSourceId: "SV", framesPerSecond: tela.fps, frameWidth: tela.w, frameHeight: tela.h, qualityLimitationReason: tela.motivo, qualityLimitationDurations: { [tela.motivo]: t / 1000 }, targetBitrate: tela.alvo ?? 3_000_000, remoteId: "RI", powerEfficientEncoder: tela.hw }],
           ["RI", { id: "RI", type: "remote-inbound-rtp", kind: "video", fractionLost: tela.perda ?? 0 }],
-          ["SV", { id: "SV", type: "media-source", kind: "video", framesPerSecond: tela.fonte ?? 60 }],
+          ["SV", { id: "SV", type: "media-source", kind: "video", framesPerSecond: tela.fonte ?? 60, height: tela.alturaFonte ?? 1080 }],
           ...(tela.parEmUso
             ? [
                 ["T", { id: "T", type: "transport", selectedCandidatePairId: "CP2" }],
@@ -1853,6 +1853,21 @@ if (process.platform === "linux") {
   await rodar(textoApertado, 2);
   assert.equal(textoApertado.enc.scaleResolutionDownBy, 1, "texto nunca encolhe pela banda: a letra tem de continuar legível");
   ok("tela pela internet: banda lida do par em uso, perda pequena não derruba o teto e o jogo encolhe com a banda");
+
+  // 3.17.2: sem encoder de hardware, vídeo em 1080p não passa de ~40 qps na CPU.
+  const semPlaca = parFalso({ fps: 40, w: 1920, h: 1080, motivo: "none", alvo: 12_000_000, hw: false });
+  await rodar(semPlaca, 2);
+  assert.equal(semPlaca.enc.scaleResolutionDownBy, 1.5, `encoder por software na Fluidez: escala ${semPlaca.enc.scaleResolutionDownBy} (1080p tem de virar 720p)`);
+  const comPlaca = parFalso({ fps: 60, w: 1920, h: 1080, motivo: "none", alvo: 12_000_000, hw: true });
+  await rodar(comPlaca, 2);
+  assert.equal(comPlaca.enc.scaleResolutionDownBy, 1, "com hardware, a imagem fica cheia");
+  const capturaJa720 = parFalso({ fps: 45, w: 1280, h: 720, motivo: "none", alvo: 12_000_000, hw: false, alturaFonte: 720 });
+  await rodar(capturaJa720, 2);
+  assert.equal(capturaJa720.enc.scaleResolutionDownBy, 1, "a captura já sai em 720p (screen.js): não encolhe de novo");
+  const textoSemPlaca = parFalso({ fps: 30, w: 1920, h: 1080, motivo: "none", alvo: 6_000_000, hw: false }, PROFILES.screenText);
+  await rodar(textoSemPlaca, 2);
+  assert.equal(textoSemPlaca.enc.scaleResolutionDownBy, 1, "texto não perde resolução por causa do encoder");
+  ok("tela sem encoder de hardware: vídeo e jogo vão em 720p, texto continua cheio");
 }
 
 /* ------------------------------------------------------------------ *
@@ -1878,6 +1893,26 @@ if (process.platform === "linux") {
   assert.equal(escalaPelaBanda(3_000_000, px, 60, 1), 2, "a banda caiu: encolhe na hora");
   assert.equal(escalaPelaBanda(0, px, 60, 1.5), 1.5, "sem medida, fica como está");
   ok("tela: vídeo e jogo encolhem com a banda em vez de perder quadros, e crescem só com folga");
+}
+
+/* ------------------------------------------------------------------ *
+ * 3.17.2: janela de vídeo escolhida no seletor vai na Fluidez.
+ *
+ * O padrão do seletor é Nitidez (texto). Um vídeo do YouTube compartilhado
+ * assim saía aos trancos: o encoder guarda a letra nítida e descarta quadros.
+ * ------------------------------------------------------------------ */
+{
+  const { pareceVideo } = await import("../public/js/ui/sharesheet.js");
+  for (const nome of [
+    "(1643) Advance 2.0 Suit - Marvel’s Spider-Man 2 PS5 Pro Free Roam Gameplay (4K60FPS Pro Performance) - YouTube - Brave",
+    "Twitch - Google Chrome",
+    "Netflix",
+    "VLC media player",
+  ])
+    assert.ok(pareceVideo(nome), `vídeo não reconhecido: ${nome}`);
+  for (const nome of ["Documento1 - Word", "Planilha - Excel", "README.md - Visual Studio Code", "Slides - PowerPoint", "Explorador de Arquivos"])
+    assert.ok(!pareceVideo(nome), `não é vídeo: ${nome}`);
+  ok("seletor: janela de vídeo (YouTube, Twitch, players) escolhe a Fluidez sozinha");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

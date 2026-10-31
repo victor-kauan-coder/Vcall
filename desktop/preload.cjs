@@ -24,10 +24,11 @@ contextBridge.exposeInMainWorld("vcallDesktop", {
   // entregue logo depois de um clique real (ativação do usuário, que página
   // nenhuma consegue forjar) — um site não consegue espiar as suas janelas
   // em segundo plano. O processo principal ainda confere a origem.
-  fontes: () =>
+  // `{ miniaturas: false }` devolve só nomes e ícones, bem mais rápido.
+  fontes: (opcoes) =>
     navigator.userActivation?.isActive === false
       ? Promise.reject(new Error("a lista de janelas só abre a partir de um clique"))
-      : ipcRenderer.invoke("vcall:fontes"),
+      : ipcRenderer.invoke("vcall:fontes", { miniaturas: opcoes?.miniaturas !== false }),
   /**
    * Legendas no app: garante o modelo de fala do idioma (baixa na primeira
    * vez) e devolve o endereço dele. `aoProgresso` recebe de 0 a 1.

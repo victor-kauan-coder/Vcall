@@ -60,6 +60,14 @@ const SUPERFICIES = [
   },
 ];
 
+/**
+ * O título da janela é de vídeo (site ou player)? Vídeo no modo Nitidez sai
+ * aos trancos: o encoder guarda a letra nítida e joga quadros fora.
+ */
+export function pareceVideo(nome) {
+  return /youtube|twitch|netflix|prime video|disney\+|globoplay|crunchyroll|vimeo|kick|max|vlc|media player|mpv|potplayer|filmes e tv|player/i.test(String(nome || ""));
+}
+
 const MODOS = [
   {
     id: "text",
@@ -91,8 +99,10 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null, tro
       withAudio: prefs.get("share:audio2", false),
       fonte: null,
     };
-    // Pedida já, ainda dentro do clique: a lista de janelas exige um gesto.
-    const fontesPedido = desktop?.fontes ? desktop.fontes().catch(() => null) : null;
+    // Pedidas já, ainda dentro do clique: a lista de janelas exige um gesto.
+    // A sem miniaturas chega em menos de 1 s; as miniaturas vêm depois.
+    const fontesPedido = desktop?.fontes ? desktop.fontes({ miniaturas: false }).catch(() => null) : null;
+    const miniaturasPedido = desktop?.fontes ? desktop.fontes({ miniaturas: true }).catch(() => null) : null;
 
     const fundo = el("div.share", { role: "dialog", "aria-modal": "true", "aria-labelledby": "shareTitulo" });
     const card = el("div.share__card");
@@ -113,11 +123,14 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null, tro
 
     /* -- o que mostrar -- */
     const grade = el("div.share__grade", { role: "radiogroup", "aria-label": "O que mostrar" });
+    // Janela de vídeo escolhida: Fluidez, a menos que a pessoa tenha escolhido o modo à mão.
+    const modoAuto = { para: null };
+    let modoManual = false;
     const cartoes = new Map();
     const somBloco = { node: null, mostrar: () => {} };
     const confirmarRef = { node: null };
     if (fontesPedido) {
-      card.append(montarListaDesktop({ fontesPedido, escolha, somBloco, confirmarRef }));
+      card.append(montarListaDesktop({ fontesPedido, miniaturasPedido, escolha, somBloco, confirmarRef, aoEscolherFonte: (f) => modoAuto.para?.(f) }));
     }
     for (const s of fontesPedido ? [] : SUPERFICIES) {
       const b = el("button.share__opcao", {
@@ -149,14 +162,21 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null, tro
         "aria-checked": String(escolha.mode === m.id),
         dataset: { tip: m.texto, "tip-placement": "top" },
         onClick: () => {
-          escolha.mode = m.id;
-          for (const [k, n] of modos) n.setAttribute("aria-checked", String(k === m.id));
+          modoManual = true;
+          marcarModo(m.id);
         },
       });
       b.append(icon(m.icon, { size: "sm" }), el("span", { text: m.titulo }));
       modos.set(m.id, b);
       linhaModo.append(b);
     }
+    function marcarModo(id) {
+      escolha.mode = id;
+      for (const [k, n] of modos) n.setAttribute("aria-checked", String(k === id));
+    }
+    modoAuto.para = (f) => {
+      if (!modoManual) marcarModo(pareceVideo(f?.nome) ? "motion" : prefs.get("share:mode", "text"));
+    };
 
     /* -- resolução -- */
     const seletorQ = el("select.input.share__select", { "aria-label": "Qualidade" });
@@ -254,7 +274,7 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null, tro
       if (confirmar.disabled) return;
       prefs.set("share:surface", escolha.surface);
       prefs.set("screen:quality", escolha.quality);
-      prefs.set("share:mode", escolha.mode);
+      if (modoManual) prefs.set("share:mode", escolha.mode);
       prefs.set("share:audio2", escolha.withAudio);
       /*
        * Fecha ANTES de resolver. A captura precisa ser pedida ainda dentro do
@@ -274,11 +294,11 @@ export function escolherCompartilhamento({ podeAudio = true, desktop = null, tro
  * ------------------------------------------------------------------ */
 
 /**
- * Monta a lista de fontes do app de mesa. Ela chega de forma assíncrona (o
- * sistema precisa tirar as miniaturas), então o bloco nasce com um aviso de
- * "carregando" e se preenche sozinho.
+ * Monta a lista de fontes do app de mesa. Ela chega de forma assíncrona, em
+ * dois tempos: nomes e ícones em menos de 1 s, e as miniaturas (o sistema
+ * fotografa cada janela) alguns segundos depois, no lugar dos quadros vazios.
  */
-function montarListaDesktop({ fontesPedido, escolha, somBloco, confirmarRef }) {
+function montarListaDesktop({ fontesPedido, miniaturasPedido, escolha, somBloco, confirmarRef, aoEscolherFonte }) {
   const bloco = el("div.share__fontes");
   const abas = el("div.share__linha", { role: "tablist", "aria-label": "Tipo" });
   const grade = el("div.share__fontesGrade", { role: "radiogroup", "aria-label": "O que compartilhar" });
@@ -309,10 +329,12 @@ function montarListaDesktop({ fontesPedido, escolha, somBloco, confirmarRef }) {
         onClick: () => {
           escolha.fonte = f.id;
           escolha.surface = f.tipo === "screen" ? "monitor" : "window";
+          aoEscolherFonte?.(f);
           marcar();
         },
         onDblclick: () => {
           escolha.fonte = f.id;
+          aoEscolherFonte?.(f);
           marcar();
           confirmarRef.node?.click();
         },
@@ -331,6 +353,7 @@ function montarListaDesktop({ fontesPedido, escolha, somBloco, confirmarRef }) {
     if (!visiveis.some((f) => f.id === escolha.fonte)) {
       escolha.fonte = visiveis[0]?.id || null;
       if (visiveis[0]) escolha.surface = visiveis[0].tipo === "screen" ? "monitor" : "window";
+      aoEscolherFonte?.(visiveis[0]);
     }
     marcar();
   };
@@ -383,6 +406,22 @@ function montarListaDesktop({ fontesPedido, escolha, somBloco, confirmarRef }) {
     lista = r.fontes || [];
     if (!lista.some((f) => f.tipo === tipo)) tipo = lista[0]?.tipo || "screen";
     desenhar();
+    // As miniaturas entram no lugar, sem redesenhar a grade (o foco fica onde está).
+    miniaturasPedido?.then((m) => {
+      // A busca com miniaturas às vezes acha janelas que a rápida não achou.
+      const novas = (m?.fontes || []).filter((f) => !lista.some((x) => x.id === f.id));
+      if (novas.length) {
+        lista.push(...novas);
+        desenhar();
+      }
+      for (const f of m?.fontes || []) {
+        const item = lista.find((x) => x.id === f.id);
+        if (!item || !f.miniatura) continue;
+        item.miniatura = f.miniatura;
+        const vazia = [...grade.children].find((b) => b.dataset.id === f.id)?.querySelector(".share__fonteImg--vazia");
+        vazia?.replaceWith(el("img.share__fonteImg", { src: f.miniatura, alt: "", draggable: false }));
+      }
+    });
   });
 
   return bloco;

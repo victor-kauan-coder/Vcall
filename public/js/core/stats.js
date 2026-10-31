@@ -367,6 +367,9 @@ export class StatsMonitor extends Emitter {
       // Quantos quadros a captura entrega: tela parada manda poucos, e aí
       // poucos quadros codificados não é problema.
       sourceFps: byId.get(r.mediaSourceId)?.framesPerSecond ?? null,
+      sourceHeight: byId.get(r.mediaSourceId)?.height ?? null,
+      // false: o encoder em uso é por software (sem placa de vídeo para o codec).
+      hardware: r.powerEfficientEncoder ?? null,
       width: r.frameWidth ?? null,
       height: r.frameHeight ?? null,
       limitedBy: r.qualityLimitationReason || "none",
@@ -515,7 +518,15 @@ export class StatsMonitor extends Emitter {
     const qps = Math.min(budget.framerate, Math.max(30, screen.sourceFps ?? budget.framerate));
     const escalaAntes = budget.escala ?? 1;
     budget.escala = perfil.contentHint === "motion" ? escalaPelaBanda(screen.targetBitrate, width * height, qps, escalaAntes) : 1;
-    const escala = Math.max(cpu.scaleResolutionDownBy, budget.escala);
+    /*
+     * Encoder por software (a máquina não codifica o codec na placa, ou o de
+     * hardware caiu no meio da chamada): 1080p em movimento não passa de
+     * 36–41 qps na CPU, 720p chega a 45–47 (medido, OpenH264 num i5 de 12ª
+     * geração). Para vídeo e jogo, quadro vale mais que pixel.
+     */
+    const alturaFonte = screen.sourceHeight || height;
+    const tetoSoftware = perfil.contentHint === "motion" && screen.hardware === false ? Math.max(1, alturaFonte / 720) : 1;
+    const escala = Math.max(cpu.scaleResolutionDownBy, budget.escala, tetoSoftware);
 
     // Também quando o sender diverge do orçamento: cada renegociação ou troca
     // de trilha reaplica o perfil cheio (peer.retune) por cima do ajuste.

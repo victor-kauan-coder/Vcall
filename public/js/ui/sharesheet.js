@@ -37,7 +37,7 @@
  */
 import { el, icon, $ } from "../lib/dom.js";
 import { prefs } from "../lib/util.js";
-import { SCREEN_QUALITY } from "../core/screen.js";
+import { SCREEN_QUALITY, TETO_QPS } from "../core/screen.js";
 
 const SUPERFICIES = [
   {
@@ -79,7 +79,7 @@ const MODOS = [
     id: "motion",
     icon: "zap",
     titulo: "Fluidez",
-    texto: "Vídeo e jogo, até 120 quadros por segundo. A imagem fica menor antes de engasgar.",
+    texto: `Vídeo e jogo, até ${TETO_QPS} quadros por segundo. A imagem fica menor antes de engasgar.`,
   },
 ];
 

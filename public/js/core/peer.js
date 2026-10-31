@@ -114,6 +114,12 @@ export class Peer extends Emitter {
   #restartWatch = 0;
   #closed = false;
   #config;
+  /**
+   * Tela e som da tela saem no mesmo stream: é pelo stream (msid no SDP) que
+   * quem recebe sabe que os dois andam juntos e sincroniza o som com a
+   * imagem. Sem isso, cada um tocava no próprio ritmo.
+   */
+  #telaStream = null;
 
   constructor({ id, selfId, config, profile, local, peerCount = 1 }) {
     super();
@@ -140,11 +146,13 @@ export class Peer extends Emitter {
   #build(local) {
     const pc = new RTCPeerConnection(this.#config);
     this.pc = pc;
+    this.#telaStream = new MediaStream();
 
     // Só quem oferta cria as linhas. Quem responde as adota da oferta.
     if (this.#mayOffer) {
       for (const role of ROLES) {
         const init = { direction: "sendrecv" };
+        if (role === "screen" || role === "screenAudio") init.streams = [this.#telaStream];
         if (role === "screen") {
           init.sendEncodings = [{ maxBitrate: PROFILES.screenText.maxBitrate, maxFramerate: PROFILES.screenText.maxFramerate }];
         } else if (role === "cam") {
@@ -658,6 +666,7 @@ export class Peer extends Emitter {
       adoptedAny = true;
       // A oferta chegou como sendrecv/recvonly; precisamos poder enviar.
       if (t.direction !== "sendrecv") t.direction = "sendrecv";
+      if (role === "screen" || role === "screenAudio") t.sender.setStreams?.(this.#telaStream);
       if (role === "screen") preferCodecs(t, screenCodecPreference(this.peerCount));
       if (role === "mic") preferRed(t);
     }

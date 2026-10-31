@@ -63,9 +63,15 @@ de vídeo já liga a **Fluidez**, a menos que você escolha a prioridade à mão
 Não minimize a janela compartilhada: o Windows não captura janela minimizada,
 e a imagem congela para quem assiste. Se isso acontecer, o Vcall avisa.
 
+Na Fluidez a janela é capturada no tamanho dela (até 1440p), e quem reduz a
+imagem é o codificador. Reduzir dentro da captura prendia o vídeo em ~45
+quadros por segundo. O som do computador, quando compartilhado, vai junto
+com a imagem, e quem assiste ouve sincronizado com o que vê.
+
 A tela sai em 1080p a até **120 quadros por segundo** no modo Fluidez, quando
 o monitor de quem transmite é de 120 Hz ou mais e a internet aguenta (começa em
-60 e sobe em alguns segundos); num monitor de 60 Hz saem 60. Texto e slides ficam em 60, onde a nitidez vale mais que quadros a
+60 e sobe em alguns segundos); num monitor de 60 Hz saem 60, e no Linux
+também (o PipeWire não entrega mais que isso). Texto e slides ficam em 60, onde a nitidez vale mais que quadros a
 mais. Com mais gente na sala cada pessoa recebe uma cópia, tudo fica em no
 máximo 60, e a qualidade desce sozinha conforme a internet e o computador de
 quem transmite.

@@ -519,14 +519,16 @@ export class StatsMonitor extends Emitter {
     const escalaAntes = budget.escala ?? 1;
     budget.escala = perfil.contentHint === "motion" ? escalaPelaBanda(screen.targetBitrate, width * height, qps, escalaAntes) : 1;
     /*
-     * Encoder por software (a máquina não codifica o codec na placa, ou o de
-     * hardware caiu no meio da chamada): 1080p em movimento não passa de
-     * 36–41 qps na CPU, 720p chega a 45–47 (medido, OpenH264 num i5 de 12ª
-     * geração). Para vídeo e jogo, quadro vale mais que pixel.
+     * Na Fluidez a captura vem no tamanho da janela (screen.js), e o teto de
+     * resolução fica aqui: o da qualidade escolhida e, com encoder por
+     * software (a máquina não codifica o codec na placa, ou o de hardware
+     * caiu no meio da chamada), 720p. 1080p em movimento não passa de 36–41
+     * qps na CPU (medido, OpenH264 num i5 de 12ª geração); para vídeo e jogo,
+     * quadro vale mais que pixel.
      */
     const alturaFonte = screen.sourceHeight || height;
-    const tetoSoftware = perfil.contentHint === "motion" && screen.hardware === false ? Math.max(1, alturaFonte / 720) : 1;
-    const escala = Math.max(cpu.scaleResolutionDownBy, budget.escala, tetoSoftware);
+    const tetoAltura = perfil.contentHint === "motion" ? Math.min(perfil.alturaMax ?? 1080, screen.hardware === false ? 720 : Infinity) : Infinity;
+    const escala = Math.max(cpu.scaleResolutionDownBy, budget.escala, alturaFonte / tetoAltura);
 
     // Também quando o sender diverge do orçamento: cada renegociação ou troca
     // de trilha reaplica o perfil cheio (peer.retune) por cima do ajuste.

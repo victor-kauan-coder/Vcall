@@ -65,13 +65,20 @@ function comPrazo(promessa, ms = PRAZO_SELETOR_MS) {
   });
 }
 
+/*
+ * 120 é o máximo do Chromium; no Windows a captura não passa da taxa do
+ * monitor nem repete quadro, e num monitor de 60 Hz pedir 120 ainda pega
+ * mais quadros novos da tela inteira (57 em vez de 52, medido no Electron 44).
+ * No Linux, 60: o PipeWire não entrega mais que isso, e o X11 não sabe o que
+ * mudou na tela, então pedir 120 só capturaria e mandaria quadros repetidos.
+ */
+const agente = globalThis.navigator?.userAgent ?? "";
+export const TETO_QPS = /Linux/.test(agente) && !/Android/.test(agente) ? 60 : 120;
+
 /** Resoluções oferecidas ao usuário. */
 export const SCREEN_QUALITY = {
-  // 120 é o máximo do Chromium; a captura não passa da taxa do monitor nem
-  // repete quadro, e num monitor de 60 Hz pedir 120 ainda pega mais quadros
-  // novos da tela inteira (57 em vez de 52, medido no Electron 44).
-  auto: { label: "Automática", width: 1920, height: 1080, frameRate: 120 },
-  hd: { label: "1080p · até 120 qps", width: 1920, height: 1080, frameRate: 120 },
+  auto: { label: "Automática", width: 1920, height: 1080, frameRate: TETO_QPS },
+  hd: { label: `1080p · até ${TETO_QPS} qps`, width: 1920, height: 1080, frameRate: TETO_QPS },
   smooth: { label: "720p · 60 qps, rede fraca", width: 1280, height: 720, frameRate: 60 },
   light: { label: "720p · econômica", width: 1280, height: 720, frameRate: 15 },
 };
@@ -100,31 +107,23 @@ export class ScreenShare extends Emitter {
   /** Codec escolhido para cada modo nesta máquina (tuning.codecDaTela). */
   #codecs = {};
 
-  /** O encoder em uso é por software e o modo é Fluidez: a captura sai em 720p. */
-  #softwareNaFluidez = false;
-
+  /**
+   * Na Fluidez a captura sai no tamanho da janela, e quem reduz é o encoder
+   * (stats.js, pelo `alturaMax` do perfil). O Chromium só deixa a captura
+   * ocupar metade do tempo de uma thread, e reduzir ali custa ~6 ms por
+   * quadro: 1926×1094 → 720p travava em ~45 qps; sem reduzir, 51–59
+   * (medido no Electron 44). O teto de 1440p deixa a janela de 1080p inteira
+   * e barra fonte enorme: uma captura em 4K a 60 já não cabe na CPU.
+   */
   #restricoes() {
     const q = SCREEN_QUALITY[this.quality] || SCREEN_QUALITY.auto;
-    const teto = this.mode === "motion" && this.#softwareNaFluidez && q.height > 720;
-    return { frameRate: q.frameRate, maxWidth: teto ? 1280 : q.width, maxHeight: teto ? 720 : q.height };
-  }
-
-  /**
-   * O encoder em uso é por hardware? (estatísticas: powerEfficientEncoder.)
-   * Sem placa, vídeo em 1080p não passa de 36–41 qps na CPU. Capturando já em
-   * 720p chega a 42–47, e reduzir depois da captura rendia menos, 33–39
-   * (medido, OpenH264 num i5 de 12ª geração). Com hardware, volta ao normal.
-   */
-  async ajustarAoEncoder(hardware) {
-    if (hardware == null || !this.videoTrack) return;
-    const software = hardware === false;
-    if (software === this.#softwareNaFluidez) return;
-    this.#softwareNaFluidez = software;
-    if (this.mode === "motion") this.settings = await constrainScreenTrack(this.videoTrack, this.#restricoes());
+    if (this.mode === "motion") return { frameRate: q.frameRate, maxWidth: 2560, maxHeight: 1440 };
+    return { frameRate: q.frameRate, maxWidth: q.width, maxHeight: q.height };
   }
 
   get profile() {
-    return { ...screenProfileFor(this.mode), codec: this.#codecs[this.mode] };
+    const q = SCREEN_QUALITY[this.quality] || SCREEN_QUALITY.auto;
+    return { ...screenProfileFor(this.mode), codec: this.#codecs[this.mode], alturaMax: q.height };
   }
 
   /**
@@ -306,8 +305,8 @@ export class ScreenShare extends Emitter {
     for (const t of [this.videoTrack, this.sendTrack]) {
       if (t && "contentHint" in t) t.contentHint = this.mode === "motion" ? "motion" : "text";
     }
-    // O teto de 720p do encoder por software só vale na Fluidez.
-    if (this.#softwareNaFluidez && this.videoTrack) constrainScreenTrack(this.videoTrack, this.#restricoes()).then((s) => (this.settings = s));
+    // A Fluidez captura no tamanho da janela; a Nitidez, na resolução escolhida.
+    if (this.videoTrack) constrainScreenTrack(this.videoTrack, this.#restricoes()).then((s) => (this.settings = s));
     this.emit("mode", this.mode);
     this.emit("change", this.snapshot());
     return this.mode;

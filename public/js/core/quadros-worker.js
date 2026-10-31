@@ -96,14 +96,27 @@ function rele({ entrada, saida, intervaloMs = 1000 }) {
   })();
 
   // Tela parada: repete o último quadro, para o fluxo não morrer (screen.js).
-  const timer = setInterval(() => {
+  // A cópia nasce dos pixels: copiar o VideoFrame levava junto a hora de
+  // captura antiga, e o encoder descartava todas as repetições ("Same/old NTP
+  // timestamp"; medido: 0 quadros codificados em 12 s de tela parada).
+  const timer = setInterval(async () => {
     if (parado || escrevendo || !ultimo) return;
     if (performance.now() - ultimoEm < intervaloMs) return;
-    ultimoEm = performance.now();
+    const em = (ultimoEm = performance.now());
     let copia;
     try {
-      copia = new VideoFrame(ultimo, { timestamp: agora() });
+      const bitmap = await createImageBitmap(ultimo);
+      try {
+        copia = new VideoFrame(bitmap, { timestamp: agora() });
+      } finally {
+        bitmap.close();
+      }
     } catch {
+      return;
+    }
+    // Chegou quadro novo (ou outra escrita) durante o await: a cópia é velha.
+    if (ultimoEm !== em || escrevendo) {
+      copia.close();
       return;
     }
     escrever(copia);

@@ -95,10 +95,9 @@ app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
 app.commandLine.appendSwitch("disable-background-timer-throttling");
 if (process.platform === "linux") {
-  // Compartilhar tela no Wayland passa pelo portal do sistema (PipeWire).
-  // Sem este recurso o Chromium tenta capturar pelo X11, que no Wayland só
-  // enxerga janelas XWayland — e a pessoa vê uma tela preta ou nada.
-  app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
+  // A captura pelo PipeWire (portal do Wayland) já vem ligada no Electron:
+  // o `WebRTCPipeWireCapturer` saiu do Chromium no M133 e não fazia nada.
+  // Atenção: o Chromium só lê UM `enable-features`; junte tudo num valor só.
   // XWayland quando houver: reabre já com a opção na linha de comando, antes
   // de qualquer janela, sem sair do processo (no AppImage, sair desmonta a
   // pasta do app e a cópia reaberta não sobe). Ver modoDeReabrir em linux.js.
@@ -630,9 +629,12 @@ function abrirSobreposicao(canto = cantoSobreposicao) {
   sobreposicao.setIgnoreMouseEvents(true);
   sobreposicao.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   sobreposicao.webContents.on("will-navigate", (e) => e.preventDefault());
+  // O canto de agora, não o desta chamada: um pedido que chega com a janela
+  // ainda carregando manda a mensagem para o nada, e este envio a escrevia
+  // por cima com o canto velho (o teste do canto falhava às vezes no CI).
   sobreposicao.once("ready-to-show", () => {
     sobreposicao?.showInactive();
-    sobreposicao?.webContents.send("vcall:canto", canto);
+    sobreposicao?.webContents.send("vcall:canto", cantoSobreposicao);
   });
   sobreposicao.on("closed", () => (sobreposicao = null));
   sobreposicao.loadURL(`${baseUrl}/sobreposicao.html`);

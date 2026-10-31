@@ -19,7 +19,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { clamp, Ema } from "../lib/util.js";
-import { cpuCeiling, escalaPelaBanda, meshBudget, PROFILES } from "./tuning.js";
+import { cpuCeiling, escalaComCalma, escalaPelaBanda, meshBudget, PROFILES } from "./tuning.js";
 
 /**
  * O endereço é da rede Tailscale (100.64.0.0/10 ou fd7a:115c:a1e0::/48)?
@@ -42,10 +42,43 @@ const FLOOR = { screen: 450_000, camera: 120_000 };
 const CEIL = { screen: PROFILES.screenMotion.maxBitrate, camera: PROFILES.camera.maxBitrate };
 
 /** Um snapshot legível por par. */
+/**
+ * Som da tela menos imagem da tela, em ms (positivo: o som toca depois).
+ * O `estimatedPlayoutTimestamp` só existe com a sincronia ativa, ou seja,
+ * com os dois no mesmo stream (peer.js).
+ */
+export function avSync(inbound) {
+  const a = inbound.screenAudio?.playoutMs;
+  const v = inbound.screen?.playoutMs;
+  return a != null && v != null ? Math.round(a - v) : null;
+}
+
+/**
+ * Tudo o que chegou pela conexão (RTP, RTCP, canais de dados): o vigia de
+ * conexão congelada (core/rele.js) olha se isto ainda cresce.
+ *
+ * Não pode ser o contador de um par só. Com candidato peer-reflexive (NAT,
+ * ou o proxy do medidor), o Chrome aponta em `selectedCandidatePairId` um
+ * par que fica em 0 byte a chamada inteira, enquanto o tráfego é contado
+ * noutro par, "in-progress" ou "waiting" (medido a 10 Mbps: 1,8 MB num, 0 no
+ * "em uso"). O vigia via o 0 parado e reiniciava o ICE a cada ~10 s. O
+ * transporte DTLS conta tudo; o Firefox não tem esse relatório, e aí vale a
+ * soma dos pares.
+ */
+export function bytesRecebidos(report) {
+  let transporte = null;
+  let pares = null;
+  report.forEach((r) => {
+    if (r.type === "transport" && r.bytesReceived != null) transporte = (transporte ?? 0) + r.bytesReceived;
+    else if (r.type === "candidate-pair" && r.bytesReceived != null) pares = (pares ?? 0) + r.bytesReceived;
+  });
+  return transporte ?? pares;
+}
+
 function emptySample() {
   return {
-    outbound: { screen: null, cam: null, mic: null },
-    inbound: { screen: null, cam: null, mic: null },
+    outbound: { screen: null, cam: null, mic: null, screenAudio: null },
+    inbound: { screen: null, cam: null, mic: null, screenAudio: null },
     transport: { rtt: null, availableOutgoing: null, availableIncoming: null, localType: null, remoteType: null, bytesReceived: null },
     quality: "unknown",
     score: 0,
@@ -268,14 +301,12 @@ export class StatsMonitor extends Emitter {
       if (r.kind === "audio") return "mic";
       return null;
     };
-    const keyOf = (role) =>
-      role === "screen" ? "screen" : role === "cam" ? "cam" : role === "mic" ? "mic" : null;
+    const keyOf = (role) => (["screen", "cam", "mic", "screenAudio"].includes(role) ? role : null);
 
     // O par em uso é o que o transporte aponta. `nominated` sozinho não serve:
     // um par nomeado antes continua "succeeded" depois de uma troca, e era ele
-    // que se lia. Com os bytes dele parados, o vigia de conexão congelada
-    // (rele.js) reiniciava uma conexão viva a cada ~10 s, e a tela travava
-    // junto (medido pela internet). O Firefox não tem o campo e marca `selected`.
+    // que se lia (banda e atraso de um caminho velho). O Firefox não tem o
+    // campo e marca `selected`. Os bytes do vigia vêm de bytesRecebidos.
     let parEmUso = null;
     report.forEach((r) => {
       if (r.type === "transport" && r.selectedCandidatePairId) parEmUso = r.selectedCandidatePairId;
@@ -296,9 +327,6 @@ export class StatsMonitor extends Emitter {
         sample.transport.rtt = r.currentRoundTripTime != null ? r.currentRoundTripTime * 1000 : null;
         sample.transport.availableOutgoing = r.availableOutgoingBitrate ?? null;
         sample.transport.availableIncoming = r.availableIncomingBitrate ?? null;
-        // Tudo que chega pelo par escolhido (RTP, RTCP, canais de dados): o
-        // vigia de conexão congelada (core/rele.js) olha se isto ainda cresce.
-        sample.transport.bytesReceived = r.bytesReceived ?? null;
         const local = byId.get(r.localCandidateId);
         const remoto = byId.get(r.remoteCandidateId);
         sample.transport.localType = local?.candidateType ?? null;
@@ -309,6 +337,8 @@ export class StatsMonitor extends Emitter {
         sample.transport.tailscale = ehIpTailscale(local?.address ?? local?.ip) || ehIpTailscale(remoto?.address ?? remoto?.ip);
       }
     });
+
+    sample.transport.bytesReceived = bytesRecebidos(report);
 
     const ema = this.#ema.get(peer.id) || { rtt: new Ema(0.35), loss: new Ema(0.35) };
     this.#ema.set(peer.id, ema);
@@ -335,6 +365,7 @@ export class StatsMonitor extends Emitter {
     sample.lossSmoothed = ema.loss.value;
     sample.relay = sample.transport.localType === "relay" || sample.transport.remoteType === "relay";
     sample.tailscale = !sample.relay && !!sample.transport.tailscale;
+    sample.avSyncMs = avSync(sample.inbound);
 
     return sample;
   }
@@ -413,6 +444,7 @@ export class StatsMonitor extends Emitter {
         r.jitterBufferEmittedCount > 0
           ? (r.jitterBufferDelay / r.jitterBufferEmittedCount) * 1000
           : null,
+      playoutMs: r.estimatedPlayoutTimestamp ?? null,
       bytes: r.bytesReceived ?? 0,
     };
   }
@@ -517,7 +549,10 @@ export class StatsMonitor extends Emitter {
     // Vídeo e jogo encolhem com a banda, para os quadros não caírem (tuning.js).
     const qps = Math.min(budget.framerate, Math.max(30, screen.sourceFps ?? budget.framerate));
     const escalaAntes = budget.escala ?? 1;
-    budget.escala = perfil.contentHint === "motion" ? escalaPelaBanda(screen.targetBitrate, width * height, qps, escalaAntes) : 1;
+    budget.escala =
+      perfil.contentHint === "motion"
+        ? escalaComCalma(escalaPelaBanda(screen.targetBitrate, width * height, qps, escalaAntes), escalaAntes, budget, performance.now())
+        : 1;
     /*
      * Na Fluidez a captura vem no tamanho da janela (screen.js), e o teto de
      * resolução fica aqui: o da qualidade escolhida e, com encoder por

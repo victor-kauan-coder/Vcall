@@ -508,6 +508,24 @@ export function escalaPelaBanda(bps, pixels, qps, atual = 1) {
 }
 
 /**
+ * Subir a resolução reinicia o encoder e gera um quadro-chave: um soluço na
+ * tela. Com a banda oscilando, a escala ia e voltava várias vezes por minuto.
+ * Cresce só depois de SUBIR_ESCALA_MS de folga seguida; encolher é na hora,
+ * para a imagem não congelar. `estado` guarda desde quando há folga.
+ */
+export const SUBIR_ESCALA_MS = 18_000;
+export function escalaComCalma(quer, atual, estado, agora) {
+  if (quer >= atual) {
+    estado.folgaDesde = 0;
+    return quer;
+  }
+  estado.folgaDesde ||= agora;
+  if (agora - estado.folgaDesde < SUBIR_ESCALA_MS) return atual;
+  estado.folgaDesde = 0;
+  return quer;
+}
+
+/**
  * Teto de codificação sugerido pela CPU: numa malha codificamos N vezes.
  * Máquinas modestas com muitos pares precisam abrir mão de quadros antes de
  * abrir mão de resolução (texto ilegível é pior que texto que anda devagar).

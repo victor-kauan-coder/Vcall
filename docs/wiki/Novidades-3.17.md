@@ -1,5 +1,18 @@
 # Novidades da 3.17
 
+## 3.17.3: mais de 50 quadros, com o som junto
+
+- **Vídeo e jogo:** passam de 50 quadros por segundo no aplicativo de mesa.
+  Um gameplay do YouTube em tela cheia foi de 43–45 para 53–57. Na
+  Fluidez, a janela é capturada no tamanho dela, e quem reduz a imagem é o
+  codificador.
+- **Som da tela:** chega sincronizado com a imagem. A diferença caiu de
+  ~95 ms para ~70 ms.
+- **Linux:** a captura não pede mais de 60 quadros, o que só repetia
+  quadros.
+- **Porta ocupada:** o Vcall abre na porta seguinte em vez de mostrar um
+  erro e ficar sem janela.
+
 ## 3.17.2: vídeo mais fluido no aplicativo de mesa
 
 - **Vcall minimizado:** o Windows 11 não desacelera mais a captura. Um vídeo

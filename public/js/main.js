@@ -3029,7 +3029,6 @@ function wireMesh() {
     }
     panel.renderStats(samples, mesh.roster(), { history: (id) => mesh.stats.historyFor(id) });
     avisarTelaParada(samples);
-    screen.ajustarAoEncoder([...samples.values()].map((s) => s.outbound.screen?.hardware).find((x) => x != null));
   });
 
   mesh.on("limited", throttle(({ reason }) => {

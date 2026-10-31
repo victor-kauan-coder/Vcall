@@ -1,5 +1,18 @@
 # Novidades da 3.17
 
+## 3.17.2: vídeo mais fluido no aplicativo de mesa
+
+- **Vcall minimizado:** o Windows 11 não desacelera mais a captura. Um vídeo
+  compartilhado foi de ~20 para 41 a 46 quadros por segundo.
+- **Fluidez automática:** escolher a janela do YouTube, Twitch, Netflix ou de
+  um player já liga a Fluidez, se você não escolheu o modo à mão.
+- **Sem codificador da placa de vídeo:** a Fluidez captura em 720p para
+  manter os quadros.
+- **Janela minimizada:** o Vcall avisa quando a tela compartilhada fica
+  parada, porque o Windows não captura janela minimizada.
+- **Seletor:** a lista de janelas aparece em menos de 1 segundo, e as
+  miniaturas entram em seguida.
+
 ## 3.17.1: tela fluida pela internet
 
 - **Tela pela internet:** para de travar. A 3.17.0 reconectava a chamada a

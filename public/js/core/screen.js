@@ -100,6 +100,29 @@ export class ScreenShare extends Emitter {
   /** Codec escolhido para cada modo nesta máquina (tuning.codecDaTela). */
   #codecs = {};
 
+  /** O encoder em uso é por software e o modo é Fluidez: a captura sai em 720p. */
+  #softwareNaFluidez = false;
+
+  #restricoes() {
+    const q = SCREEN_QUALITY[this.quality] || SCREEN_QUALITY.auto;
+    const teto = this.mode === "motion" && this.#softwareNaFluidez && q.height > 720;
+    return { frameRate: q.frameRate, maxWidth: teto ? 1280 : q.width, maxHeight: teto ? 720 : q.height };
+  }
+
+  /**
+   * O encoder em uso é por hardware? (estatísticas: powerEfficientEncoder.)
+   * Sem placa, vídeo em 1080p não passa de 36–41 qps na CPU. Capturando já em
+   * 720p chega a 42–47, e reduzir depois da captura rendia menos, 33–39
+   * (medido, OpenH264 num i5 de 12ª geração). Com hardware, volta ao normal.
+   */
+  async ajustarAoEncoder(hardware) {
+    if (hardware == null || !this.videoTrack) return;
+    const software = hardware === false;
+    if (software === this.#softwareNaFluidez) return;
+    this.#softwareNaFluidez = software;
+    if (this.mode === "motion") this.settings = await constrainScreenTrack(this.videoTrack, this.#restricoes());
+  }
+
   get profile() {
     return { ...screenProfileFor(this.mode), codec: this.#codecs[this.mode] };
   }
@@ -227,7 +250,6 @@ export class ScreenShare extends Emitter {
   }
 
   async #adotar(stream) {
-    const q = SCREEN_QUALITY[this.quality] || SCREEN_QUALITY.auto;
     const video = stream.getVideoTracks()[0];
     // O relé entra ANTES de qualquer espera: com a tela parada, a captura
     // entrega um quadro no começo e mais nada. Se o relé chegasse depois, não
@@ -240,11 +262,7 @@ export class ScreenShare extends Emitter {
     // Dica de conteúdo: define como o encoder negocia nitidez contra fluidez.
     if ("contentHint" in video) video.contentHint = this.mode === "motion" ? "motion" : "text";
 
-    this.settings = await constrainScreenTrack(video, {
-      frameRate: q.frameRate,
-      maxWidth: q.width,
-      maxHeight: q.height,
-    });
+    this.settings = await constrainScreenTrack(video, this.#restricoes());
     this.#codecs = { text: await codecDaTela("text"), motion: await codecDaTela("motion") };
 
     if (this.audioTrack) {
@@ -288,6 +306,8 @@ export class ScreenShare extends Emitter {
     for (const t of [this.videoTrack, this.sendTrack]) {
       if (t && "contentHint" in t) t.contentHint = this.mode === "motion" ? "motion" : "text";
     }
+    // O teto de 720p do encoder por software só vale na Fluidez.
+    if (this.#softwareNaFluidez && this.videoTrack) constrainScreenTrack(this.videoTrack, this.#restricoes()).then((s) => (this.settings = s));
     this.emit("mode", this.mode);
     this.emit("change", this.snapshot());
     return this.mode;
@@ -295,13 +315,8 @@ export class ScreenShare extends Emitter {
 
   async setQuality(quality) {
     this.quality = quality;
-    const q = SCREEN_QUALITY[quality] || SCREEN_QUALITY.auto;
     if (!this.videoTrack) return null;
-    this.settings = await constrainScreenTrack(this.videoTrack, {
-      frameRate: q.frameRate,
-      maxWidth: q.width,
-      maxHeight: q.height,
-    });
+    this.settings = await constrainScreenTrack(this.videoTrack, this.#restricoes());
     this.emit("change", this.snapshot());
     return this.settings;
   }

@@ -58,6 +58,11 @@ meio já vê a tela na hora.
 A resolução (1080p/720p) e a prioridade podem ser trocadas durante a
 transmissão pela setinha ao lado do botão.
 
+No aplicativo, escolher a janela do YouTube, Twitch, Netflix ou de um player
+de vídeo já liga a **Fluidez**, a menos que você escolha a prioridade à mão.
+Não minimize a janela compartilhada: o Windows não captura janela minimizada,
+e a imagem congela para quem assiste. Se isso acontecer, o Vcall avisa.
+
 A tela sai em 1080p a até **120 quadros por segundo** no modo Fluidez, quando
 o monitor de quem transmite é de 120 Hz ou mais e a internet aguenta (começa em
 60 e sobe em alguns segundos); num monitor de 60 Hz saem 60. Texto e slides ficam em 60, onde a nitidez vale mais que quadros a

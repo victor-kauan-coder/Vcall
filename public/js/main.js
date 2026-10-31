@@ -2664,6 +2664,30 @@ function receberReacao(from, op) {
   return true;
 }
 
+/*
+ * A tela compartilhada parou de mandar imagem. Janela minimizada não é
+ * capturada (o Windows não a desenha): do outro lado a imagem congela e quem
+ * compartilha não percebe. Só no modo Fluidez, onde imagem parada por vários
+ * segundos não é o normal; no de texto, tela parada é o dia a dia.
+ */
+const telaParada = { desde: 0, avisou: false };
+function avisarTelaParada(samples) {
+  const fonte = [...samples.values()].map((s) => s.outbound.screen?.sourceFps).find((x) => x != null);
+  if (!screen.active || screen.mode !== "motion" || fonte == null || fonte >= 2) {
+    telaParada.desde = 0;
+    telaParada.avisou = false;
+    return;
+  }
+  telaParada.desde ||= performance.now();
+  if (telaParada.avisou || performance.now() - telaParada.desde < 6000) return;
+  telaParada.avisou = true;
+  toast("A tela que você compartilha está parada. Se a janela estiver minimizada, abra-a: minimizada, ela não manda imagem e quem assiste vê tudo congelado.", {
+    tone: "warn",
+    key: "tela-parada",
+    ms: 9000,
+  });
+}
+
 /* ================================================================== *
  * Ligação com a malha
  * ================================================================== */
@@ -3004,6 +3028,8 @@ function wireMesh() {
       stage.get(id, "screen")?.setQuality(s.quality);
     }
     panel.renderStats(samples, mesh.roster(), { history: (id) => mesh.stats.historyFor(id) });
+    avisarTelaParada(samples);
+    screen.ajustarAoEncoder([...samples.values()].map((s) => s.outbound.screen?.hardware).find((x) => x != null));
   });
 
   mesh.on("limited", throttle(({ reason }) => {

@@ -155,6 +155,9 @@ function portaLivre(tipo) {
   });
 }
 
+/** A última linha do que o LiveKit escreveu, para o registro do app. */
+const ultima = (texto) => texto.trim().split(/\r?\n/).pop() || "";
+
 const responde = (porta) =>
   new Promise((res) => {
     const r = http.get({ host: "127.0.0.1", port: porta, path: "/", timeout: 1000 }, (x) => (x.resume(), res(x.statusCode === 200)));
@@ -193,12 +196,19 @@ export class Sfu extends EventEmitter {
     const portaUdp = await portaLivre("udp");
     this.#chave = `vcall${randomBytes(6).toString("hex")}`;
     this.#segredo = randomBytes(32).toString("hex");
-    const conf = path.join(this.pasta, "livekit.yaml");
+    // Um arquivo por processo: duas cópias do app não trocam a chave uma da outra.
+    const conf = path.join(this.pasta, `livekit-${process.pid}.yaml`);
     await mkdir(this.pasta, { recursive: true });
     await writeFile(conf, montarConfig({ porta, portaUdp, chave: this.#chave, segredo: this.#segredo }), { mode: 0o600 });
     const proc = spawn(bin, ["--config", conf], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     this.#proc = proc;
-    for (const s of [proc.stdout, proc.stderr]) s.on("data", (d) => this.emit("log", String(d)));
+    let ultimas = "";
+    for (const s of [proc.stdout, proc.stderr]) {
+      s.on("data", (d) => {
+        ultimas = (ultimas + d).slice(-600);
+        this.emit("log", String(d));
+      });
+    }
     proc.on("exit", (codigo) => {
       if (this.#proc !== proc) return;
       this.#proc = null;
@@ -206,8 +216,9 @@ export class Sfu extends EventEmitter {
       this.#ligando = null;
       this.emit("caiu", { codigo });
     });
-    for (let i = 0; i < 50; i++) {
-      if (proc.exitCode != null) throw new Error(`o LiveKit saiu ao ligar (código ${proc.exitCode})`);
+    // Com o PC ocupado (a transmissão já começou), o LiveKit leva mais que os ~2 s de sempre.
+    for (let i = 0; i < 150; i++) {
+      if (proc.exitCode != null) throw new Error(`o LiveKit saiu ao ligar (código ${proc.exitCode}): ${ultima(ultimas)}`);
       if (await responde(porta)) {
         this.porta = porta;
         return porta;
@@ -215,7 +226,7 @@ export class Sfu extends EventEmitter {
       await new Promise((r) => setTimeout(r, 200));
     }
     this.parar();
-    throw new Error("o LiveKit não respondeu em 10 s");
+    throw new Error(`o LiveKit não respondeu em 30 s: ${ultima(ultimas)}`);
   }
 
   ficha(id, nome, sala, publica) {

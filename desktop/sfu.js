@@ -8,10 +8,10 @@
  *
  * Quatro decisões:
  *
- * 1. O BINÁRIO NÃO VAI NO INSTALADOR. São ~20 MB compactados, e só quem
- *    transmite para 3 ou mais pessoas precisa. É baixado do release oficial na
- *    primeira vez e conferido pelo SHA256 fixado abaixo: arquivo diferente
- *    não roda.
+ * 1. O BINÁRIO VAI JUNTO DO APP. O build (scripts/livekit.mjs) baixa o
+ *    release oficial, confere o SHA256 fixado abaixo e o põe ao lado do
+ *    executável; o app instalado não baixa nada. Rodando do código-fonte, o
+ *    mesmo download acontece na primeira vez, na pasta do Vcall.
  * 2. CHAVE NOVA A CADA VEZ QUE LIGA. Chave e segredo são aleatórios, ficam
  *    neste processo e no arquivo de configuração da pasta do Vcall. As fichas
  *    de entrada valem 6 h.
@@ -87,6 +87,12 @@ export async function garantirBinario({ pasta = path.join(HOME, "sfu", VERSAO), 
   } finally {
     await rm(arquivo, { force: true });
   }
+}
+
+/** O que veio no instalador, ao lado do executável (electron-builder.yml). */
+async function binarioDoPacote() {
+  const p = path.join(path.dirname(process.execPath), exe());
+  return (await stat(p).then((s) => s.isFile(), () => false)) ? p : null;
 }
 
 /** A configuração do LiveKit. Função pura, para o teste conferir as escolhas. */
@@ -182,7 +188,7 @@ export class Sfu extends EventEmitter {
   }
 
   async #iniciar() {
-    const bin = this.binario || (await garantirBinario({ pasta: path.join(this.pasta, VERSAO) }));
+    const bin = this.binario || (await binarioDoPacote()) || (await garantirBinario({ pasta: path.join(this.pasta, VERSAO) }));
     const porta = await portaLivre("tcp");
     const portaUdp = await portaLivre("udp");
     this.#chave = `vcall${randomBytes(6).toString("hex")}`;

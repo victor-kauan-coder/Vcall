@@ -42,6 +42,8 @@ jobs:
           mkdir -p .cache-cloudflared
           curl -fsSL -o .cache-cloudflared/linux-cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x .cache-cloudflared/linux-cloudflared
+      - name: LiveKit (o SFU de quem transmite, conferido por SHA256)
+        run: node scripts/livekit.mjs
       - name: AppImage, .deb, .rpm, pacman e .tar.gz
         run: npx electron-builder --config electron-builder.yml --linux --publish never
       - uses: actions/upload-artifact@v4
@@ -72,6 +74,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force .cache-cloudflared | Out-Null
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile ".cache-cloudflared/win32-cloudflared.exe"
+      - name: LiveKit (o SFU de quem transmite, conferido por SHA256)
+        run: node scripts/livekit.mjs
       - name: Instalador do Windows
         run: npx electron-builder --config electron-builder.yml --win --publish never
       - uses: actions/upload-artifact@v4

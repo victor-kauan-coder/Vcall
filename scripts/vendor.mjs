@@ -9,6 +9,8 @@
  *   public/vendor/icons.json   — manifesto (id -> viewBox) para checagem em build
  *   public/vendor/avatars.js   — bundle ESM do DiceBear (MIT) com os estilos escolhidos
  *   public/vendor/qr.js        — gerador de QR code (qrcode-generator, MIT), para parear o QuizzV
+ *   public/vendor/livekit.js   — cliente do SFU de quem transmite (livekit-client, Apache-2.0),
+ *                                e livekit-e2ee.js, o worker que cifra os quadros ponta a ponta
  *   public/vendor/vosk.js      — reconhecimento de fala offline (vosk-browser, Apache-2.0),
  *                                usado pelas legendas no aplicativo de mesa
  *
@@ -321,6 +323,29 @@ async function buildAvatars() {
 }
 
 /**
+ * Cliente do SFU (livekit-client, Apache-2.0): quem transmite para 3 ou mais
+ * pessoas publica a tela uma vez no LiveKit do app de mesa (desktop/sfu.js).
+ * O worker cifra e decifra os quadros (SFrame), e o SFU não vê a imagem.
+ */
+async function buildLivekit() {
+  const dist = path.join(root, "node_modules", "livekit-client", "dist");
+  for (const [entrada, saida] of [["livekit-client.esm.mjs", "livekit.js"], ["livekit-client.e2ee.worker.mjs", "livekit-e2ee.js"]]) {
+    const result = await esbuild.build({
+      entryPoints: [path.join(dist, entrada)],
+      bundle: true,
+      format: "esm",
+      minify: true,
+      target: ["es2020"],
+      outfile: path.join(outDir, saida),
+      banner: { js: "/* livekit-client (Apache-2.0) — LiveKit — bundle gerado por scripts/vendor.mjs */" },
+      logLevel: "error",
+    });
+    if (result.errors.length) throw new Error(`falha no bundle de ${saida}`);
+    console.log(`  ✓ ${saida}`);
+  }
+}
+
+/**
  * QR code para parear o celular (QuizzV) com a chamada. Gerado aqui, no
  * navegador: mandar o endereço para um serviço de QR na internet entregaria
  * o token de pareamento a um terceiro — e a CSP nem deixaria.
@@ -480,6 +505,7 @@ await buildSprite();
 await buildEmoji();
 await buildAvatars();
 await buildQr();
+await buildLivekit();
 await copyVosk();
 await buildWhisper();
 await copyRnnoise();

@@ -11,6 +11,7 @@ import { Emitter } from "../lib/emitter.js";
 import { deviceToken, hostKeyFor, sessionToken } from "../lib/identity.js";
 import { Peer } from "./peer.js";
 import { Rele } from "./rele.js";
+import { SfuSala } from "./sfu.js";
 import { StatsMonitor } from "./stats.js";
 import { VoiceActivity } from "./vad.js";
 
@@ -51,6 +52,7 @@ export class Mesh extends Emitter {
     this.vad = new VoiceActivity();
     this.stats = new StatsMonitor(() => this.peers.values());
     this.rele = new Rele(this);
+    this.sfu = new SfuSala(this);
 
     this.#wireSignaling();
     this.#wireMedia();
@@ -122,6 +124,7 @@ export class Mesh extends Emitter {
   leave() {
     this.stats.stop();
     this.rele.stop();
+    this.sfu.stop();
     this.vad.stop();
     for (const peer of this.peers.values()) peer.close();
     this.peers.clear();
@@ -159,6 +162,7 @@ export class Mesh extends Emitter {
       for (const p of m.peers) this.#addPeer(p);
       this.stats.start();
       this.rele.start();
+      this.sfu.start();
       this.trackSelfAudio();
       this.room = this.room || m.room?.id;
       this.roomInfo = m.room || null;
@@ -339,6 +343,8 @@ export class Mesh extends Emitter {
     this.vad.untrack(id);
     this.stats.forget(id);
     this.rele.esquecer(id);
+    this.sfu.esquecer(id);
+    this.#viaSfu.delete(id);
     this.#direta.delete(id);
     this.#repassada.delete(id);
     this.#emitida.delete(id);
@@ -358,6 +364,14 @@ export class Mesh extends Emitter {
   #repassada = new Map();
   /** id -> papel -> o que a interface recebeu por último. */
   #emitida = new Map();
+  /** id -> papel -> { stream, live } recebido pelo SFU de quem transmite (core/sfu.js). */
+  #viaSfu = new Map();
+
+  /** O SFU entregou (ou deixou de entregar) a tela de `id`. */
+  receberSfu(id, role, valor) {
+    this.#guardar(this.#viaSfu, id, role, valor);
+    this.#emitirMidia(id, role, { sempre: true });
+  }
 
   #guardar(mapa, id, role, valor) {
     const porPapel = mapa.get(id) || {};
@@ -380,8 +394,13 @@ export class Mesh extends Emitter {
    */
   #emitirMidia(id, role, { sempre = false } = {}) {
     if (!this.peers.has(id)) return;
-    const h = this.fonteDe(id, role);
-    const atual = (h ? this.#repassada.get(id)?.get(h)?.[role] : this.#direta.get(id)?.[role]) || null;
+    // O SFU vence quando tem quadros (ou quando a direta não tem): a origem
+    // desliga a direta assim que esta pessoa confirma o SFU.
+    const sfu = this.#viaSfu.get(id)?.[role];
+    const direta = this.#direta.get(id)?.[role];
+    const peloSfu = !!sfu?.stream && (sfu.live || !direta?.live);
+    const h = peloSfu ? "sfu" : this.fonteDe(id, role);
+    const atual = (peloSfu ? sfu : h ? this.#repassada.get(id)?.get(h)?.[role] : direta) || null;
     const emitida = this.#emitida.get(id)?.[role];
     if (!atual && !emitida) return;
     // Reavaliação sem mudança não incomoda a interface; evento da própria trilha passa sempre.
@@ -423,6 +442,10 @@ export class Mesh extends Emitter {
     }
     if (msg?.type === "rede") {
       this.rele.receber(from, msg);
+      return;
+    }
+    if (msg?.type === "sfu" || msg?.type === "sfu-ok") {
+      this.sfu.receber(from, msg);
       return;
     }
     if (msg?.type === "slots") {

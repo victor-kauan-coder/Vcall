@@ -43,6 +43,7 @@
     "electron": "^44.5.1",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.25.12",
+    "livekit-client": "2.23.0",
     "lucide-static": "^1.47.0",
     "playwright": "^1.63.0",
     "postject": "^1.0.0-alpha.6",

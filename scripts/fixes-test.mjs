@@ -2129,6 +2129,42 @@ if (process.platform === "linux") {
   ok("estatísticas: avSyncMs = playout do som da tela − o da imagem");
 }
 
+/* -- SFU no navegador (fases 2 e 3): quando entra, camadas, chave e troca sem buraco -- */
+{
+  const { usarSfu, escalasDasCamadas, chaveValida, SFU_MIN_PESSOAS } = await import("../public/js/core/sfu.js");
+  const { readFileSync } = await import("node:fs");
+
+  // Só quem transmite numa sala de 3 ou mais; a dois, a malha é direta e mais rápida.
+  assert.equal(SFU_MIN_PESSOAS, 3);
+  assert.equal(usarSfu({ transmitindo: true, pessoas: 2 }), false);
+  assert.equal(usarSfu({ transmitindo: true, pessoas: 3 }), true);
+  assert.equal(usarSfu({ transmitindo: false, pessoas: 16 }), false);
+  assert.equal(usarSfu({ transmitindo: true, pessoas: 16, negado: true }), false, "sem SFU para mim: malha");
+
+  // Captura de 1440p: camada de cima em 1080p, de baixo em 360p; nunca amplia.
+  assert.deepEqual(escalasDasCamadas(1440), [4, 1440 / 1080]);
+  assert.deepEqual(escalasDasCamadas(720), [2, 1]);
+
+  // A chave chega de outra pessoa: só base64 curto.
+  assert.ok(chaveValida(btoa("x".repeat(32))));
+  assert.ok(!chaveValida("<script>"));
+  assert.ok(!chaveValida(123));
+
+  const sfu = readFileSync(new URL("../public/js/core/sfu.js", import.meta.url), "utf8");
+  const mesh = readFileSync(new URL("../public/js/core/mesh.js", import.meta.url), "utf8");
+  const rele = readFileSync(new URL("../public/js/core/rele.js", import.meta.url), "utf8");
+  // Cifra ponta a ponta ligada antes de conectar; chave nova a cada transmissão.
+  assert.match(sfu, /setE2EEEnabled\(true\);\s*const ws = /);
+  assert.match(sfu, /crypto\.getRandomValues\(new Uint8Array\(32\)\)/);
+  // Quem assiste só confirma (e a origem só desliga a direta) com a imagem chegando.
+  assert.match(sfu, /papeis\.includes\("screen"\) \? papeis : \[\]/);
+  // A interface só troca para o SFU com quadros (ou sem a direta).
+  assert.match(mesh, /peloSfu = !!sfu\?\.stream && \(sfu\.live \|\| !direta\?\.live\)/);
+  // O relé não religa a direta de quem já recebe pelo SFU.
+  assert.match(rele, /mesh\.sfu\?\.papeisPara\(y\)/);
+  ok("SFU no navegador: entra em sala de 3+, cifra ponta a ponta e troca sem deixar ninguém sem imagem");
+}
+
 console.log(`\n${passou} blocos de verificação passaram.`);
 process.exit(0);
 

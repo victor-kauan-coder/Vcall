@@ -508,6 +508,45 @@ export function escalaPelaBanda(bps, pixels, qps, atual = 1) {
 }
 
 /**
+ * Quanto segurar o som da tela para acompanhar a imagem, em ms
+ * (`jitterBufferTarget` do som; quem recebe chama a cada leitura).
+ *
+ * O alvo é o tempo da imagem no buffer (`videoMs`, média da última
+ * leitura): com ele como mínimo, o som espera o mesmo que a imagem. Não
+ * acumula a diferença de uma leitura para outra: o buffer do som leva
+ * segundos para crescer, e somar a cada leitura disparava o alvo até o teto
+ * (medido: o som foi a ~90 ms atrás da imagem). Nunca segura mais que
+ * SINCRONIA_MAX_MS, e solta na hora quando a imagem engasga (buffer acima
+ * de 400 ms ou sem quadros novos): som atrasado incomoda mais que imagem
+ * atrasada, e diferença abaixo de ~125 ms ninguém percebe (ITU-R BT.1359).
+ * Mudança menor que 30 ms fica como está.
+ */
+export const SINCRONIA_MAX_MS = 250;
+export function alvoDoSom({ videoMs, alvo = 0, videoParado = false }) {
+  if (videoParado || videoMs == null || videoMs > 400) return 0;
+  const novo = Math.round(Math.min(SINCRONIA_MAX_MS, Math.max(0, videoMs)));
+  return Math.abs(novo - alvo) < 30 ? alvo : novo;
+}
+
+/**
+ * Subir a resolução reinicia o encoder e gera um quadro-chave: um soluço na
+ * tela. Com a banda oscilando, a escala ia e voltava várias vezes por minuto.
+ * Cresce só depois de SUBIR_ESCALA_MS de folga seguida; encolher é na hora,
+ * para a imagem não congelar. `estado` guarda desde quando há folga.
+ */
+export const SUBIR_ESCALA_MS = 18_000;
+export function escalaComCalma(quer, atual, estado, agora) {
+  if (quer >= atual) {
+    estado.folgaDesde = 0;
+    return quer;
+  }
+  estado.folgaDesde ||= agora;
+  if (agora - estado.folgaDesde < SUBIR_ESCALA_MS) return atual;
+  estado.folgaDesde = 0;
+  return quer;
+}
+
+/**
  * Teto de codificação sugerido pela CPU: numa malha codificamos N vezes.
  * Máquinas modestas com muitos pares precisam abrir mão de quadros antes de
  * abrir mão de resolução (texto ilegível é pior que texto que anda devagar).

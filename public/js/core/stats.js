@@ -19,7 +19,7 @@
  */
 import { Emitter } from "../lib/emitter.js";
 import { clamp, Ema } from "../lib/util.js";
-import { cpuCeiling, escalaPelaBanda, meshBudget, PROFILES } from "./tuning.js";
+import { alvoDoSom, cpuCeiling, escalaComCalma, escalaPelaBanda, meshBudget, PROFILES } from "./tuning.js";
 
 /**
  * O endereço é da rede Tailscale (100.64.0.0/10 ou fd7a:115c:a1e0::/48)?
@@ -38,14 +38,51 @@ export function ehIpTailscale(ip) {
 const INTERVAL_MS = 2000;
 const HISTORY = 30;
 
-const FLOOR = { screen: 450_000, camera: 120_000 };
+// Tela: abaixo de ~600 kbps a sondagem de banda do Chrome (que vai até 2× o
+// que está alocado) mal sai do lugar, e a imagem ficava parada por 11–13 s.
+const FLOOR = { screen: 600_000, camera: 120_000 };
+/** Leituras seguidas sem congestão (2 s cada) antes de devolver o teto. */
+const RECUPERA_LEITURAS = 3;
 const CEIL = { screen: PROFILES.screenMotion.maxBitrate, camera: PROFILES.camera.maxBitrate };
 
 /** Um snapshot legível por par. */
+/**
+ * Som da tela menos imagem da tela, em ms (positivo: o som toca depois).
+ * O `estimatedPlayoutTimestamp` só existe com a sincronia ativa, ou seja,
+ * com os dois no mesmo stream (peer.js).
+ */
+export function avSync(inbound) {
+  const a = inbound.screenAudio?.playoutMs;
+  const v = inbound.screen?.playoutMs;
+  return a != null && v != null ? Math.round(a - v) : null;
+}
+
+/**
+ * Tudo o que chegou pela conexão (RTP, RTCP, canais de dados): o vigia de
+ * conexão congelada (core/rele.js) olha se isto ainda cresce.
+ *
+ * Não pode ser o contador de um par só. Com candidato peer-reflexive (NAT,
+ * ou o proxy do medidor), o Chrome aponta em `selectedCandidatePairId` um
+ * par que fica em 0 byte a chamada inteira, enquanto o tráfego é contado
+ * noutro par, "in-progress" ou "waiting" (medido a 10 Mbps: 1,8 MB num, 0 no
+ * "em uso"). O vigia via o 0 parado e reiniciava o ICE a cada ~10 s. O
+ * transporte DTLS conta tudo; o Firefox não tem esse relatório, e aí vale a
+ * soma dos pares.
+ */
+export function bytesRecebidos(report) {
+  let transporte = null;
+  let pares = null;
+  report.forEach((r) => {
+    if (r.type === "transport" && r.bytesReceived != null) transporte = (transporte ?? 0) + r.bytesReceived;
+    else if (r.type === "candidate-pair" && r.bytesReceived != null) pares = (pares ?? 0) + r.bytesReceived;
+  });
+  return transporte ?? pares;
+}
+
 function emptySample() {
   return {
-    outbound: { screen: null, cam: null, mic: null },
-    inbound: { screen: null, cam: null, mic: null },
+    outbound: { screen: null, cam: null, mic: null, screenAudio: null },
+    inbound: { screen: null, cam: null, mic: null, screenAudio: null },
     transport: { rtt: null, availableOutgoing: null, availableIncoming: null, localType: null, remoteType: null, bytesReceived: null },
     quality: "unknown",
     score: 0,
@@ -84,6 +121,8 @@ export class StatsMonitor extends Emitter {
   forget(peerId) {
     this.#prev.delete(peerId);
     for (const k of this.#destravadoEm.keys()) if (k.startsWith(`${peerId}:`)) this.#destravadoEm.delete(k);
+    this.#alvoSom.delete(peerId);
+    this.#quadrosTela.delete(peerId);
     this.#budget.delete(peerId);
     this.#ema.delete(peerId);
     this.#history.delete(peerId);
@@ -169,8 +208,39 @@ export class StatsMonitor extends Emitter {
     if (hist.length > HISTORY) hist.shift();
     this.#history.set(peer.id, hist);
 
+    this.#sincronizar(peer, sample);
     await this.#destravar(peer, sample);
     if (this.adaptive) await this.#adapt(peer, sample, budgets, cpu, pares);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Sincronia do som da tela (com teto; ver alvoDoSom em tuning.js)
+   * ---------------------------------------------------------------- */
+
+  #alvoSom = new Map(); // peerId -> ms
+  #quadrosTela = new Map(); // peerId -> framesDecoded da leitura anterior
+
+  #sincronizar(peer, sample) {
+    const receiver = peer.tx.screenAudio?.receiver;
+    const video = sample.inbound.screen;
+    if (!receiver || !video || !sample.inbound.screenAudio) return;
+    const antes = this.#quadrosTela.get(peer.id);
+    this.#quadrosTela.set(peer.id, video.quadros);
+    const alvo = this.#alvoSom.get(peer.id) || 0;
+    const novo = alvoDoSom({
+      videoMs: video.bufferAgoraMs,
+      alvo,
+      videoParado: antes != null && video.quadros === antes,
+    });
+    sample.alvoSomMs = novo;
+    if (novo === alvo) return;
+    this.#alvoSom.set(peer.id, novo);
+    try {
+      if ("jitterBufferTarget" in receiver) receiver.jitterBufferTarget = novo;
+      else if ("playoutDelayHint" in receiver) receiver.playoutDelayHint = novo / 1000;
+    } catch {
+      /* receptor fechando */
+    }
   }
 
   /* ---------------------------------------------------------------- *
@@ -268,14 +338,12 @@ export class StatsMonitor extends Emitter {
       if (r.kind === "audio") return "mic";
       return null;
     };
-    const keyOf = (role) =>
-      role === "screen" ? "screen" : role === "cam" ? "cam" : role === "mic" ? "mic" : null;
+    const keyOf = (role) => (["screen", "cam", "mic", "screenAudio"].includes(role) ? role : null);
 
     // O par em uso é o que o transporte aponta. `nominated` sozinho não serve:
     // um par nomeado antes continua "succeeded" depois de uma troca, e era ele
-    // que se lia. Com os bytes dele parados, o vigia de conexão congelada
-    // (rele.js) reiniciava uma conexão viva a cada ~10 s, e a tela travava
-    // junto (medido pela internet). O Firefox não tem o campo e marca `selected`.
+    // que se lia (banda e atraso de um caminho velho). O Firefox não tem o
+    // campo e marca `selected`. Os bytes do vigia vêm de bytesRecebidos.
     let parEmUso = null;
     report.forEach((r) => {
       if (r.type === "transport" && r.selectedCandidatePairId) parEmUso = r.selectedCandidatePairId;
@@ -296,9 +364,6 @@ export class StatsMonitor extends Emitter {
         sample.transport.rtt = r.currentRoundTripTime != null ? r.currentRoundTripTime * 1000 : null;
         sample.transport.availableOutgoing = r.availableOutgoingBitrate ?? null;
         sample.transport.availableIncoming = r.availableIncomingBitrate ?? null;
-        // Tudo que chega pelo par escolhido (RTP, RTCP, canais de dados): o
-        // vigia de conexão congelada (core/rele.js) olha se isto ainda cresce.
-        sample.transport.bytesReceived = r.bytesReceived ?? null;
         const local = byId.get(r.localCandidateId);
         const remoto = byId.get(r.remoteCandidateId);
         sample.transport.localType = local?.candidateType ?? null;
@@ -309,6 +374,8 @@ export class StatsMonitor extends Emitter {
         sample.transport.tailscale = ehIpTailscale(local?.address ?? local?.ip) || ehIpTailscale(remoto?.address ?? remoto?.ip);
       }
     });
+
+    sample.transport.bytesReceived = bytesRecebidos(report);
 
     const ema = this.#ema.get(peer.id) || { rtt: new Ema(0.35), loss: new Ema(0.35) };
     this.#ema.set(peer.id, ema);
@@ -335,6 +402,7 @@ export class StatsMonitor extends Emitter {
     sample.lossSmoothed = ema.loss.value;
     sample.relay = sample.transport.localType === "relay" || sample.transport.remoteType === "relay";
     sample.tailscale = !sample.relay && !!sample.transport.tailscale;
+    sample.avSyncMs = avSync(sample.inbound);
 
     return sample;
   }
@@ -413,6 +481,13 @@ export class StatsMonitor extends Emitter {
         r.jitterBufferEmittedCount > 0
           ? (r.jitterBufferDelay / r.jitterBufferEmittedCount) * 1000
           : null,
+      playoutMs: r.estimatedPlayoutTimestamp ?? null,
+      // Tempo no buffer só desde a última leitura (o acumulado mal se mexe).
+      bufferAgoraMs:
+        before && r.jitterBufferEmittedCount > before.jitterBufferEmittedCount
+          ? ((r.jitterBufferDelay - before.jitterBufferDelay) / (r.jitterBufferEmittedCount - before.jitterBufferEmittedCount)) * 1000
+          : null,
+      quadros: r.framesDecoded ?? null,
       bytes: r.bytesReceived ?? 0,
     };
   }
@@ -492,6 +567,7 @@ export class StatsMonitor extends Emitter {
        */
       const perdendo = pares > 1 && (screen.lossPct ?? 0) > 5;
       if (semBanda || perdendo) {
+        budget.calmo = 0;
         budget.screen = Math.max(
           FLOOR.screen,
           Math.min(budget.screen * 0.75, (avail || budget.screen) * 0.9),
@@ -502,9 +578,12 @@ export class StatsMonitor extends Emitter {
         // estimativa dela não passa muito do que já se envia, então esperar
         // por ela para subir deixaria o teto baixo para sempre.
         budget.screen = Math.min(CEIL.screen, budgets.screen, budget.screen * 1.25);
-      } else if ((screen.fps ?? 0) >= 15 && avail && avail > budget.screen * 1.4) {
-        // Recuperação deliberadamente lenta.
-        budget.screen = Math.min(CEIL.screen, budgets.screen, budget.screen * 1.15);
+      } else if ((budget.calmo = (budget.calmo || 0) + 1) >= RECUPERA_LEITURAS) {
+        // Passou a congestão: volta de uma vez à parte da subida. Subir 15% por
+        // leitura prendia a conexão: o Chrome só sonda até 2× o teto alocado,
+        // e cada degrau pequeno liberava uma sondagem pequena (medido: 11–13 s
+        // de imagem parada depois de uma troca de cena).
+        budget.screen = Math.min(CEIL.screen, budgets.screen);
       }
       // A CPU folgou e o encoder acompanha o teto atual: os quadros voltam
       // devagar, até o teto da sala.
@@ -517,7 +596,10 @@ export class StatsMonitor extends Emitter {
     // Vídeo e jogo encolhem com a banda, para os quadros não caírem (tuning.js).
     const qps = Math.min(budget.framerate, Math.max(30, screen.sourceFps ?? budget.framerate));
     const escalaAntes = budget.escala ?? 1;
-    budget.escala = perfil.contentHint === "motion" ? escalaPelaBanda(screen.targetBitrate, width * height, qps, escalaAntes) : 1;
+    budget.escala =
+      perfil.contentHint === "motion"
+        ? escalaComCalma(escalaPelaBanda(screen.targetBitrate, width * height, qps, escalaAntes), escalaAntes, budget, performance.now())
+        : 1;
     /*
      * Na Fluidez a captura vem no tamanho da janela (screen.js), e o teto de
      * resolução fica aqui: o da qualidade escolhida e, com encoder por

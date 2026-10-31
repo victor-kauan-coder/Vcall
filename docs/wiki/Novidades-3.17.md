@@ -1,5 +1,17 @@
 # Novidades da 3.17
 
+## 3.17.4: tela sem travar pela internet
+
+- **Som da tela:** não fica mais segundos atrás quando a imagem engasga.
+  Antes chegava a 2,7 s de atraso; agora espera a imagem por no máximo
+  250 ms.
+- **Depois de um aperto na internet:** a tela volta à qualidade toda de
+  uma vez. O tempo parado por rodada caiu de até 18,9 s para ~1 s.
+- **Conexão:** não reinicia mais a cada ~10 s em algumas redes.
+- **Resolução:** troca menos; só cresce depois de 18 s com folga.
+- **Tela parada pelo relé:** a imagem repetida volta a sair, uma por
+  segundo.
+
 ## 3.17.3: mais de 50 quadros, com o som junto
 
 - **Vídeo e jogo:** passam de 50 quadros por segundo no aplicativo de mesa.

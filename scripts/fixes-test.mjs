@@ -566,6 +566,11 @@ server.close();
   assert.equal(modoDeReabrir({ temExecve: false }), "reabrir");
   const main = (await import("node:fs")).readFileSync(new URL("../desktop/main.js", import.meta.url), "utf8");
   assert.ok(/modoDeReabrir\(\) === "execve"[\s\S]{0,80}process\.execve\(process\.execPath/.test(main), "o main.js usa o execve antes de qualquer janela");
+  // Sobreposição: dois pedidos seguidos ao abrir; o segundo se perdia.
+  assert.ok(/once\("ready-to-show"[\s\S]{0,120}send\("vcall:canto", cantoSobreposicao\)/.test(main), "a sobreposição recebe o canto atual ao aparecer");
+  // O WebRTCPipeWireCapturer saiu no M133; e o Chromium só lê um enable-features.
+  assert.ok(!/appendSwitch\("enable-features", "WebRTCPipeWireCapturer"\)/.test(main), "sem a opção morta do PipeWire");
+  assert.ok((main.match(/appendSwitch\("enable-features"/g) || []).length <= 1, "no máximo um enable-features (o Chromium só lê um)");
   assert.deepEqual(opcoesDeExibicao({ plataforma: "linux" }), [["gtk-version", "3"]]);
   assert.deepEqual(opcoesDeExibicao({ plataforma: "win32", env: {} }), [], "fora do Linux, nada");
 
@@ -1941,6 +1946,98 @@ if (process.platform === "linux") {
   for (const nome of ["Documento1 - Word", "Planilha - Excel", "README.md - Visual Studio Code", "Slides - PowerPoint", "Explorador de Arquivos"])
     assert.ok(!pareceVideo(nome), `não é vídeo: ${nome}`);
   ok("seletor: janela de vídeo (YouTube, Twitch, players) escolhe a Fluidez sozinha");
+}
+
+/* ------------------------------------------------------------------ *
+ * 3.17.4: o vigia reiniciava a conexão a cada ~10 s (a 10 Mbps, ~metade
+ * das rodadas). O par de `selectedCandidatePairId` ficava em 0 byte e o
+ * tráfego era contado noutro par (candidato peer-reflexive).
+ * ------------------------------------------------------------------ */
+{
+  const { bytesRecebidos } = await import("../public/js/core/stats.js");
+  const rel = (n) =>
+    new Map([
+      ["T", { id: "T", type: "transport", selectedCandidatePairId: "CP0", bytesReceived: 5000 + n }],
+      ["CP0", { id: "CP0", type: "candidate-pair", state: "succeeded", bytesReceived: 0 }],
+      ["CP1", { id: "CP1", type: "candidate-pair", state: "in-progress", bytesReceived: n }],
+    ]);
+  assert.notEqual(bytesRecebidos(rel(100)), bytesRecebidos(rel(900)), "o tráfego no outro par tem de contar");
+  assert.equal(bytesRecebidos(rel(100)), 5100, "o transporte conta tudo");
+  const semTransporte = new Map([...rel(700)].filter(([k]) => k !== "T"));
+  assert.equal(bytesRecebidos(semTransporte), 700, "Firefox (sem transporte): soma dos pares");
+  assert.equal(bytesRecebidos(new Map()), null, "sem nada, sem medida");
+  ok("vigia de conexão congelada: conta os bytes do transporte inteiro, não de um par");
+}
+
+/* ------------------------------------------------------------------ *
+ * 3.17.4: cada troca de escala reinicia o encoder (quadro-chave). Encolher
+ * é na hora; crescer só depois de folga seguida.
+ * ------------------------------------------------------------------ */
+{
+  const { escalaComCalma, SUBIR_ESCALA_MS } = await import("../public/js/core/tuning.js");
+  const est = {};
+  assert.equal(escalaComCalma(3, 2, est, 0), 3, "a banda caiu: encolhe na hora");
+  assert.equal(escalaComCalma(2, 3, est, 1000), 3, "folga recém-aberta: espera");
+  assert.equal(escalaComCalma(2, 3, est, 1000 + SUBIR_ESCALA_MS - 1), 3, "ainda não completou o tempo");
+  assert.equal(escalaComCalma(2, 3, est, 1000 + SUBIR_ESCALA_MS), 2, "folga estável: cresce");
+  assert.equal(escalaComCalma(1.5, 2, est, 50_000), 2);
+  assert.equal(escalaComCalma(2, 2, est, 55_000), 2, "a folga sumiu no meio");
+  assert.equal(escalaComCalma(1.5, 2, est, 60_000), 2, "a contagem recomeça do zero");
+  assert.ok(SUBIR_ESCALA_MS >= 15_000 && SUBIR_ESCALA_MS <= 20_000);
+  ok("tela: a resolução sobe só com folga estável (15–20 s) e desce na hora");
+}
+
+/* ------------------------------------------------------------------ *
+ * 3.17.4: tela parada. O relé repetia o último quadro com a hora de captura
+ * antiga, e o encoder descartava todas as cópias (medido com captura de aba
+ * de verdade: 0 quadros codificados em 12 s; com a cópia feita dos pixels,
+ * 1 por segundo). O teste do navegador usa um canvas, que não tem essa hora.
+ * ------------------------------------------------------------------ */
+{
+  const w = (await import("node:fs")).readFileSync(new URL("../public/js/core/quadros-worker.js", import.meta.url), "utf8");
+  assert.ok(!/new VideoFrame\(ultimo\b/.test(w), "a repetição não pode copiar o VideoFrame (leva a hora de captura antiga)");
+  assert.ok(/createImageBitmap\(ultimo\)[\s\S]{0,200}new VideoFrame\(bitmap, \{ timestamp: agora\(\) \}\)[\s\S]{0,80}bitmap\.close\(\)/.test(w), "repete a partir dos pixels e fecha o bitmap");
+  ok("tela parada: o quadro repetido nasce dos pixels e o encoder não o descarta");
+}
+
+/* ------------------------------------------------------------------ *
+ * 3.17.4: o som da tela era arrastado pela imagem. No mesmo stream, a
+ * sincronia do Chromium segurava o som até 2–2,7 s quando a imagem
+ * engasgava, e soltava a 80 ms por segundo. Agora o som vai noutro stream
+ * e a sincronia é nossa, com teto.
+ * ------------------------------------------------------------------ */
+{
+  const { alvoDoSom, SINCRONIA_MAX_MS } = await import("../public/js/core/tuning.js");
+  assert.equal(alvoDoSom({ videoMs: 120, alvo: 0 }), 120, "o som espera o mesmo que a imagem");
+  assert.equal(alvoDoSom({ videoMs: 125, alvo: 120 }), 120, "mudança < 30 ms: fica");
+  assert.equal(alvoDoSom({ videoMs: 130, alvo: 120 }), 120, "não acumula leitura a leitura");
+  assert.equal(alvoDoSom({ videoMs: 380, alvo: 0 }), SINCRONIA_MAX_MS, "nunca segura mais que o teto");
+  assert.equal(alvoDoSom({ videoMs: 1500, alvo: 250 }), 0, "imagem engasgada: o som segue sozinho");
+  assert.equal(alvoDoSom({ videoMs: 100, alvo: 250, videoParado: true }), 0, "imagem parada: solta o som");
+  assert.equal(alvoDoSom({ videoMs: 60, alvo: 120 }), 60, "a imagem adiantou: o som solta");
+  assert.ok(SINCRONIA_MAX_MS <= 300);
+
+  const fs = await import("node:fs");
+  const peer = fs.readFileSync(new URL("../public/js/core/peer.js", import.meta.url), "utf8");
+  assert.ok(!/screenAudio"\) (init\.streams|t\.sender\.setStreams)/.test(peer) && !/role === "screenAudio"\) (init\.streams|t\.sender\.setStreams)/.test(peer), "o som da tela não pode ir no stream da imagem");
+  assert.ok(/role === "screen"\) init\.streams = \[this\.#telaStream\]/.test(peer));
+
+  // A congestão passou: o teto volta inteiro em vez de subir 15% por leitura.
+  const stats = fs.readFileSync(new URL("../public/js/core/stats.js", import.meta.url), "utf8");
+  assert.ok(!/budget\.screen \* 1\.15/.test(stats), "sem a recuperação de 15% por leitura");
+  assert.ok(/FLOOR = \{ screen: 600_000/.test(stats), "piso da tela em 600 kbps");
+  ok("som da tela: stream próprio e sincronia com teto de 250 ms; banda volta inteira após a congestão");
+}
+
+/* ------------------------------------------------------------------ *
+ * 3.17.4: indicador de sincronia (som da tela − imagem da tela).
+ * ------------------------------------------------------------------ */
+{
+  const { avSync } = await import("../public/js/core/stats.js");
+  assert.equal(avSync({ screen: { playoutMs: 1000 }, screenAudio: { playoutMs: 1070.4 } }), 70, "som 70 ms atrás da imagem");
+  assert.equal(avSync({ screen: { playoutMs: 1000 }, screenAudio: { playoutMs: null } }), null, "sem sincronia, sem número");
+  assert.equal(avSync({ screen: null, screenAudio: null }), null);
+  ok("estatísticas: avSyncMs = playout do som da tela − o da imagem");
 }
 
 console.log(`\n${passou} blocos de verificação passaram.`);

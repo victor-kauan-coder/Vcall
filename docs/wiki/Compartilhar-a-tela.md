@@ -65,8 +65,9 @@ e a imagem congela para quem assiste. Se isso acontecer, o Vcall avisa.
 
 Na Fluidez a janela é capturada no tamanho dela (até 1440p), e quem reduz a
 imagem é o codificador. Reduzir dentro da captura prendia o vídeo em ~45
-quadros por segundo. O som do computador, quando compartilhado, vai junto
-com a imagem, e quem assiste ouve sincronizado com o que vê.
+quadros por segundo. O som do computador, quando compartilhado, espera a
+imagem por até 250 ms para chegar sincronizado. Se a imagem engasgar, o som
+segue sem esperar.
 
 A tela sai em 1080p a até **120 quadros por segundo** no modo Fluidez, quando
 o monitor de quem transmite é de 120 Hz ou mais e a internet aguenta (começa em

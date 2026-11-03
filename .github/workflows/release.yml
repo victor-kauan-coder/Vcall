@@ -55,9 +55,17 @@ jobs:
             dist/*.tar.gz
             dist/latest-linux.yml
 
+  # Assinatura de código (Authenticode) pela SignPath Foundation, de graça para
+  # projeto aberto: sem ela o antivírus e o SmartScreen tratam o Vcall como
+  # "editor desconhecido". Assina duas vezes, o Vcall.exe antes de entrar no
+  # instalador e o instalador depois, e só então recalcula o latest.yml (a
+  # assinatura muda os bytes, e o atualizador confere o sha512). Ver
+  # CODE_SIGNING.md. Sem o segredo SIGNPATH_API_TOKEN, sai sem assinar.
   windows:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -72,8 +80,60 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force .cache-cloudflared | Out-Null
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile ".cache-cloudflared/win32-cloudflared.exe"
+      - name: Vcall.exe (pasta do app, ainda sem instalador)
+        run: npx electron-builder --config electron-builder.yml --win --dir --publish never
+      - name: Vcall.exe para a SignPath
+        id: exe
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcall-exe-sem-assinatura
+          path: dist/win-unpacked/Vcall.exe
+      - name: Assinar o Vcall.exe
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: vcall
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY || 'release-signing' }}
+          artifact-configuration-slug: vcall-exe
+          github-artifact-id: ${{ steps.exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist/win-unpacked
       - name: Instalador do Windows
-        run: npx electron-builder --config electron-builder.yml --win --publish never
+        run: npx electron-builder --config electron-builder.yml --win --prepackaged dist/win-unpacked --publish never
+      - name: Instalador para a SignPath
+        id: setup
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-sem-assinatura
+          path: dist/VcallSetup-*.exe
+      - name: Assinar o instalador
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: vcall
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY || 'release-signing' }}
+          artifact-configuration-slug: instalador
+          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist
+      - name: latest.yml e .blockmap do instalador assinado
+        if: env.SIGNPATH_API_TOKEN != ''
+        run: node scripts/pos-assinatura.mjs dist
+      - name: Conferir as assinaturas
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          foreach ($f in @("dist/win-unpacked/Vcall.exe") + (Get-ChildItem dist/VcallSetup-*.exe).FullName) {
+            $a = Get-AuthenticodeSignature $f
+            "$f -> $($a.Status) ($($a.SignerCertificate.Subject))"
+            if ($a.Status -ne "Valid") { exit 1 }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -145,6 +205,11 @@ jobs:
           else
             node scripts/assinar-atualizacao.mjs pacotes "${{ steps.v.outputs.versao }}"
           fi
+      # A SignPath Foundation pede que a página de download diga quem assina.
+      - name: Aviso da assinatura nas notas
+        run: |
+          NOTAS="docs/release/v${{ steps.v.outputs.versao }}.md"
+          { echo; echo "---"; echo "Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). [Política de assinatura e privacidade](https://github.com/victor-kauan-coder/Vcall/blob/main/CODE_SIGNING.md)."; } >> "$NOTAS"
       - name: Somas de verificação
         run: cd pacotes && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2

@@ -39,6 +39,8 @@ Tudo em **[Releases](https://github.com/victor-kauan-coder/Vcall/releases/latest
 passo a passo na **[wiki](https://github.com/victor-kauan-coder/Vcall/wiki/Instalacao)** ·
 o que mudou na **[3.17.1](docs/release/v3.17.1.md)**.
 
+O instalador do Windows é assinado de graça pela SignPath ([política de assinatura](CODE_SIGNING.md)).
+
 ## Recursos
 
 - Vídeo, voz e tela ponto a ponto, até 16 pessoas, sem conta e sem limite de tempo
@@ -413,6 +415,10 @@ de codificação aplicado, quadro branco pelo canal de dados, chat, os dois tema
 e a saída limpa de um participante.
 
 ---
+
+## Licença
+
+O Vcall é software livre sob a [GNU AGPL 3.0](LICENSE).
 
 ## Licenças de terceiros
 

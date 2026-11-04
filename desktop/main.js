@@ -38,6 +38,7 @@ import { Sfu } from "./sfu.js";
 import { RedeVcall, limparPessoa } from "./rede.js";
 import { conferir } from "./atualizacao.js";
 import * as atualizador from "./atualizador.js";
+import * as github from "./github.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
 import { descreverFontes, montarResposta, sessaoWayland, umPorVez, somDoComputadorNaLista } from "./captura.js";
 import { argsParaX11, executavelParaRegistrar, modoDeReabrir, opcoesDeExibicao } from "./linux.js";
@@ -734,6 +735,22 @@ ipcMain.handle("vcall:atualizacao", (e, acao) => {
   if (acao === "verificar") return atualizador.verificar();
   if (acao === "instalar") return atualizador.instalar();
   return atualizador.estadoAtual();
+});
+
+/*
+ * O kanban do GitHub no Planning Poker (desktop/github.js). Só a página do
+ * próprio app usa o seu token: a sala de outra pessoa não lê nem grava nos
+ * seus projetos.
+ */
+ipcMain.handle("vcall:github", (e, pedido) => {
+  let origem = "";
+  try {
+    origem = new URL(e.senderFrame?.url || "").origin;
+  } catch {
+    /* sem origem: recusa abaixo */
+  }
+  if (origem !== baseUrl) return { erro: "O GitHub só conecta na sala aberta pelo seu próprio Vcall." };
+  return github.pedir(String(pedido?.acao || ""), pedido?.dados);
 });
 
 ipcMain.handle("vcall:info", () => ({

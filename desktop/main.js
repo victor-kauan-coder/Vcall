@@ -642,13 +642,13 @@ function abrirSobreposicao(canto = cantoSobreposicao) {
   sobreposicao.setIgnoreMouseEvents(true);
   sobreposicao.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   sobreposicao.webContents.on("will-navigate", (e) => e.preventDefault());
+  sobreposicao.once("ready-to-show", () => sobreposicao?.showInactive());
   // O canto de agora, não o desta chamada: um pedido que chega com a janela
-  // ainda carregando manda a mensagem para o nada, e este envio a escrevia
-  // por cima com o canto velho (o teste do canto falhava às vezes no CI).
-  sobreposicao.once("ready-to-show", () => {
-    sobreposicao?.showInactive();
-    sobreposicao?.webContents.send("vcall:canto", cantoSobreposicao);
-  });
+  // ainda carregando manda a mensagem para o nada. E vai no did-finish-load,
+  // não no ready-to-show: o script da página é um módulo e roda depois da
+  // primeira pintura, então no ready-to-show ainda não havia quem ouvisse e a
+  // sobreposição ficava no canto padrão (o teste do canto falhava às vezes no CI).
+  sobreposicao.webContents.once("did-finish-load", () => sobreposicao?.webContents.send("vcall:canto", cantoSobreposicao));
   sobreposicao.on("closed", () => (sobreposicao = null));
   sobreposicao.loadURL(`${baseUrl}/sobreposicao.html`);
 }

@@ -656,8 +656,10 @@ server.close();
   assert.equal(modoDeReabrir({ temExecve: false }), "reabrir");
   const main = (await import("node:fs")).readFileSync(new URL("../desktop/main.js", import.meta.url), "utf8");
   assert.ok(/modoDeReabrir\(\) === "execve"[\s\S]{0,80}process\.execve\(process\.execPath/.test(main), "o main.js usa o execve antes de qualquer janela");
-  // Sobreposição: dois pedidos seguidos ao abrir; o segundo se perdia.
-  assert.ok(/once\("ready-to-show"[\s\S]{0,120}send\("vcall:canto", cantoSobreposicao\)/.test(main), "a sobreposição recebe o canto atual ao aparecer");
+  // Sobreposição: dois pedidos seguidos ao abrir; o segundo se perdia. E o
+  // canto vai no did-finish-load: no ready-to-show o módulo da página ainda
+  // não ouvia, e a janela ficava no canto padrão.
+  assert.ok(/once\("did-finish-load"[\s\S]{0,120}send\("vcall:canto", cantoSobreposicao\)/.test(main), "a sobreposição recebe o canto atual depois que a página carrega");
   // O WebRTCPipeWireCapturer saiu no M133; e o Chromium só lê um enable-features.
   assert.ok(!/appendSwitch\("enable-features", "WebRTCPipeWireCapturer"\)/.test(main), "sem a opção morta do PipeWire");
   assert.ok((main.match(/appendSwitch\("enable-features"/g) || []).length <= 1, "no máximo um enable-features (o Chromium só lê um)");

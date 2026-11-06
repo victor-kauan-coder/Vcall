@@ -394,20 +394,23 @@ export class StatsMonitor extends Emitter {
    *                        a Fluidez vai melhor (tuning.pedeFluidez).
    */
   #vigiarTela(peer, screen, perfil) {
-    if (!this.#trocouCodec) {
-      let negociados = [];
-      try {
-        negociados = (peer.tx.screen.sender.getParameters().codecs || []).map((c) => c.mimeType);
-      } catch {
-        /* sender fechando */
-      }
+    let params = null;
+    try {
+      params = peer.tx.screen.sender.getParameters();
+    } catch {
+      /* sender fechando */
+    }
+    // Cópia direta desligada (a tela vai pelo SFU ou pelo relé): ela não diz nada.
+    const ligada = params?.encodings?.[0]?.active !== false;
+    if (!this.#trocouCodec && ligada) {
+      const negociados = (params?.codecs || []).map((c) => c.mimeType);
       const codec = codecMelhorQueOSoftware({ modo: perfil.contentHint, codec: screen.codec, hardware: screen.hardware, negociados });
       if (codec) {
         this.#trocouCodec = true;
         this.emit("codec-da-tela", codec);
       }
     }
-    const andando = perfil.contentHint === "text" && pedeFluidez({ fonteQps: screen.sourceFps, qps: screen.fps, bps: screen.bitrate });
+    const andando = ligada && perfil.contentHint === "text" && pedeFluidez({ fonteQps: screen.sourceFps, qps: screen.fps, bps: screen.bitrate });
     const n = andando ? (this.#movimento.get(peer.id) || 0) + 1 : 0;
     this.#movimento.set(peer.id, n);
     if (n === 3) this.emit("tela-em-movimento");

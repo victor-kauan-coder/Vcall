@@ -2059,11 +2059,12 @@ if (process.platform === "linux") {
     };
   }
   /** Roda `voltas` ciclos do monitor sem esperar os 2 s de cada um. */
-  async function rodar(peer, voltas) {
+  async function rodar(peer, voltas, antes = () => {}) {
     const original = globalThis.setInterval;
     let ciclo = null;
     globalThis.setInterval = (fn) => ((ciclo = fn), 1);
     const m = new StatsMonitor(() => [peer]);
+    antes(m);
     m.start();
     globalThis.setInterval = original;
     for (let i = 0; i < voltas; i++) await ciclo();
@@ -2134,6 +2135,16 @@ if (process.platform === "linux") {
   const leve = parFalso({ fps: 60, w: 1920, h: 1080, motivo: "none", alvo: 12_000_000, hw: true }, { ...PROFILES.screenMotion, alturaMax: 720 });
   await rodar(leve, 2);
   assert.equal(leve.enc.scaleResolutionDownBy, 1.5, `qualidade de 720p com placa: escala ${leve.enc.scaleResolutionDownBy}`);
+  // 3.22: vídeo na Nitidez pede a Fluidez; a cópia direta desligada (SFU, relé) não conta.
+  let pediu = 0;
+  const videoNaNitidez = parFalso({ fps: 54, w: 1920, h: 1080, motivo: "none", alvo: 6_000_000 }, PROFILES.screenText);
+  await rodar(videoNaNitidez, 4, (m) => m.on("tela-em-movimento", () => pediu++));
+  assert.equal(pediu, 1, `vídeo na Nitidez (54 de 60): pediu a Fluidez ${pediu} vez(es)`);
+  pediu = 0;
+  const pelaSfu = parFalso({ fps: 0, w: 1920, h: 1080, motivo: "none", alvo: 6_000_000 }, PROFILES.screenText);
+  pelaSfu.enc.active = false;
+  await rodar(pelaSfu, 4, (m) => m.on("tela-em-movimento", () => pediu++));
+  assert.equal(pediu, 0, "com a cópia direta desligada (tela pelo SFU), 0 qps não é engasgo");
   const textoSemPlaca = parFalso({ fps: 30, w: 1920, h: 1080, motivo: "none", alvo: 6_000_000, hw: false }, PROFILES.screenText);
   await rodar(textoSemPlaca, 2);
   assert.equal(textoSemPlaca.enc.scaleResolutionDownBy, 1, "texto não perde resolução por causa do encoder");

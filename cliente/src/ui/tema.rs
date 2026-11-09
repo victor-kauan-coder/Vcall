@@ -56,6 +56,11 @@ fn ca(v: u32) -> Hsla {
 
 impl Tema {
     pub fn de(window: &Window) -> Tema {
+        match preferencia() {
+            1 => return Tema::claro(),
+            2 => return Tema::escuro(),
+            _ => {}
+        }
         // VCALL_TEMA=claro|escuro força um (fotos de comparação nos dois temas).
         match std::env::var("VCALL_TEMA").as_deref() {
             Ok("claro") => return Tema::claro(),
@@ -155,6 +160,17 @@ impl Tema {
         let (y, blur, spread, cor) = if self.escuro { (24., 56., -16., rgba_f(0., 0., 0., 0.75)) } else { (24., 56., -18., rgba_f(22., 16., 63., 0.26)) };
         vec![sombra(0., y, blur, spread, cor)]
     }
+}
+
+static PREFERENCIA: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// O botão de tema (theme.js): 0 = o do sistema, 1 = claro, 2 = escuro.
+pub fn preferencia() -> u8 {
+    PREFERENCIA.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn definir_preferencia(modo: u8) {
+    PREFERENCIA.store(modo % 3, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Raios (tokens.css:81-86 e os do call.css).

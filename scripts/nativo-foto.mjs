@@ -91,27 +91,9 @@ try {
     await espera(2000);
   }
 
-  /* -- o app web -- */
-  const web = await pagina(W, H);
-  if (CENA === "saguao") {
-    await web.goto(link, { waitUntil: "load" });
-    await espera(2500);
-  } else {
-    await entrar(web, "Ana Souza");
-    await espera(4000);
-    if (CENA === "chat") {
-      for (const p of outros) await p.evaluate((n) => window.vcall.mesh.sendChat(`Oi, aqui é ${n}`), await p.evaluate(() => window.vcall.mesh.self?.name || ""));
-      await web.click('[aria-label="Conversa"]');
-      await espera(1500);
-    }
-  }
-  await web.screenshot({ path: path.join(SAIDA, "web.png") });
-  await web.context().close();
-  await espera(1500);
-
-  /* -- o cliente nativo, na mesma cena -- */
+  /* -- o cliente nativo -- */
   const args = [link, "--teste"];
-  if (CENA !== "saguao") args.push("--nome", "Ana Souza", "--ligar", "cam");
+  if (CENA !== "saguao") args.push("--nome", "Ana Souza", "--ligar", "mic,cam");
   nativo = spawn(bin, args, {
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env, VCALL_NATIVO_FOTO: "1", VCALL_NATIVO_LOG: "1", VCALL_NATIVO_ROTEIRO: "1", VCALL_TEMA: TEMA },
@@ -122,24 +104,55 @@ try {
   const fim = Date.now() + 15_000;
   while (!/hwnd (\d+)/.test(log) && Date.now() < fim) await espera(200);
   const hwnd = log.match(/hwnd (\d+)/)?.[1];
-  if (!hwnd) throw new Error(`o cliente não abriu a janela:\n${log.slice(-800)}`);
+  if (!hwnd) throw new Error(`o cliente não abriu a janela:
+${log.slice(-800)}`);
   await espera(CENA === "saguao" ? 2500 : 6000);
   if (CENA === "chat") {
-    for (const p of outros) await p.evaluate(() => window.vcall.mesh.sendChat("Oi, de novo"));
+    for (const p of outros) await p.evaluate(() => window.vcall.mesh.sendChat(`Oi, aqui é ${window.vcall.mesh.self?.name || ""}`));
     nativo.stdin.write("painel conversa\n");
     await espera(1500);
   }
+  // O tamanho em que a janela nativa desenha (o Windows a encolhe para caber
+  // no monitor, como faria com o app de mesa): o web é fotografado igual.
+  const tam = [...log.matchAll(/tamanho (\d+)x(\d+) escala ([\d.]+)/g)].pop();
+  const [lw, lh, escala] = tam ? [Number(tam[1]), Number(tam[2]), Number(tam[3])] : [W, H, 1];
   const h264 = path.join(SAIDA, "nativo.h264");
   const r = spawnSync(motor, ["medir", "--janela", hwnd, "--segundos", "0.6", "--saida", h264], { encoding: "utf8" });
   if (r.status !== 0) throw new Error(`o motor não fotografou: ${r.stderr.slice(0, 300)}`);
-  spawnSync("ffmpeg", ["-v", "error", "-y", "-sseof", "-0.2", "-i", h264, "-frames:v", "1", path.join(SAIDA, "nativo.png")]);
+  // Só a área desenhada (a captura pode vir maior, com preto em volta).
+  const [cw, ch] = [Math.round(lw * escala), Math.round(lh * escala)];
+  spawnSync("ffmpeg", ["-v", "error", "-y", "-sseof", "-0.2", "-i", h264, "-frames:v", "1", "-vf", `crop=min(iw\\,${cw}):min(ih\\,${ch}):0:0`, path.join(SAIDA, "nativo.png")]);
+  nativo.stdin.end();
+  await espera(1500);
+
+  /* -- o app web, na mesma cena e no mesmo tamanho -- */
+  const web = await pagina(lw, lh);
+  if (CENA === "saguao") {
+    await web.goto(link, { waitUntil: "load" });
+    await espera(2500);
+  } else {
+    await entrar(web, "Ana Souza");
+    await espera(4000);
+    if (CENA === "chat") {
+      for (const p of outros) await p.evaluate(() => window.vcall.mesh.sendChat(`Oi, aqui é ${window.vcall.mesh.self?.name || ""}`));
+      await web.click('[aria-label="Conversa"]');
+      await espera(1500);
+    }
+  }
+  // Tira o mouse de cima dos ladrilhos (o clique de entrar o deixa lá).
+  await web.mouse.move(lw - 2, lh / 2);
+  await espera(400);
+  await web.screenshot({ path: path.join(SAIDA, "web.png") });
+  await web.context().close();
+  const altura = Math.max(lh, 600);
   spawnSync("ffmpeg", [
     "-v", "error", "-y",
     "-i", path.join(SAIDA, "web.png"),
     "-i", path.join(SAIDA, "nativo.png"),
-    "-filter_complex", `[0]scale=-2:${H}[a];[1]scale=-2:${H}[b];[a][b]hstack`,
+    "-filter_complex", `[0]scale=-2:${altura}[a];[1]scale=-2:${altura}[b];[a][b]hstack`,
     path.join(SAIDA, "lado-a-lado.png"),
   ]);
+  console.log(`tamanho ${lw}x${lh} (escala ${escala})`);
   console.log(`fotos em ${SAIDA}`);
 } finally {
   nativo?.stdin.end();

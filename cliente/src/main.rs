@@ -52,30 +52,33 @@ impl log::Log for LogDoRtc {
 
 /// Põe a janela fora da tela e a mostra sem foco (fotos de comparação).
 /// `SetWindowPos`, e não a posição da criação: o Windows puxa de volta para o
-/// monitor uma janela criada fora dele.
+/// monitor uma janela criada fora dele. Chamado fora do `update` da janela:
+/// o aviso de tamanho chega na hora e o GPUI ocupado o descartaria.
 fn fora_da_tela(janela: gpui::AnyWindowHandle, cx: &mut App) {
-    let _ = janela.update(cx, |_, window, _| {
-        #[cfg(windows)]
-        {
-            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-            #[link(name = "user32")]
-            unsafe extern "system" {
-                fn SetWindowPos(hwnd: isize, depois: isize, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
-                fn ShowWindow(hwnd: isize, modo: i32) -> i32;
-            }
-            if let Ok(h) = window.window_handle()
-                && let RawWindowHandle::Win32(w) = h.as_raw()
-            {
-                let hwnd = w.hwnd.get();
-                // SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE; SW_SHOWNOACTIVATE.
-                unsafe {
-                    SetWindowPos(hwnd, 0, -4000, 0, 0, 0, 0x0001 | 0x0004 | 0x0010);
-                    ShowWindow(hwnd, 4);
-                }
-                eprintln!("hwnd {hwnd}");
-            }
+    #[cfg(windows)]
+    {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        #[link(name = "user32")]
+        unsafe extern "system" {
+            fn SetWindowPos(hwnd: isize, depois: isize, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
+            fn ShowWindow(hwnd: isize, modo: i32) -> i32;
         }
-    });
+        let dados = janela.update(cx, |_, window, _| {
+            let RawWindowHandle::Win32(w) = window.window_handle().ok()?.as_raw() else { return None };
+            Some((w.hwnd.get(), window.scale_factor()))
+        });
+        if let Ok(Some((hwnd, sf))) = dados {
+            // O tamanho do app de mesa (1360x860) em pixels da tela: na criação
+            // o Windows encolhe a janela para caber no monitor.
+            let (largura, altura) = ((1360. * sf).round() as i32, (860. * sf).round() as i32);
+            // SWP_NOZORDER | SWP_NOACTIVATE; SW_SHOWNOACTIVATE.
+            unsafe {
+                SetWindowPos(hwnd, 0, -4000, 0, largura, altura, 0x0004 | 0x0010);
+                ShowWindow(hwnd, 4);
+            }
+            eprintln!("hwnd {hwnd}");
+        }
+    }
 }
 
 fn main() {

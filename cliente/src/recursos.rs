@@ -46,11 +46,34 @@ pub fn icone_svg(nome: &str, traco: f32) -> Option<String> {
     ))
 }
 
-/// Um emoji colorido, pronto para `img()`.
+/// Um emoji colorido, pronto para `img()` (com os canais trocados: ver `trocar_rb`).
 pub fn emoji(nome: &str) -> Option<Arc<Image>> {
     let (vb, corpo) = simbolo(EMOJIS, &format!("e-{nome}"))?;
     let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}">{corpo}</svg>"#);
-    Some(Arc::new(Image::from_bytes(ImageFormat::Svg, svg.into_bytes())))
+    Some(Arc::new(Image::from_bytes(ImageFormat::Svg, trocar_rb(&svg).into_bytes())))
+}
+
+/// O GPUI 0.2.2 desenha um SVG em `img()` com vermelho e azul trocados; trocar
+/// as cores hex do texto antes compensa. (Cores por nome ou imagens embutidas
+/// no SVG não são cobertas: para essas, `ui::palco::arte::svg_nitido`.)
+pub fn trocar_rb(svg: &str) -> String {
+    let b = svg.as_bytes();
+    let mut s = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = |n: usize| i + n < b.len() && b[i + 1..=i + n].iter().all(u8::is_ascii_hexdigit) && !b.get(i + n + 1).is_some_and(u8::is_ascii_hexdigit);
+        if b[i] == b'#' && hex(6) {
+            s.extend_from_slice(&[b'#', b[i + 5], b[i + 6], b[i + 3], b[i + 4], b[i + 1], b[i + 2]]);
+            i += 7;
+        } else if b[i] == b'#' && hex(3) {
+            s.extend_from_slice(&[b'#', b[i + 3], b[i + 2], b[i + 1]]);
+            i += 4;
+        } else {
+            s.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(s).unwrap_or_else(|_| svg.to_string())
 }
 
 pub struct Recursos;

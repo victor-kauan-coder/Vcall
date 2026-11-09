@@ -46,7 +46,10 @@ pub fn palco(c: &mut Chamada, _t: &Tema, _window: &mut Window, _cx: &mut Context
 
 /// Uma operação de recurso chegou de `de` (pelo canal de dados ou, de quem
 /// ainda não abriu o canal, pelo servidor).
-pub fn receber(_c: &mut Chamada, de: &str, op: &Value, _cx: &mut Context<Chamada>) {
+pub fn receber(c: &mut Chamada, de: &str, op: &Value, cx: &mut Context<Chamada>) {
+    if c.receber_reacao(de, op, cx) {
+        return;
+    }
     if std::env::var_os("VCALL_NATIVO_LOG").is_some() {
         eprintln!("dados de {de}: {}", op.get("type").or_else(|| op.get(0)).map(|v| v.to_string()).unwrap_or_default());
     }

@@ -21,6 +21,20 @@ use gpui::{Context, Window, div, prelude::*, px};
 use crate::chamada::Chamada;
 use tema::{FONTE, Tema};
 
+/// Para as fotos de comparação (scripts/nativo-foto.mjs): o tamanho em que a
+/// janela está desenhando (em pixels lógicos) e a escala, quando mudam.
+pub fn registrar_tamanho(window: &Window) {
+    if std::env::var_os("VCALL_NATIVO_FOTO").is_none() {
+        return;
+    }
+    thread_local!(static ULTIMO: std::cell::Cell<(f32, f32)> = const { std::cell::Cell::new((0., 0.)) });
+    let s = window.viewport_size();
+    let agora = (f32::from(s.width), f32::from(s.height));
+    if ULTIMO.with(|u| u.replace(agora)) != agora {
+        eprintln!("tamanho {}x{} escala {}", agora.0.round(), agora.1.round(), window.scale_factor());
+    }
+}
+
 /// O estado só do desenho, de cada parte (cada uma é dona do seu).
 #[derive(Default)]
 pub struct EstadoUi {
@@ -32,6 +46,7 @@ pub struct EstadoUi {
 
 impl Render for Chamada {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        registrar_tamanho(window);
         let t = Tema::de(window);
         let topo = topo::topo(self, &t, window, cx);
         // Um recurso aberto (quadro, jogo...) ocupa o palco no lugar da grade.
@@ -42,6 +57,7 @@ impl Render for Chamada {
         let painel = painel::painel(self, &t, window, cx);
         let dock = dock::dock(self, &t, window, cx);
         let reacoes = reacoes::camada(self, &t, window, cx);
+        let batidas = painel::batidas(self, &t, cx);
         div()
             .size_full()
             .relative()
@@ -56,6 +72,7 @@ impl Render for Chamada {
             .child(div().flex_1().min_h_0().flex().child(palco).children(painel))
             .child(dock)
             .child(reacoes)
+            .children(batidas)
             .child(janela::controles(&t, window))
     }
 }

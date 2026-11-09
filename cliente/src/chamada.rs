@@ -108,6 +108,8 @@ pub struct Chamada {
     pub func: crate::func::Estados,
     /// Quem está falando (inclusive eu), para o anel do ladrilho e a barrinha.
     pub falando: HashMap<String, Fala>,
+    /// Os sinais de cada um (features/reacoes.js SINAIS), no quadrinho dele.
+    pub sinais: HashMap<String, Vec<String>>,
     ultimo_alto: Option<Instant>,
     proximo_id: u64,
     eventos: UnboundedSender<Evento>,
@@ -209,6 +211,7 @@ impl Chamada {
             ui: Default::default(),
             func: Default::default(),
             falando: HashMap::new(),
+            sinais: HashMap::new(),
             ultimo_alto: None,
             proximo_id: 1,
             eventos: tx,
@@ -370,6 +373,40 @@ impl Chamada {
         self.sinal.emissor().enviar(json!({ "t": "reaction", "kind": tipo }));
         let eu = self.sala.eu.clone().unwrap_or_default();
         self.mostrar_reacao(eu, tipo.to_string(), cx);
+    }
+
+    /// Uma reação do menu (features/reacoes.js): `{type:"reacao", r, n}` pelo
+    /// canal do quadro, como o navegador; quem ainda não abriu o canal recebe
+    /// pelo servidor (o "board" de plano B).
+    pub fn reagir_id(&mut self, id: &str, cx: &mut Context<Self>) {
+        let op = json!({ "type": "reacao", "r": id, "n": 1 });
+        if self.malha.difundir(&op) < self.malha.conectados() {
+            self.sinal.emissor().enviar(json!({ "t": "board", "op": op }));
+        }
+        let eu = self.sala.eu.clone().unwrap_or_default();
+        self.mostrar_reacao(eu, id.to_string(), cx);
+    }
+
+    /// Uma reação ou sinais chegaram pelo canal do quadro. Devolve se era isso.
+    pub fn receber_reacao(&mut self, de: &str, op: &Value, cx: &mut Context<Self>) -> bool {
+        match op["type"].as_str() {
+            Some("reacao") => {
+                if let Some(r) = op["r"].as_str() {
+                    let n = op["n"].as_u64().unwrap_or(1).clamp(1, 20);
+                    for _ in 0..n.min(3) {
+                        self.mostrar_reacao(de.to_string(), r.to_string(), cx);
+                    }
+                }
+                true
+            }
+            Some("sinal") => {
+                let s = op["s"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
+                self.sinais.insert(de.to_string(), s);
+                cx.notify();
+                true
+            }
+            _ => false,
+        }
     }
 
     fn mostrar_reacao(&mut self, de: String, tipo: String, cx: &mut Context<Self>) {

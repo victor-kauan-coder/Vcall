@@ -70,6 +70,25 @@ fn foto(data_url: &str) -> Option<Arc<Image>> {
     Some(Arc::new(Image::from_bytes(formato, bytes)))
 }
 
+/// A imagem para `img()` direto: o GPUI 0.2.2 desenha SVG com vermelho e
+/// azul trocados, então o SVG já vai com as cores trocadas. Para desenho
+/// grande e nítido use `palco::arte::svg_nitido(&imagem(..))`.
+pub fn para_img(avatar: &Avatar) -> Option<Arc<Image>> {
+    let i = imagem(avatar)?;
+    if i.format != ImageFormat::Svg {
+        return Some(i);
+    }
+    let chave = format!("img:{}", i.id());
+    PRONTOS.with(|p| {
+        if let Some(j) = p.borrow().get(&chave) {
+            return j.clone();
+        }
+        let j = Some(Arc::new(Image::from_bytes(ImageFormat::Svg, crate::recursos::trocar_rb(&String::from_utf8_lossy(&i.bytes)).into_bytes())));
+        p.borrow_mut().insert(chave, j.clone());
+        j
+    })
+}
+
 /// O avatar que o app dá a quem chega pela primeira vez (uma paisagem).
 pub fn padrao() -> Avatar {
     let semente = vcall_avatares::semente_aleatoria();

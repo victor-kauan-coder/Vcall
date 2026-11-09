@@ -80,6 +80,8 @@ pub struct Sala {
     /// (Para o anfitrião) quem está na porta: (id, nome).
     pub porta: Vec<(String, String)>,
     pub trancada: bool,
+    /// O código curto da sala (welcome `room.code`), mostrado no cartão de espera.
+    pub codigo: String,
 }
 
 impl Sala {
@@ -90,6 +92,8 @@ impl Sala {
             "welcome" => {
                 self.eu = m["you"]["id"].as_str().map(str::to_string);
                 self.nome = m["room"]["name"].as_str().unwrap_or("").to_string();
+                self.codigo = m["room"]["code"].as_str().unwrap_or("").to_string();
+                self.trancada = m["room"]["locked"].as_bool().unwrap_or(false) || m["room"]["closed"].as_bool().unwrap_or(false);
                 self.pessoas = Pessoa::de(&m["you"]).into_iter().chain(m["peers"].as_array().into_iter().flatten().filter_map(Pessoa::de)).collect();
                 self.aviso.clear();
             }

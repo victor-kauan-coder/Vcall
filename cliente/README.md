@@ -15,6 +15,9 @@ sendo o que sai nas versões até o nativo alcançá-lo.
 Prova de que dá: o próprio Zed faz chamada e compartilhamento de tela com
 GPUI + o crate `livekit` (libwebrtc), no Windows, Linux e macOS.
 
+Para continuar este trabalho, leia antes `CONTINUAR.md` (estado, pastas,
+branches dos agentes, regras, armadilhas e o que falta).
+
 ## Uso
 
 ```

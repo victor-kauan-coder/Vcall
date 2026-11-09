@@ -613,6 +613,10 @@ export class StatsMonitor extends Emitter {
     const screen = sample.outbound.screen;
     const hasScreen = !!peer.tx.screen?.sender?.track;
     if (!hasScreen || !screen) return;
+    // Motor nativo: o sender só codifica a trilha falsa de 160x90 (H.264 por
+    // software). Adaptar aqui trocaria o codec da tela para VP9 com quadros
+    // H.264 dentro; o motor segue a banda por conta própria (core/midia.js).
+    if (peer.tx.screen.sender.track.vcallNativo) return;
 
     let budget = this.#budget.get(peer.id);
     if (!budget) {

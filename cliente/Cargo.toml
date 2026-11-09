@@ -1,0 +1,35 @@
+[package]
+name = "vcall-nativo"
+version = "0.1.0"
+edition = "2024"
+description = "Cliente nativo do Vcall em GPUI (Rust): entra nas mesmas salas dos navegadores"
+license = "MIT"
+publish = false
+
+[dependencies]
+gpui = "0.2.2"
+futures = { version = "0.3", features = ["thread-pool"] }
+serde_json = "1"
+# TLS (salas pelo túnel, https://): rustls com o ring, os mesmos que o GPUI
+# já traz; as raízes são as do sistema (+ VCALL_CA, sinalizacao.rs).
+tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+rustls-native-certs = "0.8"
+libwebrtc = "0.4.0"
+# O libwebrtc põe uma tarefa Tokio em cada fonte de vídeo crua (local.rs).
+# VCALL_RTC_LOG=1: o log do próprio libwebrtc (main.rs).
+log = "0.4"
+# O HWND da janela (modo de foto, main.rs).
+raw-window-handle = "0.6"
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "time"] }
+# Avatares idênticos aos do app: o próprio JS do app num QuickJS (avatares/).
+vcall-avatares = { path = "avatares" }
+base64 = "0.22"
+image = { version = "0.25", default-features = false }
+cpal = "0.18"
+nokhwa = { version = "0.10.11", features = ["input-native"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true

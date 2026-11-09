@@ -31,3 +31,8 @@ bench-fala.json
 *-privada.pem
 brag-output/
 dist-android/
+
+# Build do motor de mídia nativo (Rust)
+midia/target/
+cliente/target/
+cliente/fotos/

@@ -1,0 +1,181 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vcall-midia recebe</title>
+<style>html,body{margin:0;background:#111;color:#ccc;font:12px monospace}video{width:100%;display:block}</style>
+<video id="v" autoplay muted playsinline></video>
+<div id="s"></div>
+<script>
+// Quem transmite e quem recebe na mesma página (duas RTCPeerConnection em
+// laço), com a tela da janela de teste:
+//   chromium  getUserMedia da janela + codificador do Chromium (o caminho de hoje)
+//   nativo    trilha falsa + injetor.js com os quadros do vcall-midia
+// Quem recebe lê o horário do código de barras de cada quadro decodificado.
+const { ipcRenderer } = require("electron");
+const p = new URLSearchParams(location.search);
+const MODO = p.get("modo");
+const QPS = Number(p.get("qps"));
+const KBPS = Number(p.get("kbps"));
+const video = document.getElementById("v");
+const medida = { latencias: [], intervalos: [], cores: [], injecao: null, kbpsPedidos: [], erro: null };
+window.medida = medida;
+
+const agora = () => performance.timeOrigin + performance.now();
+
+async function iniciar() {
+  const pc1 = new RTCPeerConnection();
+  const pc2 = new RTCPeerConnection();
+  pc1.onicecandidate = (e) => e.candidate && pc2.addIceCandidate(e.candidate);
+  pc2.onicecandidate = (e) => e.candidate && pc1.addIceCandidate(e.candidate);
+  window.pcs = { pc1, pc2 };
+
+  let tx;
+  if (MODO === "chromium") {
+    const s = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: `window:${p.get("hwnd")}:0`, maxWidth: 1920, maxHeight: 1080, maxFrameRate: QPS } },
+    });
+    const trilha = s.getVideoTracks()[0];
+    trilha.contentHint = "motion";
+    tx = pc1.addTransceiver(trilha, { direction: "sendonly", sendEncodings: [{ maxBitrate: KBPS * 1000, maxFramerate: QPS }] });
+  } else {
+    const gen = new MediaStreamTrackGenerator({ kind: "video" });
+    const escrever = gen.writable.getWriter();
+    const falsa = new OffscreenCanvas(160, 90);
+    const g = falsa.getContext("2d");
+    g.fillStyle = "#202020";
+    g.fillRect(0, 0, 160, 90);
+    // Um quadro falso para cada quadro nativo, escrito quando ele chega e com
+    // o horário da captura: o RTP sai no ritmo real da tela. O motor só
+    // codifica quando o injetor pede (ver injetor.js).
+    tx = pc1.addTransceiver(gen, { direction: "sendonly", sendEncodings: [{ maxBitrate: KBPS * 1000, maxFramerate: 2 * QPS }] });
+    const worker = new Worker("injetor.js");
+    tx.sender.transform = new RTCRtpScriptTransform(worker, {});
+    let pedidoEm = 0;
+    const pedir = () => {
+      pedidoEm = performance.now();
+      ipcRenderer.send("midia", "quadro");
+    };
+    // Se o Chromium descartar um quadro falso, ninguém pede o próximo.
+    setInterval(() => performance.now() - pedidoEm > 3000 / QPS && pedir(), 1000 / QPS);
+    worker.onmessage = (e) => {
+      if (e.data.pedir) pedir();
+      else if (e.data.chave) ipcRenderer.send("midia", "chave");
+      else medida.injecao = e.data;
+    };
+    ipcRenderer.on("porta", (e) => {
+      const porta = e.ports[0];
+      porta.onmessage = ({ data }) => {
+        const u = data.dados;
+        const dados = u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength);
+        worker.postMessage({ quadro: { dados, chave: data.chave } }, [dados]);
+        escrever.write(new VideoFrame(falsa, { timestamp: data.tempo }));
+      };
+      porta.start();
+    });
+    ipcRenderer.send("pronto-para-porta");
+    // O motor segue a banda que o WebRTC estima (acima dela os quadros
+    // entopem o pacer e o jitter buffer de quem recebe).
+    let ultimo = 1000;
+    setInterval(async () => {
+      let banda = 0;
+      (await pc1.getStats()).forEach((r) => {
+        if (r.type === "candidate-pair" && r.nominated && r.availableOutgoingBitrate) banda = r.availableOutgoingBitrate;
+      });
+      if (!banda) return;
+      // 100% da estimativa, como o codificador do próprio Chromium: mandando
+      // sempre menos, o controle de banda para de sondar e a estimativa não sobe.
+      const alvo = Math.max(300, Math.min(KBPS, Math.round(banda / 1000)));
+      // O MFT da Intel solta um IDR a cada mudança de banda: só muda acima de
+      // 15% e no máximo uma vez por segundo.
+      if (Math.abs(alvo - ultimo) / ultimo > 0.15) {
+        ultimo = alvo;
+        medida.kbpsPedidos.push(alvo);
+        ipcRenderer.send("midia", `kbps ${alvo}`);
+      }
+    }, 1000);
+  }
+
+  const h264 = RTCRtpSender.getCapabilities("video").codecs.filter((c) => /h264/i.test(c.mimeType) && /packetization-mode=1/.test(c.sdpFmtpLine || ""));
+  const resto = RTCRtpSender.getCapabilities("video").codecs.filter((c) => !h264.includes(c));
+  tx.setCodecPreferences([...h264, ...resto]);
+
+  pc2.ontrack = (e) => {
+    video.srcObject = new MediaStream([e.track]);
+  };
+  await pc1.setLocalDescription();
+  await pc2.setRemoteDescription(pc1.localDescription);
+  await pc2.setLocalDescription();
+  await pc1.setRemoteDescription(pc2.localDescription);
+
+  // O mesmo perfil da tela em movimento do Vcall (tuning.js PROFILES.screenMotion).
+  const par = tx.sender.getParameters();
+  par.degradationPreference = "maintain-framerate";
+  par.encodings[0].priority = "high";
+  par.encodings[0].networkPriority = "high";
+  await tx.sender.setParameters(par);
+
+  // Latência de vidro a vidro: lê o código de barras de cada quadro decodificado.
+  const tela = new OffscreenCanvas(96, 16);
+  const tg = tela.getContext("2d", { willReadFrequently: true });
+  const cor = new OffscreenCanvas(32, 16);
+  const cg = cor.getContext("2d", { willReadFrequently: true });
+  let anterior = 0;
+  let n = 0;
+  const aoQuadro = (instante) => {
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (vw && vh) {
+      tg.drawImage(video, 0, 0, (vw * 960) / 1920, (vh * 160) / 1080, 0, 0, 96, 16);
+      const px = tg.getImageData(0, 0, 96, 16).data;
+      let t = 0;
+      for (let i = 0; i < 24; i++) {
+        const x = (i % 12) * 8 + 4;
+        const y = Math.floor(i / 12) * 8 + 4;
+        const k = (y * 96 + x) * 4;
+        t = (t << 1) | (px[k] + px[k + 1] + px[k + 2] > 384 ? 1 : 0);
+      }
+      let d = (Math.round(agora()) & 0xffffff) - t;
+      if (d < 0) d += 0x1000000;
+      if (d < 3000) medida.latencias.push(d);
+      if (anterior) medida.intervalos.push(instante - anterior);
+      anterior = instante;
+      if (++n % 60 === 0) {
+        cg.drawImage(video, (vw * 1000) / 1920, 0, (vw * 320) / 1920, (vh * 160) / 1080, 0, 0, 32, 16);
+        const c = cg.getImageData(0, 0, 32, 16).data;
+        const a = (8 * 32 + 8) * 4;
+        const b = (8 * 32 + 24) * 4;
+        medida.cores.push([c[a], c[a + 1], c[a + 2], c[b], c[b + 1], c[b + 2]]);
+      }
+    }
+    video.requestVideoFrameCallback(aoQuadro);
+  };
+  video.requestVideoFrameCallback(aoQuadro);
+
+  window.amostra = async () => {
+    const r = {};
+    (await pc2.getStats()).forEach((s) => {
+      if (s.type === "inbound-rtp" && s.kind === "video") r.entrada = s;
+    });
+    (await pc1.getStats()).forEach((s) => {
+      if (s.type === "outbound-rtp" && s.kind === "video") r.saida = s;
+      if (s.type === "candidate-pair" && s.nominated) r.par = s;
+    });
+    return {
+      t: performance.now(),
+      entrada: r.entrada && { quadros: r.entrada.framesDecoded, w: r.entrada.frameWidth, h: r.entrada.frameHeight, bytes: r.entrada.bytesReceived, perdidos: r.entrada.packetsLost, congelamentos: r.entrada.freezeCount, congelado: r.entrada.totalFreezesDuration, pli: r.entrada.pliCount, decodificador: r.entrada.decoderImplementation, jb: r.entrada.jitterBufferDelay, jbN: r.entrada.jitterBufferEmittedCount, jbAlvo: r.entrada.jitterBufferTargetDelay, decod: r.entrada.totalDecodeTime },
+      saida: r.saida && { quadros: r.saida.framesEncoded, tempo: r.saida.totalEncodeTime, w: r.saida.frameWidth, h: r.saida.frameHeight, limite: r.saida.qualityLimitationReason, codificador: r.saida.encoderImplementation, chaves: r.saida.keyFramesEncoded, pacer: r.saida.totalPacketSendDelay, pacotes: r.saida.packetsSent },
+      banda: r.par?.availableOutgoingBitrate,
+      latencias: medida.latencias.splice(0),
+      intervalos: medida.intervalos.splice(0),
+      cores: medida.cores.splice(0),
+      injecao: medida.injecao,
+    };
+  };
+  window.pronto = true;
+}
+
+iniciar().catch((e) => {
+  medida.erro = String(e && e.stack || e);
+  document.getElementById("s").textContent = medida.erro;
+});
+</script>

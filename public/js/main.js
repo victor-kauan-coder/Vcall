@@ -39,6 +39,7 @@ import { escolherCompartilhamento } from "./ui/sharesheet.js";
 import { profileSection } from "./ui/profile-editor.js";
 import { Dashboard, copy, linkFor, modal } from "./ui/dashboard.js";
 import { definirModoDoCodificador, modoDoCodificador, placaCodificaH264 } from "./core/tuning.js";
+import { motorDisponivel } from "./core/midia.js";
 import { linkCurto, linkWhatsApp } from "./lib/invite.js";
 import { installMotion, magnifyDock, playIntro, swap, stagger } from "./ui/motion.js";
 import { MiniCall } from "./ui/minicall.js";
@@ -1510,6 +1511,9 @@ function blocoDoTurn() {
  * "Placa de vídeo" numa máquina em que o Windows não mostra o codificador da
  * placa com o sandbox da GPU ligado: o Vcall avisa do risco e só abre sem a
  * proteção se a pessoa confirmar. Escolher outro modo religa a proteção.
+ *
+ * "Motor nativo" só aparece no app de mesa com o motor instalado (Windows):
+ * a tela sai pelo vcall-midia (core/midia.js), sem reabrir o app.
  */
 function blocoDoCodificador() {
   const opcoes = [
@@ -1522,6 +1526,8 @@ function blocoDoCodificador() {
   const reabrir = el("button.btn", { type: "button", text: "Reabrir o Vcall agora", hidden: true });
   const bloco = el("div.stack", { "data-codificador": "" }, [el("div.field__label", { text: "Codificar a transmissão pelo" }), sel, dica, reabrir]);
   const textos = {
+    nativo:
+      "A tela é capturada e codificada na placa de vídeo pelo próprio Vcall, sem passar pelo Chromium: mais imagem e menos atraso com o jogo ocupando o processador. Em teste: se o motor falhar, a tela volta sozinha para o caminho de sempre. A câmera não muda.",
     auto: "O Vcall escolhe: a placa de vídeo quando ela codifica, senão o processador.",
     gpu: "Pelo codificador da placa de vídeo (Quick Sync, NVENC ou AMF, o que o Windows oferecer): o jogo pode ocupar o processador sem a transmissão engasgar.",
     cpu: "Tudo pelo processador, em VP9: mais nítido por bit, mas disputa o processador com o jogo.",
@@ -1583,6 +1589,16 @@ function blocoDoCodificador() {
     await host.reiniciar().catch(() => (reabrir.disabled = false));
   });
   sel.value = modoDoCodificador();
+  motorDisponivel().then((tem) => {
+    if (!tem) {
+      // Escolhido antes, mas o motor não está mais aqui: a tela vai no automático.
+      if (modoDoCodificador() === "nativo") sel.value = "auto";
+      return;
+    }
+    sel.append(el("option", { value: "nativo", text: "Motor nativo (beta)" }));
+    if (modoDoCodificador() === "nativo") sel.value = "nativo";
+    pintar();
+  });
   if (host.disponivel) {
     host
       .configCodificador()

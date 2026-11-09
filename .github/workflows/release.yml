@@ -76,6 +76,8 @@ jobs:
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile ".cache-cloudflared/win32-cloudflared.exe"
       - name: LiveKit (o SFU de quem transmite, conferido por SHA256)
         run: node scripts/livekit.mjs
+      - name: Motor de mídia nativo (Rust; vai ao lado do Vcall.exe)
+        run: cargo build --release --locked --manifest-path midia/Cargo.toml
       - name: Instalador do Windows
         run: npx electron-builder --config electron-builder.yml --win --publish never
       - uses: actions/upload-artifact@v4

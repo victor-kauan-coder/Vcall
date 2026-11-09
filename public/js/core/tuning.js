@@ -393,8 +393,11 @@ export async function codecDaTela(mode, { modo = modoDoCodificador(), hardware =
  *         tela vai no VP9 por software;
  *   leve  VP8 na tela e na câmera, em até 720p: custa 2 a 3 vezes menos
  *         processador que o VP9, para PC fraco. (VP7 não existe no WebRTC.)
+ *   nativo  app de mesa no Windows: a tela é capturada e codificada pelo
+ *         motor nativo, na placa de vídeo (core/midia.js); a câmera e a tela,
+ *         quando o motor não liga, seguem como no automático.
  */
-export const MODOS_CODIFICADOR = ["auto", "gpu", "cpu", "leve"];
+export const MODOS_CODIFICADOR = ["auto", "gpu", "cpu", "leve", "nativo"];
 const CHAVE_CODIFICADOR = "vcall:codificador";
 export function modoDoCodificador() {
   try {

@@ -2384,6 +2384,73 @@ if (process.platform === "linux") {
   ok("app Android: entrar sem câmera nem microfone não derruba o app");
 }
 
+/* ================================================================== *
+ * Motor de mídia nativo (desktop/midia.js e core/midia.js)
+ *
+ * A tela capturada e codificada na placa pelo vcall-midia (midia/), com os
+ * quadros injetados no WebRTC do Chromium. O que dá para provar sem placa:
+ * a fonte do seletor vira o alvo certo do motor, os quadros que o pipe corta
+ * em qualquer lugar saem inteiros, a página só manda comandos conhecidos e a
+ * banda segue a pior conexão entre quem assiste.
+ * ================================================================== */
+{
+  const { alvoDaFonte, argumentosDoMotor, caminhoDoMotor, comandoValido, LeitorDeQuadros } = await import("../desktop/midia.js");
+  const { bandaAlvo, mudarBanda } = await import("../public/js/core/midia.js");
+  const { MODOS_CODIFICADOR } = await import("../public/js/core/tuning.js");
+  const { opcoesDoCodificador } = await import("../desktop/webrtc.js");
+
+  const telas = [
+    { id: 10, bounds: { x: 0, y: 0, width: 1536, height: 864 } },
+    { id: 11, bounds: { x: 1536, y: 0, width: 1920, height: 1080 } },
+  ];
+  assert.deepEqual(alvoDaFonte({ id: "window:131582:0" }, telas), ["--janela", "131582"], "janela: o HWND do id do desktopCapturer");
+  const escala = (p) => ({ x: p.x * 1.25, y: p.y * 1.25 });
+  assert.deepEqual(alvoDaFonte({ id: "screen:1:0", display_id: "11" }, telas, escala), ["--ponto", "3120,675"], "tela: o centro, em pixels físicos");
+  assert.equal(alvoDaFonte({ id: "screen:9:0", display_id: "99" }, telas), null, "tela desconhecida entre várias: não chuta");
+  assert.deepEqual(alvoDaFonte({ id: "screen:0:0" }, [telas[0]]), ["--ponto", "768,432"], "uma tela só: é ela");
+  assert.equal(alvoDaFonte(null, telas), null);
+  assert.equal(alvoDaFonte({ id: "web-contents-media-stream:1" }, telas), null);
+
+  assert.deepEqual(
+    argumentosDoMotor(["--janela", "5"], { qps: 999, altura: 50, kbps: "x" }),
+    ["transmitir", "--sob-demanda", "--janela", "5", "--qps", "240", "--altura", "144", "--kbps", "1000"],
+    "números que vêm da página são limitados",
+  );
+  assert.ok(comandoValido("quadro") && comandoValido("chave") && comandoValido("kbps 4500"));
+  assert.ok(!comandoValido("parar") && !comandoValido("kbps 1\nparar") && !comandoValido({}), "a página só manda comandos conhecidos");
+
+  // O pipe entrega pedaços de 7 bytes: os quadros saem inteiros e na ordem.
+  const quadro = (n, chave, tempo) => {
+    const c = Buffer.alloc(16);
+    c.writeUInt32LE(n, 0);
+    c[4] = chave ? 1 : 0;
+    c.writeBigUInt64LE(BigInt(tempo), 8);
+    return Buffer.concat([c, Buffer.alloc(n, n % 256)]);
+  };
+  const fluxo = Buffer.concat([quadro(5, true, 1000), quadro(300, false, 17_666), quadro(0, false, 34_333)]);
+  const leitor = new LeitorDeQuadros();
+  const lidos = [];
+  for (let i = 0; i < fluxo.length; i += 7) lidos.push(...leitor.ler(fluxo.subarray(i, i + 7)));
+  assert.deepEqual(lidos.map((q) => [q.dados.length, q.chave, q.tempo]), [[5, true, 1000], [300, false, 17_666], [0, false, 34_333]]);
+  assert.equal(lidos[1].dados.buffer.byteLength, 300, "cada quadro no seu buffer, do tamanho exato (a MessagePort clona o buffer inteiro)");
+
+  assert.equal(caminhoDoMotor({ plataforma: "linux" }), null, "por enquanto só no Windows");
+  const exe = juntar(tmpdir(), "Vcall", "Vcall.exe");
+  assert.equal(caminhoDoMotor({ plataforma: "win32", empacotado: true, executavel: exe, existe: () => true }), juntar(tmpdir(), "Vcall", "vcall-midia.exe"), "instalado: ao lado do Vcall.exe");
+  assert.equal(caminhoDoMotor({ plataforma: "win32", existe: () => false }), null, "sem o binário: a opção nem aparece");
+
+  assert.equal(bandaAlvo([{ ativo: true, estimativa: 9e6 }, { ativo: true, estimativa: 4e6, maxBitrate: 6e6 }], 14e6), 4e6, "um codificador para todos: a pior conexão dita a banda");
+  assert.equal(bandaAlvo([{ ativo: true, estimativa: 30e6 }], 14e6), 14e6, "até o teto do perfil");
+  assert.equal(bandaAlvo([{ ativo: false, estimativa: 1e6 }, { ativo: true, estimativa: 8e6, maxBitrate: 5e6 }], 14e6), 5e6, "quem não assiste não puxa para baixo; o orçamento da malha vale");
+  assert.equal(bandaAlvo([{ ativo: true, estimativa: null }], 14e6), null, "sem estimativa: espera");
+  assert.equal(bandaAlvo([{ ativo: true, estimativa: 1000 }], 14e6), 300_000, "piso de 300 kbps");
+  assert.ok(mudarBanda(0, 5000) && mudarBanda(5000, 6000) && !mudarBanda(5000, 5500), "o MFT da Intel solta IDR a cada mudança: só acima de 15%");
+
+  assert.ok(MODOS_CODIFICADOR.includes("nativo"));
+  assert.deepEqual(opcoesDoCodificador({ modo: "nativo" }), [], "o motor nativo não muda o Chromium nem pede para reabrir");
+  ok("motor nativo: fonte → alvo, quadros cortados pelo pipe, comandos limitados, banda pela pior conexão");
+}
+
 console.log(`\n${passou} blocos de verificação passaram.`);
 process.exit(0);
 

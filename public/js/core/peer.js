@@ -32,6 +32,7 @@
 import { Emitter } from "../lib/emitter.js";
 import { jitter } from "../lib/util.js";
 import { ajustarInicioVideo, ajustarOpus, applyProfile, cameraParaSala, codecDaCamera, preferCodecs, preferRed, PROFILES, screenCodecPreference } from "./tuning.js";
+import { instalarInjetor, prepararSender } from "./midia.js";
 
 /** Ordem canônica das linhas de mídia. Não altere sem versionar o protocolo. */
 export const ROLES = ["mic", "cam", "screen", "screenAudio"];
@@ -166,6 +167,8 @@ export class Peer extends Emitter {
         }
         this.tx[role] = pc.addTransceiver(ROLE_KIND[role], init);
       }
+      // Motor nativo: o injetor só vale se posto antes da negociação (core/midia.js).
+      instalarInjetor(this.tx.screen.sender);
       // Preferência de codec por linha: tela pede VP9/AV1, câmera fica no padrão.
       preferCodecs(this.tx.screen, screenCodecPreference(this.peerCount));
       // Voz com redundância: um pacote perdido volta no seguinte.
@@ -274,9 +277,14 @@ export class Peer extends Emitter {
     const sender = this.tx[role]?.sender;
     if (!sender) return;
     if (role === "cam" && this.#camPausada) profile = { ...profile, active: false };
+    // Motor nativo (core/midia.js): a trilha falsa só vai a sender com injetor,
+    // que passa a trocar os quadros antes de ela entrar.
+    let depois = null;
+    if (role === "screen") ({ track, depois } = prepararSender(sender, track));
     if (sender.track === (track || null)) {
       // Mesma trilha: ainda assim reaplica o perfil, porque contentHint e
       // parâmetros podem ter sido zerados por uma renegociação.
+      depois?.();
       if (track) await applyProfile(sender, profile);
       return;
     }
@@ -286,6 +294,8 @@ export class Peer extends Emitter {
       console.warn(`[peer ${this.id}] replaceTrack(${role}) falhou`, err);
       return;
     }
+    // Outra trilha já entrou: o injetor volta a deixar passar.
+    depois?.();
     if (track) await applyProfile(sender, profile);
   }
 
@@ -668,6 +678,15 @@ export class Peer extends Emitter {
         const sdp = ajustarInicioVideo(ajustarOpus(description.sdp, (mid) => this.#midRole.get(String(mid))));
         // No lado educado, isto desfaz implicitamente a oferta local pendente.
         await this.pc.setRemoteDescription({ type: description.type, sdp });
+        // Motor nativo: a linha da tela ganha o injetor AQUI, antes de qualquer
+        // outra espera. O Chromium decide passar por fora da transform numa
+        // tarefa logo depois de criar o sender; esperar os candidatos antes
+        // (drainCandidates) bastava para chegar tarde (core/midia.js).
+        if (description.type === "offer") {
+          for (const t of this.pc.getTransceivers()) {
+            if (this.#midRole.get(String(t.mid)) === "screen") instalarInjetor(t.sender);
+          }
+        }
         this.#settingRemoteAnswer = false;
 
         await this.#drainCandidates();
@@ -725,6 +744,9 @@ export class Peer extends Emitter {
       // A oferta chegou como sendrecv/recvonly; precisamos poder enviar.
       if (t.direction !== "sendrecv") t.direction = "sendrecv";
       if (role === "screen") t.sender.setStreams?.(this.#telaStream);
+      // Reserva, se o mapa de papéis chegou tarde (pode já ser tarde demais;
+      // aí prepararSender manda a captura do Chromium a este par).
+      if (role === "screen") instalarInjetor(t.sender);
       if (role === "screen") preferCodecs(t, screenCodecPreference(this.peerCount));
       if (role === "mic") preferRed(t);
     }

@@ -69,6 +69,9 @@ win:
     # O SFU de quem transmite (desktop/sfu.js), conferido por SHA256 no build.
     - from: .cache-livekit/livekit-server.exe
       to: livekit-server.exe
+    # O motor de mídia nativo (desktop/midia.js), compilado no build (midia/).
+    - from: midia/target/release/vcall-midia.exe
+      to: vcall-midia.exe
 
 nsis:
   oneClick: false

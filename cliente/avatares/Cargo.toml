@@ -1,0 +1,13 @@
+[package]
+name = "vcall-avatares"
+version = "0.1.0"
+edition = "2024"
+description = "Avatares SVG do Vcall idênticos aos do web: roda o próprio JS do web num QuickJS embutido"
+license = "MIT"
+publish = false
+
+[dependencies]
+rquickjs = { version = "0.14", features = ["loader"] }
+
+[dev-dependencies]
+serde_json = "1"

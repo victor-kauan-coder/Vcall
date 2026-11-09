@@ -17,7 +17,7 @@
  * preferências por ORIGEM, e a origem inclui a porta: com porta sorteada a
  * cada abertura, a pessoa perderia tudo toda vez que abrisse o app.
  */
-import { app, BrowserWindow, Menu, dialog, desktopCapturer, globalShortcut, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
+import { app, BrowserWindow, Menu, MessageChannelMain, dialog, desktopCapturer, globalShortcut, ipcMain, nativeTheme, net, protocol, screen, session, shell } from "electron";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -43,6 +43,7 @@ import * as atualizador from "./atualizador.js";
 import * as github from "./github.js";
 import { ESQUEMA, destinoDoLink, linkDosArgumentos, registrarEsquema } from "./protocol.js";
 import { descreverFontes, montarResposta, sessaoWayland, umPorVez, somDoComputadorNaLista } from "./captura.js";
+import { alvoDaFonte, argumentosDoMotor, caminhoDoMotor, ligarMotor } from "./midia.js";
 import { argsParaX11, executavelParaRegistrar, modoDeReabrir, opcoesDeExibicao } from "./linux.js";
 import { descartarWhisper, ESQUEMA_FALA, MODELOS, nomeDoModelo, prepararModelo, prepararWhisper, responderModelo, WHISPER, WHISPER_PADRAO } from "./fala.js";
 
@@ -97,7 +98,7 @@ const arquivoCodificador = () => path.join(app.getPath("userData"), "codificador
 function lerCodificador() {
   try {
     const c = JSON.parse(readFileSync(arquivoCodificador(), "utf8"));
-    const modo = ["auto", "gpu", "cpu", "leve"].includes(c.modo) ? c.modo : "auto";
+    const modo = ["auto", "gpu", "cpu", "leve", "nativo"].includes(c.modo) ? c.modo : "auto";
     return { modo, semSandbox: modo === "gpu" && c.semSandbox === true };
   } catch {
     return { modo: "auto", semSandbox: false };
@@ -339,7 +340,7 @@ async function subirServidor() {
       "codificador/config": async (url) => {
         const q = url.searchParams;
         if (q.has("modo")) {
-          const modo = ["auto", "gpu", "cpu", "leve"].includes(q.get("modo")) ? q.get("modo") : "auto";
+          const modo = ["auto", "gpu", "cpu", "leve", "nativo"].includes(q.get("modo")) ? q.get("modo") : "auto";
           const novo = { modo, semSandbox: modo === "gpu" && q.get("semSandbox") === "1" };
           try {
             mkdirSync(path.dirname(arquivoCodificador()), { recursive: true });
@@ -1003,6 +1004,52 @@ function permissoes() {
   });
 
   let escolha = null;
+  /** A fonte que a última captura usou: é ela que o motor nativo captura. */
+  let fonteAtual = null;
+
+  /*
+   * Motor de mídia nativo (desktop/midia.js), um por vez. `iniciar` vem logo
+   * depois do getDisplayMedia, para a mesma fonte; a porta dos quadros vai à
+   * página por postMessage e o id evita que o motor velho de uma troca de
+   * janela pare o novo.
+   */
+  let motor = null;
+  let motoresIniciados = 0;
+  const pararMotor = (id = null) => {
+    if (!motor || (id != null && motor.id !== id)) return;
+    motor.parar();
+    motor = null;
+  };
+  ipcMain.handle("vcall:midia-disponivel", (e) => doApp(e) && !!caminhoDoMotor({ empacotado: app.isPackaged }));
+  ipcMain.handle("vcall:midia-iniciar", async (e, opcoes) => {
+    if (!doApp(e)) return { erro: "pedido de fora do app" };
+    const exe = caminhoDoMotor({ empacotado: app.isPackaged });
+    if (!exe) return { erro: "o motor nativo não está instalado" };
+    const alvo = alvoDaFonte(fonteAtual, screen.getAllDisplays(), (p) => screen.dipToScreenPoint(p));
+    if (!alvo) return { erro: "não sei qual tela ou janela capturar" };
+    pararMotor();
+    const { port1, port2 } = new MessageChannelMain();
+    const id = ++motoresIniciados;
+    const m = ligarMotor({ exe, args: argumentosDoMotor(alvo, opcoes), porta: port1, registrar });
+    motor = { id, ...m };
+    m.filho.on("exit", () => motor?.id === id && (motor = null));
+    try {
+      const info = await m.pronto;
+      e.sender.postMessage("vcall:midia-porta", null, [port2]);
+      registrar("motor-nativo", { codificador: info.codificador, hardware: info.hardware, saida: (info.saida || []).join("x") });
+      return { ok: true, id, info };
+    } catch (err) {
+      pararMotor(id);
+      registrar("motor-nativo-falhou", { erro: String(err?.message || err) });
+      return { erro: String(err?.message || err) };
+    }
+  });
+  ipcMain.handle("vcall:midia-parar", (e, id) => {
+    if (doApp(e)) pararMotor(Number(id) || null);
+    return true;
+  });
+  app.on("will-quit", () => pararMotor());
+
   ipcMain.handle("vcall:escolher", (e, pedido) => {
     if (!doApp(e)) return false;
     escolha = pedido?.id ? { id: String(pedido.id), audio: !!pedido.audio, ate: Date.now() + 20_000 } : null;
@@ -1057,7 +1104,9 @@ function permissoes() {
           types: atual?.id?.startsWith("window:") || sessaoWayland() ? ["screen", "window"] : ["screen"],
           thumbnailSize: { width: 0, height: 0 },
         });
-        responder(montarResposta({ fontes, escolha: atual, pedido, plataforma: process.platform }));
+        const resposta = montarResposta({ fontes, escolha: atual, pedido, plataforma: process.platform });
+        fonteAtual = resposta.video ? { id: resposta.video.id, display_id: resposta.video.display_id } : null;
+        responder(resposta);
       } catch (err) {
         registrar("captura-falhou", { erro: String(err?.message || err) });
         responder({});

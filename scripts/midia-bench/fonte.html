@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vcall-midia fonte</title>
+<style>html,body{margin:0;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style>
+<canvas id="c"></canvas>
+<script>
+// Cena de teste em pixels físicos: fundo que muda, 150 bolas, texto rolando
+// (trabalho de verdade para o codificador), duas cores de referência e, no
+// canto, o horário em ms num código de barras de 24 blocos (2 linhas de 12,
+// 80 px cada) que quem recebe lê para medir a latência de vidro a vidro.
+const c = document.getElementById("c");
+const dpr = devicePixelRatio;
+c.width = Math.round(innerWidth * dpr);
+c.height = Math.round(innerHeight * dpr);
+const g = c.getContext("2d", { alpha: false });
+let semente = 7;
+const rnd = () => ((semente = (semente * 16807) % 2147483647) / 2147483647);
+const bolas = Array.from({ length: 150 }, () => ({ x: rnd() * c.width, y: rnd() * c.height, vx: (rnd() - 0.5) * 18, vy: (rnd() - 0.5) * 18, r: 10 + rnd() * 50, h: rnd() * 360 }));
+const linhas = Array.from({ length: 40 }, (_, i) => `linha ${i} · ${Math.round(rnd() * 1e9).toString(36)} · fluxo de teste do motor de mídia`);
+let n = 0;
+function quadro() {
+  n++;
+  const W = c.width, H = c.height;
+  // Fundo que desliza, como a câmera andando num jogo (o codificador
+  // compensa com vetores de movimento; mudar a cor da tela inteira a cada
+  // quadro deixaria o QP no máximo em qualquer codificador).
+  const x0 = (n * 6) % W;
+  const grad = g.createLinearGradient(-x0, 0, 2 * W - x0, H);
+  for (let k = 0; k <= 6; k++) grad.addColorStop(k / 6, `hsl(${k * 60} 55% ${k % 2 ? 22 : 34}%)`);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, W, H);
+  for (const b of bolas) {
+    b.x += b.vx; b.y += b.vy;
+    if (b.x < 0 || b.x > W) b.vx *= -1;
+    if (b.y < 0 || b.y > H) b.vy *= -1;
+    g.fillStyle = `hsl(${(b.h + n) % 360} 80% 55%)`;
+    g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.fill();
+  }
+  g.fillStyle = "#e8e8e8";
+  g.font = `${Math.round(22 * dpr / dpr)}px monospace`;
+  for (let i = 0; i < linhas.length; i++) g.fillText(linhas[i], 1100, ((i * 30 + n * 3) % (H + 60)) + 200);
+  // Cores de referência (conferir a matriz de cor na ponta que recebe).
+  g.fillStyle = "rgb(200,60,40)"; g.fillRect(1000, 0, 160, 160);
+  g.fillStyle = "rgb(40,120,200)"; g.fillRect(1160, 0, 160, 160);
+  // Horário (ms, 24 bits) em 2 linhas de 12 blocos.
+  const t = Math.round(performance.timeOrigin + performance.now()) & 0xffffff;
+  for (let i = 0; i < 24; i++) {
+    g.fillStyle = (t >> (23 - i)) & 1 ? "#fff" : "#000";
+    g.fillRect((i % 12) * 80, Math.floor(i / 12) * 80, 80, 80);
+  }
+  requestAnimationFrame(quadro);
+}
+requestAnimationFrame(quadro);
+</script>

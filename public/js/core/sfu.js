@@ -140,7 +140,9 @@ export class SfuSala {
   async tick() {
     const mesh = this.#mesh;
     const transmitindo = mesh.screen?.active;
-    if (usarSfu({ transmitindo, pessoas: mesh.size, negado: this.#negado })) await this.#publicar();
+    // Motor nativo: a tela fica na malha (o LiveKit cifra numa transform
+    // própria e só cabe uma por sender; o injetor já ocupa a dele).
+    if (usarSfu({ transmitindo, pessoas: mesh.size, negado: this.#negado || !!mesh.screen?.nativo })) await this.#publicar();
     else if (this.#pub) this.#pararPub();
     if (this.#pub?.room) {
       const anuncio = { type: "sfu", on: true, chave: this.#pub.chave };

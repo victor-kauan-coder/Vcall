@@ -34,6 +34,7 @@ export const TRIALS_WEBRTC = "WebRTC-FlexFEC-03/Enabled/WebRTC-FlexFEC-03-Advert
  *         Medido, 1080p60 com 10 threads ocupadas (o jogo): VP9 por software
  *         7,7 qps; VP9 da placa 60 qps.
  *   cpu   desliga a codificação pela placa: tudo pelo processador.
+ *   nativo  nada no Chromium: a tela vai pelo motor nativo (desktop/midia.js).
  */
 export function opcoesDoCodificador({ modo = "auto", semSandbox = false } = {}) {
   if (modo === "gpu") return semSandbox ? ["disable-gpu-sandbox"] : [];

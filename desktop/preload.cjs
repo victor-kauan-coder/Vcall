@@ -103,7 +103,23 @@ contextBridge.exposeInMainWorld("vcallDesktop", {
   },
   /** Diz qual fonte a próxima captura deve usar, e se leva o som do sistema. */
   escolherFonte: (id, audio) => ipcRenderer.invoke("vcall:escolher", { id: String(id || ""), audio: !!audio }),
+  /**
+   * Motor de mídia nativo (desktop/midia.js, só no Windows): captura e
+   * codifica a tela na placa de vídeo. `iniciar` vale para a fonte que a
+   * captura acabou de usar; os quadros chegam por uma MessagePort entregue à
+   * página com window.postMessage({ vcallMidiaPorta: true }).
+   */
+  midia: {
+    disponivel: () => ipcRenderer.invoke("vcall:midia-disponivel"),
+    iniciar: (opcoes) =>
+      ipcRenderer.invoke("vcall:midia-iniciar", { qps: Number(opcoes?.qps) || 60, altura: Number(opcoes?.altura) || 1080, kbps: Number(opcoes?.kbps) || 1000 }),
+    parar: (id) => ipcRenderer.invoke("vcall:midia-parar", Number(id) || 0),
+  },
 });
+
+// A porta não atravessa o contextBridge: vai pelo postMessage da janela, que
+// só a própria página escuta (iframes de outra origem não recebem).
+ipcRenderer.on("vcall:midia-porta", (e) => window.postMessage({ vcallMidiaPorta: true }, "*", e.ports));
 
 window.addEventListener("DOMContentLoaded", () => {
   const root = document.documentElement;

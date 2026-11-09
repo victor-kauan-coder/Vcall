@@ -20,7 +20,8 @@
  *   desmancha.
  */
 import { Emitter } from "../lib/emitter.js";
-import { codecDaTela, constrainScreenTrack, screenProfileFor } from "./tuning.js";
+import { codecDaTela, constrainScreenTrack, modoDoCodificador, screenProfileFor } from "./tuning.js";
+import { MotorNativo, motorDisponivel } from "./midia.js";
 
 /**
  * Linux: o som do computador vem do "monitor" do PulseAudio/PipeWire (o que
@@ -125,7 +126,17 @@ export class ScreenShare extends Emitter {
 
   get profile() {
     const q = SCREEN_QUALITY[this.quality] || SCREEN_QUALITY.auto;
+    if (this.#motor) {
+      // Motor nativo (core/midia.js): o sender leva H.264 (é o que o motor
+      // codifica) e não segura a trilha falsa por qps — quem dita o ritmo é o motor.
+      return { ...screenProfileFor("motion"), codec: "video/H264", alturaMax: q.height, maxFramerate: 240, maxFramerateComBanda: 240, nativo: true };
+    }
     return { ...screenProfileFor(this.mode), codec: this.#codecs[this.mode], alturaMax: q.height };
+  }
+
+  /** A tela está saindo pelo motor nativo do app de mesa? */
+  get nativo() {
+    return !!this.#motor;
   }
 
   /**
@@ -162,6 +173,9 @@ export class ScreenShare extends Emitter {
     const antigas = this.stream.getTracks();
     const relayAntigo = this.#relay;
     this.#relay = null;
+    // O motor da fonte velha para depois que o da nova (ou o Chromium) assumiu.
+    const motorAntigo = this.#motor;
+    this.#motor = null;
     this.quality = quality;
     this.mode = mode;
     this.modoFixo = !!modoFixo;
@@ -171,6 +185,7 @@ export class ScreenShare extends Emitter {
     // As antigas só param depois que as novas já estão no lugar: quem assiste
     // não vê um instante de tela preta na troca.
     relayAntigo?.stop();
+    motorAntigo?.parar();
     for (const t of antigas) {
       try {
         t.stop();
@@ -300,6 +315,57 @@ export class ScreenShare extends Emitter {
     this.#relay = relay;
     this.sendTrack = this.#relay?.track || video;
     if ("contentHint" in this.sendTrack) this.sendTrack.contentHint = video.contentHint;
+    await this.#ligarMotor();
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Motor nativo (app de mesa no Windows, Configurações › Transmissão)
+   * ---------------------------------------------------------------- */
+
+  /** @type {MotorNativo|null} */
+  #motor = null;
+
+  /**
+   * Liga o motor para a fonte que a captura acabou de usar. Não ligou: a tela
+   * segue pelo Chromium, como sempre foi.
+   */
+  async #ligarMotor() {
+    if (modoDoCodificador() !== "nativo" || !(await motorDisponivel())) return false;
+    const q = SCREEN_QUALITY[this.quality] || SCREEN_QUALITY.auto;
+    try {
+      // O relé da captura do Chromium fica como reserva: vai aos pares sem
+      // injetor e volta a ser a tela se o motor cair.
+      const motor = await MotorNativo.iniciar({ qps: q.frameRate, altura: q.height, teto: screenProfileFor("motion").maxBitrate, reserva: this.#relay?.track || this.videoTrack });
+      if (!this.videoTrack) {
+        motor.parar(); // parou enquanto o motor ligava
+        return false;
+      }
+      motor.on("falhou", (motivo) => this.#motorFalhou(motor, motivo));
+      this.#motor = motor;
+      this.sendTrack = motor.track;
+      // A captura do Chromium fica só para a prévia e para o "parar" do
+      // sistema: poucos quadros, no tamanho de sempre.
+      this.settings = await constrainScreenTrack(this.videoTrack, { frameRate: 10, maxWidth: q.width, maxHeight: q.height });
+      this.emit("nativo", motor.info);
+      return true;
+    } catch (err) {
+      console.warn("[screen] o motor nativo não ligou; a tela segue pelo Chromium", err);
+      this.emit("nativo-falhou", String(err?.message || err));
+      return false;
+    }
+  }
+
+  /** O motor caiu no meio: volta ao Chromium sem parar a transmissão. */
+  #motorFalhou(motor, motivo) {
+    if (motor !== this.#motor) return; // um motor velho, de antes de trocar a fonte
+    this.#motor = null;
+    if (!this.videoTrack) return;
+    this.#relay ||= manterQuadros(this.videoTrack);
+    this.sendTrack = this.#relay?.track || this.videoTrack;
+    if ("contentHint" in this.sendTrack) this.sendTrack.contentHint = this.videoTrack.contentHint;
+    constrainScreenTrack(this.videoTrack, this.#restricoes()).then((s) => (this.settings = s));
+    this.emit("nativo-falhou", motivo);
+    this.emit("change", this.snapshot());
   }
 
   /**
@@ -343,6 +409,20 @@ export class ScreenShare extends Emitter {
   async setQuality(quality) {
     this.quality = quality;
     if (!this.videoTrack) return null;
+    if (this.#motor) {
+      // O motor nasce com qps e altura: troca por um novo na mesma fonte.
+      const antigo = this.#motor;
+      this.#motor = null;
+      const ligou = await this.#ligarMotor();
+      antigo.parar();
+      if (!ligou) {
+        this.#relay ||= manterQuadros(this.videoTrack);
+        this.sendTrack = this.#relay?.track || this.videoTrack;
+      } else {
+        this.emit("change", this.snapshot());
+        return this.settings;
+      }
+    }
     this.settings = await constrainScreenTrack(this.videoTrack, this.#restricoes());
     this.emit("change", this.snapshot());
     return this.settings;
@@ -351,6 +431,8 @@ export class ScreenShare extends Emitter {
   stop(reason = "user") {
     if (!this.stream) return;
     clearInterval(this.#surfaceTimer);
+    this.#motor?.parar();
+    this.#motor = null;
     this.#relay?.stop();
     this.#relay = null;
     this.sendTrack = null;
@@ -380,6 +462,7 @@ export class ScreenShare extends Emitter {
       profile: this.profile,
       settings: this.settings,
       hasAudio: !!this.audioTrack,
+      nativo: !!this.#motor,
     };
   }
 

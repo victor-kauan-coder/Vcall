@@ -34,7 +34,8 @@ import { tmpdir } from "node:os";
 import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
 import { Codigo, Desenho, DuasVerdades, Mimica, QuemSouEu, Quiz, Roda, Stop as StopJogo, valida } from "../public/js/features/festa.js";
-import { TierList, resultadoTier, tintaPara } from "../public/js/features/tierlist.js";
+import { PEDACO_IMG, TierList, cortesPadrao, faixaPorNota, notaDoItem, resultadoTier, tintaPara } from "../public/js/features/tierlist.js";
+const arredonda = (x) => Math.round(x * 10) / 10;
 import { BOT, Forca, Lig4, Memoria, Sorteios, Velha, resultadoLig4, resultadoVelha } from "../public/js/features/tabuleiro.js";
 import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, SINAIS, Sinais, validar as validarReacao } from "../public/js/features/reacoes.js";
 import { BARALHOS, Daily, EstadoJogos, Poker, Retro, compacto, daily, detalhesHistoria, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
@@ -1740,6 +1741,79 @@ if (process.platform === "linux") {
     assert.equal(r.semVoto.length, 1);
     assert.equal(tintaPara("#ffff7f"), "#14121f");
     assert.equal(tintaPara("#2a5d8f"), "#ffffff");
+  }
+
+  /* Tier List: imagens e enquete com notas */
+  {
+    const { nos, entregar, igual, pessoas } = mesa(["ana", "bia", "caio"]);
+    const tl = nos.map((n, i) => new TierList(n, { nome: () => pessoas[i].nome, agora }));
+    tl[0].nova(null);
+    entregar();
+    // Imagem: em pedaços no estado, montada igual em todo mundo.
+    const foto = `data:image/webp;base64,${"QUJD".repeat(2000)}`;
+    assert.ok(foto.length > PEDACO_IMG * 2);
+    const x = tl[1].novoItem("Foto do gato", null, foto);
+    const y = tl[2].novoItem("Outro", "fire");
+    assert.equal(tl[0].novoItem("Ruim", null, "javascript:alert(1)"), null, "só data URL de imagem");
+    entregar();
+    igual();
+    assert.equal(tl[0].itens().find((i) => i.id === x).img, foto, "a imagem chega inteira");
+    assert.ok(![...nos[0].mapa.values()].some((e) => JSON.stringify(e.v).length > 4000), "nenhum valor passa do limite");
+    tl[2].imagemItem(x, null);
+    entregar();
+    assert.equal(tl[0].itens().find((i) => i.id === x).img, null, "tirou a imagem");
+    assert.ok(![...nos[1].com("tl/im/")].length, "e os pedaços");
+    // Enquete: perguntas com peso, escala de 0 a 10, nota mínima editada.
+    assert.ok(tl[0].modo("notas"));
+    entregar();
+    assert.deepEqual(tl[2].cfg().perguntas.map((q) => q.t), ["Gosto pessoal", "Qualidade", "Originalidade"]);
+    tl[1].removerPergunta(2);
+    entregar();
+    tl[1].pesoPergunta(0, 3);
+    tl[2].novaPergunta("Fofura");
+    entregar();
+    const c = tl[0].cfg();
+    assert.deepEqual(c.perguntas.map(({ t, w }) => ({ t, w })), [{ t: "Gosto pessoal", w: 3 }, { t: "Qualidade", w: 1 }, { t: "Fofura", w: 1 }]);
+    assert.deepEqual(c.cortes, [8, 6, 4, 2, 0, 0].slice(0, c.tiers.length).map((v, i, a) => (i === a.length - 1 ? 0 : arredonda(10 - ((i + 1) * 10) / a.length))));
+    tl[0].corte(0, "9");
+    entregar();
+    assert.equal(tl[2].cfg().cortes[0], 9, "S só com nota 9 ou mais");
+    assert.ok(tl[0].comecar());
+    entregar();
+    assert.ok(!tl[0].colocar(x, 0), "na enquete não se arrasta");
+    // Ana: gato 10/10/10 (S), outro 2/2/2. Bia: gato 8/9/10, outro 4/4/4. Caio: gato 9/9/9, outro 1/1/1.
+    const notas = [
+      [[10, 10, 10], [2, 2, 2]],
+      [[8, 9, 10], [4, 4, 4]],
+      [[9, 9, 9], [1, 1, 1]],
+    ];
+    notas.forEach(([g, o], i) => {
+      g.forEach((n, q) => tl[i].avaliar(x, q, n));
+      o.forEach((n, q) => tl[i].avaliar(y, q, n));
+    });
+    assert.ok(!tl[0].avaliar(x, 0, 11), "fora da escala");
+    entregar();
+    for (const n of nos) assert.ok(![...n.com("tl/val/")].length, "notas escondidas até revelar");
+    assert.deepEqual(tl[0].vista(pessoas).progresso.map((p) => p.k), [2, 2, 2]);
+    tl[0].revelar();
+    entregar();
+    entregar();
+    const v = tl[1].vista(pessoas);
+    assert.equal(v.fase, "revelada");
+    const gato = v.res.porItem.find((i) => i.id === x);
+    // Bia: (8·3 + 9 + 10) / 5 = 8,6. Média: (10 + 8,6 + 9) / 3 = 9,2 -> S (≥ 9).
+    assert.ok(Math.abs(gato.nota - 9.2) < 1e-9, String(gato.nota));
+    assert.equal(gato.tier, 0);
+    assert.deepEqual(gato.dist.slice(0, 2), [2, 1], "Ana e Caio em S, Bia em A");
+    assert.equal(v.res.campeao.id, x);
+    assert.equal(v.res.melhores.length, 3);
+    assert.equal(v.listas.find((l) => l.id === "bia").pt[x], 1, "a lista da Bia: gato em A");
+    assert.ok(v.res.almasGemeas);
+    // Puro: faixa pela nota.
+    assert.equal(faixaPorNota(7.99, [8, 6, 0]), 1);
+    assert.equal(faixaPorNota(0, [8, 6, 0]), 2);
+    assert.equal(notaDoItem([5, null], [{ t: "a", w: 1 }, { t: "b", w: 2 }]), 5, "só as respondidas");
+    assert.deepEqual(cortesPadrao(4, 5), [4, 3, 2, 1]);
   }
 
   /* Palavras-código */

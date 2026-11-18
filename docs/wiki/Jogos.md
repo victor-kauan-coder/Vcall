@@ -17,7 +17,7 @@ meio recebe o jogo como está.
 | **Mímica** | 3+ | Quem imita vê a palavra; a câmera dele fica grande para todos. Os outros chutam em voz alta, e quem imita aponta quem acertou. |
 | **Quem sou eu?** | 3+ | Cada um ganha um personagem colado na própria câmera: todos veem, menos você. Na sua vez, pergunte algo de sim ou não. Dá para escolher o personagem de alguém. |
 | **Roda de perguntas** | 2+ | *O que você prefere?*, *Eu nunca...*, *Quem da call...* e quebra-gelo. Os votos ficam escondidos até todo mundo votar. No *Quem da call*, ninguém vê quem votou em quem. |
-| **Tier List** | 1+ | Escolham um dos 10 temas prontos (petiscos de boteco, pizza, doces de festa, opiniões polêmicas…) ou comecem do zero. A turma monta junto: título, nomes das faixas (S–F, *Do divino ao nem a pau*, Temperatura, Notas…), cores (6 paletas ou uma cor por faixa) e os itens, com emoji. Depois cada um arrasta os itens na **sua** lista, escondida, e a revelação mostra a média da galera, o item mais polêmico, as unanimidades, as almas gêmeas e quem é do contra. [Mais abaixo](#tier-list). |
+| **Tier List** | 1+ | Escolham um dos 10 temas prontos (petiscos de boteco, pizza, doces de festa, opiniões polêmicas…) ou comecem do zero. A turma monta junto: título, nomes das faixas (S–F, *Do divino ao nem a pau*, Temperatura, Notas…), cores (6 paletas ou uma cor por faixa) e os itens, com foto ou emoji. Depois cada um vota escondido, arrastando na **sua** lista ou numa **enquete com notas**, e a revelação mostra a média da galera, o item mais polêmico, as unanimidades, as almas gêmeas e quem é do contra. [Mais abaixo](#tier-list). |
 | **Duas verdades e uma mentira** | 3+ | Escreva três frases sobre você e marque a mentira. A turma vota; quem acha ganha 100, e você ganha 50 por pessoa enganada. |
 | **Palavras-código** | 4+ | Dois times, um mestre de cada. O mestre vê as cores e dá uma dica de uma palavra e um número; o time aponta as cartas. Cuidado com a bomba. |
 
@@ -27,11 +27,18 @@ meio recebe o jogo como está.
    mundo vê a mesma tela e pode mexer junto: o título (toque nele), o nome de
    cada faixa, a cor (o círculo ao lado), subir, descer ou tirar uma faixa
    (de 2 a 8), o estilo dos nomes, a paleta e os itens (até 40, com um emoji
-   opcional). Se duas pessoas mexem ao mesmo tempo, as duas mudanças ficam.
-2. **Ranquear.** Cada um coloca os itens na própria lista: arraste com o
-   mouse ou com o dedo, ou toque no item e depois na faixa. No teclado, com o
-   item em foco, as teclas **1** a **8** escolhem a faixa e **0** devolve ao
-   banco. Em cima aparece o quanto cada um já colocou, nunca onde.
+   opcional, ou foto). Se duas pessoas mexem ao mesmo tempo, as duas
+   mudanças ficam.
+2. **Votar.** Em **Como votar**, escolham:
+   - **Arrastar:** cada um coloca os itens na própria lista. Arraste com o
+     mouse ou com o dedo, ou toque no item e depois na faixa. No teclado,
+     com o item em foco, as teclas **1** a **8** escolhem a faixa e **0**
+     devolve ao banco.
+   - **Enquete:** cada um dá notas a cada item, pergunta por pergunta. A
+     nota do item é a média das perguntas (com o peso de cada uma), e ele
+     cai na primeira faixa cuja nota mínima alcança.
+
+   Em cima aparece o quanto cada um já votou, nunca o quê.
 3. **Revelar.** Quando todo mundo aperta **Pronto!** (ou alguém aperta
    **Revelar agora**), as listas são publicadas e aparece a tier list da
    galera, entrando de baixo para cima. Cada item cai na faixa da média (no
@@ -39,6 +46,27 @@ meio recebe o jogo como está.
    item para ver quem pôs onde. Ao lado: a sua sintonia com a galera, o mais
    polêmico, as unanimidades, as almas gêmeas e quem é do contra. As abas
    mostram a lista de cada um.
+
+### Fotos
+
+O botão de imagem ao lado do nome põe uma ou várias fotos (cada uma vira um
+item com o nome do arquivo; com um nome digitado, a foto vai para ele).
+Também dá para arrastar fotos do computador para a lista de itens, colar com
+**Ctrl+V** ou pôr a foto num item que já existe (botão de imagem no
+ladrilho). A foto viaja como uma miniatura de 128 px.
+
+### Enquete com notas
+
+- **Perguntas:** até 8, escritas ou das sugestões, cada uma com peso 1×, 2×
+  ou 3×.
+- **Notas:** de 0 a 10 ou de 1 a 5 estrelas.
+- **Nota mínima de cada faixa:** aparece na própria faixa, na montagem. Ela
+  começa dividida por igual (com 5 faixas de 0 a 10: 8, 6, 4, 2) e
+  **Dividir as notas por igual** volta ao começo.
+- Na votação, um item por vez, com a sua nota e a faixa em que ele cairia.
+  Terminou um item, o próximo aparece sozinho.
+- Na revelação, a nota da galera em cada item, a média de cada pergunta no
+  detalhe, o campeão e o melhor em cada pergunta.
 
 **Baixar imagem** gera um PNG pronto para o WhatsApp e **Copiar como texto**
 copia faixa por faixa. **Ranquear de novo** volta à montagem com os mesmos
@@ -89,6 +117,7 @@ mesmo menu. → [Jogos de equipe](Jogos-de-equipe)
 
 - A palavra do Desenha e Adivinha nunca sai do computador de quem desenha.
 - As respostas do Stop, os votos da Roda, a mentira das Duas verdades e a
-  lista de cada um na Tier List só são publicados quando a rodada revela.
+  lista (ou as notas) de cada um na Tier List só são publicados quando a
+  rodada revela.
 - São jogos entre amigos: algumas coisas (como a ordem das cartas da memória)
   estão no estado compartilhado e poderiam ser vistas pelo console.

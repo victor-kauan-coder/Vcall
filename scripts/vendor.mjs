@@ -47,7 +47,7 @@ const ICONS = [
   "user-x",
   "user-check",
   // Tier List (3.25)
-  "chart-bar-decreasing", "handshake", "heart-handshake", "image-down", "arrow-up", "arrow-down", "wand-sparkles",
+  "chart-bar-decreasing", "handshake", "heart-handshake", "image-down", "arrow-up", "arrow-down", "wand-sparkles", "image-plus", "vote",
   // Jogos de equipe
   "spade",
   "sticky-note",

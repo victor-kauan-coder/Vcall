@@ -256,6 +256,139 @@ export function resultadoTier(itens, nTiers, votos) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Enquete com notas: perguntas, escala, nota mínima de cada faixa
+ * ------------------------------------------------------------------ */
+
+export const MAX_PERGUNTAS = 8;
+const MAX_PERGUNTA = 60;
+export const MODOS = { arrastar: "Arrastar", notas: "Enquete com notas" };
+/** As escalas de nota. A de estrelas começa em 1 (não existe "zero estrela"). */
+export const ESCALAS = { 10: { nome: "0 a 10", min: 0, max: 10 }, 5: { nome: "1 a 5 estrelas", min: 1, max: 5 } };
+/** Perguntas prontas para tocar e pôr. */
+export const PERGUNTAS_PRONTAS = ["Gosto pessoal", "Qualidade", "Sabor", "Aparência", "Custo-benefício", "Originalidade", "Diversão", "Utilidade", "Nostalgia", "Vale a pena?"];
+const TEMAS_DE_COMER = new Set(["boteco", "pizza", "doces", "bebidas"]);
+/** As perguntas com que a enquete começa, conforme o tema. */
+export const perguntasIniciais = (tema) => (TEMAS_DE_COMER.has(tema) ? ["Sabor", "Aparência", "Custo-benefício"] : ["Gosto pessoal", "Qualidade", "Originalidade"]).map((t) => ({ t, w: 1 }));
+
+const arred = (x) => Math.round(x * 10) / 10;
+
+/**
+ * A nota mínima de cada faixa, de cima para baixo, dividindo a escala em
+ * partes iguais. 5 faixas de 0 a 10: S ≥ 8, A ≥ 6, B ≥ 4, C ≥ 2, D ≥ 0.
+ */
+export function cortesPadrao(n, escala = 10) {
+  const { min, max } = ESCALAS[escala] || ESCALAS[10];
+  return Array.from({ length: n }, (_, i) => (i === n - 1 ? min : arred(max - ((i + 1) * (max - min)) / n)));
+}
+
+/** A faixa de uma nota: a primeira (de cima) cuja nota mínima ela alcança. */
+export function faixaPorNota(nota, cortes) {
+  if (nota == null || !Number.isFinite(nota)) return null;
+  for (let i = 0; i < cortes.length; i += 1) if (nota >= cortes[i] - 1e-9) return i;
+  return cortes.length - 1;
+}
+
+/** As notas de uma pessoa num item -> a nota do item (média ponderada das perguntas respondidas). */
+export function notaDoItem(respostas, perguntas, escala = 10) {
+  const { min, max } = ESCALAS[escala] || ESCALAS[10];
+  if (!Array.isArray(respostas)) return null;
+  let soma = 0;
+  let pesos = 0;
+  perguntas.forEach((q, i) => {
+    const v = respostas[i];
+    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) {
+      soma += v * q.w;
+      pesos += q.w;
+    }
+  });
+  return pesos ? soma / pesos : null;
+}
+
+/** Respondeu todas as perguntas deste item? */
+export const completo = (respostas, perguntas) => Array.isArray(respostas) && perguntas.every((_, i) => typeof respostas[i] === "number");
+
+/**
+ * O resultado da enquete. Cada pessoa dá uma nota a cada item (a média
+ * ponderada das perguntas); a nota do item é a média das pessoas, e a faixa
+ * vem da nota mínima de cada uma (`cortes`). Os destaques são os mesmos da
+ * tier list arrastada, medidos em nota, e mais o melhor de cada pergunta.
+ */
+export function resultadoNotas(itens, nTiers, perguntas, escala, cortes, votos) {
+  const { min, max } = ESCALAS[escala] || ESCALAS[10];
+  const faixa = (vNota) => faixaPorNota(vNota, cortes);
+  const amp = Math.max(1, max - min);
+  const notaDe = (v, id) => notaDoItem(v.p?.[id], perguntas, escala);
+  const porItem = itens.map((it) => {
+    const vs = votos.map((v) => ({ id: v.id, nome: v.nome, nota: notaDe(v, it.id), r: v.p?.[it.id] })).filter((x) => x.nota != null);
+    const m = vs.length ? media(vs.map((x) => x.nota)) : null;
+    const desvio = vs.length ? Math.sqrt(media(vs.map((x) => (x.nota - m) ** 2))) : 0;
+    const dist = Array.from({ length: nTiers }, (_, t) => vs.filter((x) => faixa(x.nota) === t).length);
+    const porPergunta = perguntas.map((_, q) => {
+      const ns = vs.map((x) => x.r?.[q]).filter((n) => typeof n === "number" && n >= min && n <= max);
+      return ns.length ? media(ns) : null;
+    });
+    return { ...it, votos: vs.map((x) => ({ id: x.id, nome: x.nome, t: faixa(x.nota), nota: x.nota })), nota: m, media: m, tier: faixa(m), desvio, dist, porPergunta };
+  });
+  const faixas = Array.from({ length: nTiers }, (_, t) => porItem.filter((x) => x.tier === t).sort((a, b) => b.nota - a.nota || a.t.localeCompare(b.t)));
+  const semVoto = porItem.filter((x) => x.tier == null);
+  const comVarios = porItem.filter((x) => x.votos.length >= 2);
+  const polemico = comVarios.filter((x) => x.desvio / amp >= 0.15).sort((a, b) => b.desvio - a.desvio || a.t.localeCompare(b.t))[0] || null;
+  const unanimes = comVarios.filter((x) => x.desvio / amp <= 0.05).sort((a, b) => b.nota - a.nota);
+  const pessoas = votos
+    .map((v) => {
+      const difs = porItem.filter((x) => x.nota != null && notaDe(v, x.id) != null).map((x) => Math.abs(notaDe(v, x.id) - x.nota));
+      return { id: v.id, nome: v.nome, itens: difs.length, concordancia: difs.length ? Math.round(100 * (1 - media(difs) / amp)) : null };
+    })
+    .filter((x) => x.itens > 0);
+  const pares = [];
+  for (let i = 0; i < votos.length; i += 1) {
+    for (let j = i + 1; j < votos.length; j += 1) {
+      const a = votos[i];
+      const b = votos[j];
+      const difs = itens.map((it) => [notaDe(a, it.id), notaDe(b, it.id)]).filter(([x, y]) => x != null && y != null).map(([x, y]) => Math.abs(x - y));
+      if (difs.length) pares.push({ a: { id: a.id, nome: a.nome }, b: { id: b.id, nome: b.nome }, itens: difs.length, afinidade: Math.round(100 * (1 - media(difs) / amp)) });
+    }
+  }
+  pares.sort((x, y) => y.afinidade - x.afinidade || y.itens - x.itens);
+  const melhores = perguntas
+    .map((q, i) => {
+      const top = porItem.filter((x) => x.porPergunta[i] != null).sort((a, b) => b.porPergunta[i] - a.porPergunta[i])[0];
+      return top ? { pergunta: q.t, item: top, nota: top.porPergunta[i] } : null;
+    })
+    .filter(Boolean);
+  const comNota = porItem.filter((x) => x.nota != null).sort((a, b) => b.nota - a.nota);
+  return {
+    porItem,
+    faixas,
+    semVoto,
+    polemico,
+    unanimes,
+    pessoas,
+    pares,
+    almasGemeas: pares[0] || null,
+    doContra: pessoas.length >= 3 ? [...pessoas].sort((a, b) => a.concordancia - b.concordancia)[0] : null,
+    melhores,
+    campeao: comNota[0] || null,
+    lanterna: comNota.length > 1 ? comNota[comNota.length - 1] : null,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Imagens dos itens
+ * ------------------------------------------------------------------ */
+
+/*
+ * A foto de um item vira uma miniatura (ui/tierlist.js) e viaja no mesmo
+ * estado compartilhado, em pedaços de até PEDACO_IMG caracteres
+ * (`tl/im/<item>/<k>`): cada valor do estado tem um limite de tamanho, e
+ * assim quem entra no meio recebe as imagens junto com o resto.
+ */
+export const PEDACO_IMG = 3400;
+export const MAX_PEDACOS_IMG = 5;
+const IMAGEM_OK = /^data:image\/(?:webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
+export const imagemValida = (url) => typeof url === "string" && url.length <= PEDACO_IMG * MAX_PEDACOS_IMG && IMAGEM_OK.test(url);
+
+/* ------------------------------------------------------------------ *
  * O jogo
  * ------------------------------------------------------------------ */
 
@@ -283,6 +416,8 @@ export class TierList extends Emitter {
   /** A minha lista, escondida até revelar: { l, r, p: { item: faixa } } */
   #meu = lerDaAba("vcall:tl");
   #pedida = "";
+  /** Imagens já montadas: item -> { v, url }. */
+  #imagens = new Map();
 
   constructor(estado, { nome = () => "", agora = () => Date.now() } = {}) {
     super();
@@ -310,7 +445,39 @@ export class TierList extends Emitter {
     const paleta = PALETAS[cores?.paleta] ? cores.paleta : null;
     const reserva = (PALETAS[paleta] || PALETAS.classica).cores;
     const tiers = ns.map((n, i) => ({ n, c: corOk(Array.isArray(cores?.v) ? cores.v[i] : null) || reserva[i % reserva.length] }));
-    return { l, titulo, tiers, estilo: ESTILOS[nomes?.estilo] ? nomes.estilo : null, paleta, tema };
+    const modo = daLista(this.estado.ler("tl/modo"), l)?.m === "notas" ? "notas" : "arrastar";
+    /*
+     * Cada pergunta mora na sua chave (`tl/q/<id>`), e a escala em outra:
+     * mudar o peso de uma enquanto alguém cria outra não apaga nada. Ao
+     * começar a votar, a lista é congelada na rodada (`tl/fase`), para todo
+     * mundo responder exatamente as mesmas perguntas.
+     */
+    const f = this.estado.ler("tl/fase");
+    const congelada = f && f.l === l && f.f === "ranquear" && Array.isArray(f.q) ? f : null;
+    const limparQ = (q) => ({ t: texto(q?.t, MAX_PERGUNTA).trim(), w: [1, 2, 3].includes(q?.w) ? q.w : 1 });
+    let perguntas;
+    let escala;
+    if (congelada) {
+      perguntas = congelada.q.slice(0, MAX_PERGUNTAS).map(limparQ).filter((q) => q.t);
+      escala = ESCALAS[congelada.e] ? Number(congelada.e) : 10;
+    } else {
+      const qs = [...this.estado.com("tl/q/")].filter(([, v]) => v && v.l === l);
+      perguntas = qs.length
+        ? qs
+            .sort(([ka, a], [kb, b]) => (Number(a.em) || 0) - (Number(b.em) || 0) || ka.localeCompare(kb))
+            .slice(0, MAX_PERGUNTAS)
+            .map(([k, v]) => ({ id: k.slice(5), ...limparQ(v) }))
+            .filter((q) => q.t)
+        : perguntasIniciais(tema);
+      const e = daLista(this.estado.ler("tl/escala"), l)?.e;
+      escala = ESCALAS[e] ? Number(e) : 10;
+    }
+    const ct = daLista(this.estado.ler("tl/cortes"), l);
+    const { min, max } = ESCALAS[escala];
+    const cortesOk =
+      Array.isArray(ct?.v) && ct.escala === escala && ct.v.length === tiers.length && ct.v.every((x, i) => typeof x === "number" && x >= min && x <= max && (i === 0 || x <= ct.v[i - 1]));
+    const cortes = cortesOk ? ct.v.map(Number) : cortesPadrao(tiers.length, escala);
+    return { l, titulo, tiers, estilo: ESTILOS[nomes?.estilo] ? nomes.estilo : null, paleta, tema, modo, perguntas, escala, cortes, cortesAuto: !cortesOk };
   }
 
   /** A fase da lista atual: montar (r = rodadas já jogadas) ou ranquear (r = esta rodada). */
@@ -318,8 +485,9 @@ export class TierList extends Emitter {
     const c = this.cfg();
     if (!c) return null;
     const f = this.estado.ler("tl/fase");
-    if (!f || f.l !== c.l || !Number.isSafeInteger(f.r) || (f.f !== "montar" && f.f !== "ranquear")) return { l: c.l, r: 0, f: "montar" };
-    return { l: c.l, r: f.r, f: f.f };
+    if (!f || f.l !== c.l || !Number.isSafeInteger(f.r) || (f.f !== "montar" && f.f !== "ranquear")) return { l: c.l, r: 0, f: "montar", m: c.modo };
+    // O modo da rodada fica gravado ao começar: mudar na montagem não estraga uma rodada em andamento.
+    return { l: c.l, r: f.r, f: f.f, m: f.f === "ranquear" ? (f.m === "notas" ? "notas" : "arrastar") : c.modo };
   }
 
   itens() {
@@ -327,8 +495,29 @@ export class TierList extends Emitter {
     if (!c) return [];
     return [...this.estado.com("tl/it/")]
       .filter(([, v]) => v && v.l === c.l && typeof v.t === "string" && v.t.trim())
-      .map(([k, v]) => ({ id: k.slice(6), t: texto(v.t, MAX_ITEM), e: EMOJI_TIER.includes(v.e) ? v.e : null, h: Number.isInteger(v.h) ? ((v.h % 360) + 360) % 360 : matiz(v.t), em: Number(v.em) || 0 }))
+      .map(([k, v]) => {
+        const id = k.slice(6);
+        const it = { id, t: texto(v.t, MAX_ITEM), e: EMOJI_TIER.includes(v.e) ? v.e : null, h: Number.isInteger(v.h) ? ((v.h % 360) + 360) % 360 : matiz(v.t), em: Number(v.em) || 0, img: null };
+        if (v.img && Number.isInteger(v.img.n) && v.img.n > 0 && v.img.n <= MAX_PEDACOS_IMG && typeof v.img.v === "string") it.img = this.imagem(id, v.img);
+        return it;
+      })
       .sort((a, b) => a.em - b.em || a.id.localeCompare(b.id));
+  }
+
+  /** A imagem de um item, montada dos pedaços (null enquanto não chegaram todos). */
+  imagem(id, ref) {
+    const guardada = this.#imagens.get(id);
+    if (guardada && guardada.v === ref.v) return guardada.url;
+    const partes = [];
+    for (let k = 0; k < ref.n; k += 1) {
+      const p = this.estado.ler(`tl/im/${id}/${k}`);
+      if (!p || p.v !== ref.v || typeof p.d !== "string") return null;
+      partes.push(p.d);
+    }
+    const url = partes.join("");
+    if (!imagemValida(url)) return null;
+    this.#imagens.set(id, { v: ref.v, url });
+    return url;
   }
 
   revelada(f = this.fase()) {
@@ -478,21 +667,137 @@ export class TierList extends Emitter {
     return this.#faixas(c, t);
   }
 
-  novoItem(nome, e = null) {
+  /* ------------------------- enquete com notas ------------------------- */
+
+  /** Arrastar (cada um monta a lista) ou enquete com notas (a nota decide a faixa). */
+  modo(m) {
+    const c = this.#pode();
+    if (!c || !MODOS[m] || c.modo === m) return false;
+    const pares = [["tl/modo", { l: c.l, m }]];
+    // A primeira vez na enquete: as perguntas iniciais ganham as suas chaves (todos veem as mesmas).
+    if (m === "notas" && !c.perguntas.some((q) => q.id)) c.perguntas.forEach((q, i) => pares.push([`tl/q/${novoId()}`, { l: c.l, t: q.t, w: q.w, em: this.agora() + i }]));
+    this.estado.definir(pares);
+    return true;
+  }
+
+  /** As perguntas, com as chaves criadas se ainda são as iniciais. */
+  #perguntas() {
+    const c = this.#pode();
+    if (!c) return null;
+    if (!c.perguntas.some((q) => q.id)) {
+      this.estado.definir(c.perguntas.map((q, i) => [`tl/q/${novoId()}`, { l: c.l, t: q.t, w: q.w, em: this.agora() + i }]));
+    }
+    return this.cfg();
+  }
+
+  novaPergunta(t) {
+    const c = this.#perguntas();
+    const q = String(t ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_PERGUNTA);
+    if (!c || !q || c.perguntas.length >= MAX_PERGUNTAS || c.perguntas.some((x) => x.t.toLowerCase() === q.toLowerCase())) return false;
+    // Sempre no fim, mesmo com o relógio de alguém atrasado.
+    const ultima = Math.max(0, ...[...this.estado.com("tl/q/")].filter(([, v]) => v?.l === c.l).map(([, v]) => Number(v.em) || 0));
+    this.estado.definir([[`tl/q/${novoId()}`, { l: c.l, t: q, w: 1, em: Math.max(this.agora(), ultima + 1) }]]);
+    return true;
+  }
+
+  removerPergunta(i) {
+    const c = this.#perguntas();
+    if (!c || !c.perguntas[i]?.id || c.perguntas.length <= 1) return false;
+    this.estado.definir([[`tl/q/${c.perguntas[i].id}`, null]]);
+    return true;
+  }
+
+  /** O peso de uma pergunta: 1, 2 ou 3 (vale em dobro, em triplo). */
+  pesoPergunta(i, w) {
+    const c = this.#perguntas();
+    const q = c?.perguntas[i];
+    if (!q?.id || ![1, 2, 3].includes(w)) return false;
+    const atual = this.estado.ler(`tl/q/${q.id}`);
+    this.estado.definir([[`tl/q/${q.id}`, { ...atual, w }]]);
+    return true;
+  }
+
+  /** Troca a escala (0 a 10 ou 1 a 5): as notas mínimas voltam a ser as automáticas. */
+  escala(e) {
+    const c = this.#pode();
+    const n = Number(e);
+    if (!c || !ESCALAS[n] || c.escala === n) return false;
+    this.estado.definir([["tl/escala", { l: c.l, e: n }]]);
+    return true;
+  }
+
+  /** A nota mínima de uma faixa. As de baixo nunca ficam acima das de cima. */
+  corte(i, valor) {
+    const c = this.#pode();
+    const { min, max } = ESCALAS[c?.escala] || ESCALAS[10];
+    const x = arred(Number(String(valor).replace(",", ".")));
+    if (!c || !c.tiers[i] || !Number.isFinite(x) || i === c.tiers.length - 1) return false;
+    const v = [...c.cortes];
+    v[i] = Math.min(max, Math.max(min, x));
+    for (let j = i - 1; j >= 0; j -= 1) v[j] = Math.max(v[j], v[j + 1]);
+    for (let j = i + 1; j < v.length; j += 1) v[j] = Math.min(v[j], v[j - 1]);
+    v[v.length - 1] = min;
+    this.estado.definir([["tl/cortes", { l: c.l, v, escala: c.escala }]]);
+    return true;
+  }
+
+  /** Volta as notas mínimas para a divisão em partes iguais. */
+  cortesAuto() {
+    const c = this.#pode();
+    if (!c) return false;
+    this.estado.definir([["tl/cortes", null]]);
+    return true;
+  }
+
+  /* ------------------------------- itens ------------------------------- */
+
+  /** Um item novo, com emoji ou imagem (uma miniatura em data URL, ver ui/tierlist.js). */
+  novoItem(nome, e = null, imagem = null) {
     const c = this.cfg();
     const f = this.fase();
     const t = String(nome ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_ITEM);
     if (!c || f.f !== "montar" || !t) return null;
     const itens = this.itens();
     if (itens.length >= MAX_ITENS || itens.some((x) => x.t.toLowerCase() === t.toLowerCase())) return null;
+    if (imagem != null && !imagemValida(imagem)) return null;
     const id = novoId();
-    this.estado.definir([[`tl/it/${id}`, { l: c.l, t, e: EMOJI_TIER.includes(e) ? e : null, h: matiz(t), em: this.agora() }]]);
+    const item = { l: c.l, t, e: EMOJI_TIER.includes(e) ? e : null, h: matiz(t), em: this.agora() };
+    this.estado.definir([...this.#pedacos(id, imagem, item), [`tl/it/${id}`, item]]);
     return id;
+  }
+
+  /** Põe, troca ou tira (null) a imagem de um item. */
+  imagemItem(id, imagem) {
+    const it = this.estado.ler(`tl/it/${id}`);
+    if (this.fase()?.f !== "montar" || !this.itens().some((x) => x.id === id)) return false;
+    if (imagem != null && !imagemValida(imagem)) return false;
+    const novo = { ...it };
+    const pares = this.#pedacos(id, imagem, novo);
+    if (imagem == null) {
+      for (let k = 0; k < (it.img?.n || 0); k += 1) pares.push([`tl/im/${id}/${k}`, null]);
+      delete novo.img;
+    }
+    this.estado.definir([...pares, [`tl/it/${id}`, novo]]);
+    return true;
+  }
+
+  /** Os pedaços da imagem (primeiro), e a referência no item. */
+  #pedacos(id, imagem, item) {
+    if (imagem == null) return [];
+    const v = novoId().slice(0, 6);
+    const pares = [];
+    for (let k = 0; k * PEDACO_IMG < imagem.length; k += 1) pares.push([`tl/im/${id}/${k}`, { l: item.l, v, d: imagem.slice(k * PEDACO_IMG, (k + 1) * PEDACO_IMG) }]);
+    item.img = { n: pares.length, v };
+    return pares;
   }
 
   removerItem(id) {
     if (this.fase()?.f !== "montar" || !this.itens().some((x) => x.id === id)) return false;
-    this.estado.definir([[`tl/it/${id}`, null]]);
+    const it = this.estado.ler(`tl/it/${id}`);
+    const pares = [[`tl/it/${id}`, null]];
+    for (let k = 0; k < (it?.img?.n || 0); k += 1) pares.push([`tl/im/${id}/${k}`, null]);
+    this.estado.definir(pares);
+    this.#imagens.delete(id);
     return true;
   }
 
@@ -500,10 +805,14 @@ export class TierList extends Emitter {
 
   comecar() {
     const f = this.fase();
-    if (!f || f.f !== "montar" || this.itens().length < 2) return false;
+    const c = this.cfg();
+    if (!f || f.f !== "montar" || this.itens().length < 2 || (c.modo === "notas" && !c.perguntas.length)) return false;
     this.#meu = { l: f.l, r: f.r + 1, p: {} };
     guardarNaAba("vcall:tl", this.#meu);
-    this.estado.definir([["tl/fase", { l: f.l, r: f.r + 1, f: "ranquear" }]]);
+    // Na enquete, perguntas e escala ficam congeladas na rodada (todos votam nas mesmas).
+    const rodada = { l: f.l, r: f.r + 1, f: "ranquear", m: c.modo };
+    if (c.modo === "notas") Object.assign(rodada, { q: c.perguntas.map(({ t, w }) => ({ t, w })), e: c.escala });
+    this.estado.definir([["tl/fase", rodada]]);
     return true;
   }
 
@@ -519,12 +828,30 @@ export class TierList extends Emitter {
   colocar(item, faixa) {
     const f = this.fase();
     const c = this.cfg();
-    if (!f || f.f !== "ranquear" || this.revelada(f) || !this.itens().some((x) => x.id === item)) return false;
+    if (!f || f.f !== "ranquear" || f.m !== "arrastar" || this.revelada(f) || !this.itens().some((x) => x.id === item)) return false;
     if (faixa != null && !(Number.isInteger(faixa) && faixa >= 0 && faixa < c.tiers.length)) return false;
     if (!this.#meu || this.#meu.l !== f.l || this.#meu.r !== f.r) this.#meu = { l: f.l, r: f.r, p: {} };
     const p = { ...this.#meu.p };
     if (faixa == null) delete p[item];
     else p[item] = faixa;
+    this.#meu = { ...this.#meu, p };
+    guardarNaAba("vcall:tl", this.#meu);
+    this.#publicarProgresso(false);
+    return true;
+  }
+
+  /** Enquete: a minha nota para a pergunta `q` de um item (null apaga). */
+  avaliar(item, q, valor) {
+    const f = this.fase();
+    const c = this.cfg();
+    if (!f || f.f !== "ranquear" || f.m !== "notas" || this.revelada(f) || !this.itens().some((x) => x.id === item) || !c.perguntas[q]) return false;
+    const { min, max } = ESCALAS[c.escala];
+    if (valor != null && !(Number.isInteger(valor) && valor >= min && valor <= max)) return false;
+    if (!this.#meu || this.#meu.l !== f.l || this.#meu.r !== f.r) this.#meu = { l: f.l, r: f.r, p: {} };
+    const r = Array.from({ length: c.perguntas.length }, (_, i) => (Array.isArray(this.#meu.p[item]) ? (this.#meu.p[item][i] ?? null) : null));
+    r[q] = valor;
+    const p = { ...this.#meu.p, [item]: r };
+    if (r.every((x) => x == null)) delete p[item];
     this.#meu = { ...this.#meu, p };
     guardarNaAba("vcall:tl", this.#meu);
     this.#publicarProgresso(false);
@@ -551,7 +878,8 @@ export class TierList extends Emitter {
   #publicarProgresso(ok) {
     const f = this.fase();
     const ids = new Set(this.itens().map((x) => x.id));
-    const k = Object.keys(this.minha(f)).filter((id) => ids.has(id)).length;
+    const perguntas = this.cfg().perguntas;
+    const k = Object.entries(this.minha(f)).filter(([id, v]) => ids.has(id) && (f.m !== "notas" || completo(v, perguntas))).length;
     this.estado.definir([[`tl/pr/${this.eu}`, { l: f.l, r: f.r, k, ok, nome: this.nome().slice(0, 40) }]]);
   }
 
@@ -568,7 +896,7 @@ export class TierList extends Emitter {
     if (!f || !this.revelada(f)) return;
     const meu = this.minha(f);
     const ids = new Set(this.itens().map((x) => x.id));
-    const p = Object.fromEntries(Object.entries(meu).filter(([id]) => ids.has(id)));
+    const p = Object.fromEntries(Object.entries(meu).filter(([id, v]) => ids.has(id) && (f.m === "notas" ? Array.isArray(v) : Number.isInteger(v))));
     if (!Object.keys(p).length) return;
     const atual = this.estado.ler(`tl/val/${this.eu}`);
     if (atual && atual.l === f.l && atual.r === f.r && JSON.stringify(atual.p) === JSON.stringify(p)) return;
@@ -595,21 +923,36 @@ export class TierList extends Emitter {
     const f = this.fase();
     if (!c) return { fase: "lobby" };
     const itens = this.itens();
-    const base = { l: c.l, r: f.r, cfg: c, itens };
+    const base = { l: c.l, r: f.r, cfg: c, itens, modo: f.m };
     if (f.f === "montar") return { ...base, fase: "montar" };
     const progresso = this.progresso(f);
+    const notas = f.m === "notas";
     if (!this.revelada(f)) {
       const minha = this.minha(f);
       return {
         ...base,
         fase: "ranquear",
         minha,
-        colocados: itens.filter((x) => minha[x.id] != null).length,
+        colocados: itens.filter((x) => (notas ? completo(minha[x.id], c.perguntas) : minha[x.id] != null)).length,
         progresso: pessoas.map((p) => ({ ...p, ...(progresso.find((x) => x.id === p.id) || { k: 0, ok: false }) })),
         euPronto: !!progresso.find((x) => x.id === this.eu)?.ok,
       };
     }
-    const listas = this.listas(f).map((x) => ({ ...x, nome: pessoas.find((p) => p.id === x.id)?.nome || x.nome || "Alguém" }));
-    return { ...base, fase: "revelada", listas, minha: this.minha(f), res: resultadoTier(itens, c.tiers.length, listas) };
+    const listas = this.listas(f).map((x) => {
+      const nome = pessoas.find((p) => p.id === x.id)?.nome || x.nome || "Alguém";
+      if (!notas) return { ...x, nome, pt: x.p };
+      // Enquete: a faixa de cada item na lista desta pessoa sai da nota dela.
+      const nt = {};
+      const pt = {};
+      for (const it of itens) {
+        const n = notaDoItem(x.p[it.id], c.perguntas, c.escala);
+        if (n == null) continue;
+        nt[it.id] = n;
+        pt[it.id] = faixaPorNota(n, c.cortes);
+      }
+      return { ...x, nome, pt, notas: nt };
+    });
+    const res = notas ? resultadoNotas(itens, c.tiers.length, c.perguntas, c.escala, c.cortes, listas) : resultadoTier(itens, c.tiers.length, listas);
+    return { ...base, fase: "revelada", listas, minha: this.minha(f), res };
   }
 }

@@ -12,6 +12,11 @@
   ao nem a pau*, Temperatura, Notas, Coração, *Ama, gosta, odeia*), 6
   paletas (Clássica, Vcall, Neon, Pastel, Pôr do sol, Oceano) e qualquer cor
   em cada faixa, de 2 a 8 faixas e até 40 itens.
+- **Fotos nos itens:** uma ou várias de uma vez, arrastadas do computador
+  ou coladas com Ctrl+V. Viram miniaturas leves e chegam a todo mundo.
+- **Enquete com notas:** em vez de arrastar, cada um dá notas a cada item em
+  várias perguntas (com peso, de 0 a 10 ou em estrelas). A média decide a
+  faixa, pela nota mínima de cada uma, que vocês ajustam.
 - **Para levar:** baixe a lista como imagem ou copie como texto, a da galera
   ou a de qualquer um.
 

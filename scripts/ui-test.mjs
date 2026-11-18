@@ -521,6 +521,103 @@ try {
     await m.context().close();
   }
 
+  console.log("\nTier List");
+  {
+    const sala = novaSala("tier");
+    const a = await participante("Ana", sala);
+    await noDock(a);
+    const b = await participante("Bia", sala);
+    await noDock(b);
+    await conectados(a, 1);
+    await irPara(a, "tierlist");
+    await a.click(".tl-tema >> text=Sabores de pizza");
+    await a.waitForSelector(".tl--montar");
+    await irPara(b, "tierlist");
+    await b.waitForSelector(".tl--montar");
+    // A Bia troca a paleta e a Ana renomeia a primeira faixa ao mesmo tempo: as duas ficam.
+    await b.click('.tl-paleta[data-id="neon"]');
+    await a.fill(".tl-faixa__campo >> nth=0", "Lenda");
+    await a.press(".tl-faixa__campo >> nth=0", "Enter");
+    const juntos = await sim(
+      b.waitForFunction(() => {
+        const c = window.vcall.jogos.tierlist.cfg();
+        return c.tiers[0].n === "Lenda" && c.paleta === "neon";
+      }, null, { timeout: 5000 }),
+    );
+    check("Tier List: duas pessoas mexendo ao mesmo tempo, as duas mudanças ficam", juntos);
+    await a.click(".tl-rodape >> text=Começar a ranquear");
+    await b.waitForSelector(".tl--ranquear");
+    // Arrasto de verdade, com o mouse, do banco para a primeira faixa.
+    const item = a.locator(".tl-banco .tl-item").first();
+    const de = await item.boundingBox();
+    const para = await a.locator(".tl--ranquear .tl-faixa").first().boundingBox();
+    await a.mouse.move(de.x + de.width / 2, de.y + de.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(de.x + 40, de.y - 30, { steps: 5 });
+    await a.mouse.move(para.x + 220, para.y + para.height / 2, { steps: 8 });
+    await a.mouse.up();
+    const naFaixa = await a.locator(".tl--ranquear .tl-faixa").first().locator(".tl-item").count();
+    check("Tier List: arrastar do banco para a faixa", naFaixa === 1, `${naFaixa} item na faixa`);
+    await b.evaluate(() => {
+      const l = window.vcall.jogos.tierlist;
+      l.itens().forEach((x, i) => l.colocar(x.id, i % 3));
+    });
+    const escondido = await a.evaluate(() => ![...window.vcall.jogosEstado.com("tl/val/")].length);
+    check("Tier List: a lista de cada um não viaja antes de revelar", escondido);
+    await b.click(".tl-rodape >> text=Pronto!");
+    await a.click(".tl-rodape >> text=Pronto!");
+    const revelou = await sim(a.waitForSelector(".tl--revelada .tl-destaque", { timeout: 8000 }));
+    const listas = await b.evaluate(() => window.vcall.jogos.tierlist.vista([]).listas?.length || 0);
+    check("Tier List: todos prontos, revela a média da galera com os destaques", revelou && listas === 2, `${listas} listas`);
+    const [baixado] = await Promise.all([a.waitForEvent("download", { timeout: 8000 }).catch(() => null), a.click(".tl-rodape >> text=Baixar imagem")]);
+    check("Tier List: baixar a imagem da lista", !!baixado && /\.png$/.test(baixado.suggestedFilename()), baixado?.suggestedFilename() || "nada");
+
+    // Fotos e enquete com notas, na mesma sala.
+    await a.click(".tl-rodape >> text=Nova tier list");
+    await a.click(".tl-tema--zero");
+    await a.waitForSelector(".tl--montar");
+    const foto = path.join(tmp, "foto-do-rex.png");
+    writeFileSync(foto, await a.screenshot({ clip: { x: 0, y: 0, width: 300, height: 200 } }));
+    await a.setInputFiles(".tl-novo input[type=file][multiple]", foto);
+    const fotoChegou = await sim(b.waitForSelector(".tl-itens-edita .tl-item.tem-foto .tl-item__foto", { timeout: 8000 }));
+    const nomeFoto = await b.evaluate(() => window.vcall.jogos.tierlist.itens()[0]?.t);
+    check("Tier List: a foto vira item com o nome do arquivo e chega a todos", fotoChegou && nomeFoto === "foto do rex", nomeFoto);
+    await a.fill(".tl-novo__nome", "Pipoca");
+    await a.press(".tl-novo__nome", "Enter");
+    await b.click('.tl-modos [data-id="notas"]');
+    await a.waitForSelector(".tl-painel__enquete:not([hidden]) .tl-pergunta");
+    await a.click('.tl-painel__enquete .jg-chip--botao[data-id="5"]');
+    await b.waitForFunction(() => window.vcall.jogos.tierlist.cfg().escala === 5, null, { timeout: 5000 });
+    await a.click(".tl-rodape >> text=Começar a votação");
+    await b.waitForSelector(".tl--enquete");
+    // A Ana dá 5 estrelas em tudo do primeiro item, pela tela; o resto por código.
+    const nQ = await a.locator(".tl-q").count();
+    for (let q = 0; q < nQ; q++) await a.locator(".tl-q").nth(q).locator(".tl-nota--estrela").nth(4).click();
+    const pulou = await sim(a.waitForFunction(() => document.querySelector(".tl-enquete__titulo")?.textContent === "Pipoca", null, { timeout: 3000 }));
+    check("Tier List: enquete com estrelas, e terminado o item vai sozinho para o próximo", pulou && nQ === 3);
+    for (const p of [a, b]) {
+      await p.evaluate((ehAna) => {
+        const l = window.vcall.jogos.tierlist;
+        const n = l.cfg().perguntas.length;
+        l.itens().forEach((x, i) => {
+          for (let q = 0; q < n; q++) l.avaliar(x.id, q, ehAna ? (i ? 1 : 5) : i ? 2 : 5);
+        });
+      }, p === a);
+    }
+    const notasEscondidas = await a.evaluate(() => {
+      const l = window.vcall.jogos.tierlist.cfg().l;
+      return ![...window.vcall.jogosEstado.com("tl/val/")].some(([, v]) => v?.l === l);
+    });
+    await a.click(".tl-rodape >> text=Revelar agora");
+    await b.waitForSelector(".tl--revelada .tl-item__nota", { timeout: 8000 });
+    const rev = await b.evaluate(() => {
+      const v = window.vcall.jogos.tierlist.vista([]);
+      return v.res.porItem.map((x) => [x.t, x.nota, x.tier]);
+    });
+    check("Tier List: as notas decidem a faixa (5 estrelas em S, 1,5 na última)", notasEscondidas && rev.some(([, n, t]) => n === 5 && t === 0) && rev.some(([, n, t]) => n === 1.5 && t === 5), JSON.stringify(rev));
+    for (const p of [a, b]) await p.context().close();
+  }
+
   console.log("\nJogos de festa e de tabuleiro");
   {
     const sala = novaSala("festa");

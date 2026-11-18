@@ -46,6 +46,7 @@ import { watchHandsFree } from "./ui/handsfree.js";
 import { Daily, EstadoJogos, JOGOS, Poker, Retro, comArtigo, pedacosDoEstado } from "./features/jogos.js";
 import { KanbanGithub } from "./features/github.js";
 import { Codigo, Desenho, DuasVerdades, Mimica, QuemSouEu, Quiz, Roda, Stop } from "./features/festa.js";
+import { TierList } from "./features/tierlist.js";
 import { Forca, Lig4, Memoria, Sorteios, Velha } from "./features/tabuleiro.js";
 import { PainelJogos } from "./ui/jogos.js";
 import { PonteQuizzV, linkDePareamento, linkDoQuizzv, qrSvg } from "./features/quizzv.js";
@@ -2072,6 +2073,7 @@ const jogosLogicas = {
   mimica: new Mimica(jogosEstado, { nome: meuNome }),
   quemsoueu: new QuemSouEu(jogosEstado, { nome: meuNome }),
   roda: new Roda(jogosEstado, { nome: meuNome }),
+  tierlist: new TierList(jogosEstado, { nome: meuNome }),
   verdades: new DuasVerdades(jogosEstado, { nome: meuNome }),
   codigo: new Codigo(jogosEstado, { nome: meuNome }),
   velha: new Velha(jogosEstado, { nome: meuNome }),

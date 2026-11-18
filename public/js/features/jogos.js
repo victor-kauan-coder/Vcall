@@ -903,6 +903,7 @@ export const JOGOS = {
   mimica: { nome: "Mímica", cat: "festa", icone: "drama", pessoas: "3+", desc: "Imite sem falar, com a sua câmera em destaque." },
   quemsoueu: { nome: "Quem sou eu?", cat: "festa", icone: "scan-face", pessoas: "3+", desc: "Todo mundo vê o seu personagem, menos você." },
   roda: { nome: "Roda de perguntas", cat: "festa", icone: "messages-square", pessoas: "2+", desc: "O que você prefere?, Eu nunca…, Quem da call… e quebra-gelo." },
+  tierlist: { nome: "Tier List", cat: "festa", icone: "chart-bar-decreasing", pessoas: "1+", desc: "Montem a lista juntos, ranqueiem escondido e vejam a média da galera." },
   verdades: { nome: "Duas verdades e uma mentira", cat: "festa", icone: "badge-question-mark", pessoas: "3+", desc: "Conte três coisas sobre você. Qual delas é mentira?" },
   codigo: { nome: "Palavras-código", cat: "festa", icone: "swords", pessoas: "4+", desc: "Dois times, um mestre de cada e uma dica por vez." },
   velha: { nome: "Jogo da velha", cat: "tabuleiro", icone: "hash", pessoas: "1–2", desc: "O clássico. Sozinho? Jogue contra o computador." },
@@ -921,6 +922,6 @@ export function comArtigo(id) {
   if (!j) return "um jogo";
   if (id === "verdades" || id === "codigo") return j.nome;
   if (id === "sorteios") return "a Roleta";
-  const feminino = ["retro", "daily", "mimica", "roda", "forca"].includes(id);
+  const feminino = ["retro", "daily", "mimica", "roda", "forca", "tierlist"].includes(id);
   return `${feminino ? "a" : "o"} ${j.nome}`;
 }

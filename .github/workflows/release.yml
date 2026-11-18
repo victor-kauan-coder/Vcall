@@ -24,7 +24,10 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    # Fixo na 24.04: na imagem nova do ubuntu-latest (26.04, rpm mais novo) o
+    # rpmbuild recusa o .spec que o fpm 1.9.3 do electron-builder gera, e o
+    # .rpm não sai (3.25.0). Na 24.04 o mesmo conteúdo empacota normalmente.
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5

@@ -17,8 +17,32 @@ meio recebe o jogo como está.
 | **Mímica** | 3+ | Quem imita vê a palavra; a câmera dele fica grande para todos. Os outros chutam em voz alta, e quem imita aponta quem acertou. |
 | **Quem sou eu?** | 3+ | Cada um ganha um personagem colado na própria câmera: todos veem, menos você. Na sua vez, pergunte algo de sim ou não. Dá para escolher o personagem de alguém. |
 | **Roda de perguntas** | 2+ | *O que você prefere?*, *Eu nunca...*, *Quem da call...* e quebra-gelo. Os votos ficam escondidos até todo mundo votar. No *Quem da call*, ninguém vê quem votou em quem. |
+| **Tier List** | 1+ | Escolham um dos 10 temas prontos (petiscos de boteco, pizza, doces de festa, opiniões polêmicas…) ou comecem do zero. A turma monta junto: título, nomes das faixas (S–F, *Do divino ao nem a pau*, Temperatura, Notas…), cores (6 paletas ou uma cor por faixa) e os itens, com emoji. Depois cada um arrasta os itens na **sua** lista, escondida, e a revelação mostra a média da galera, o item mais polêmico, as unanimidades, as almas gêmeas e quem é do contra. [Mais abaixo](#tier-list). |
 | **Duas verdades e uma mentira** | 3+ | Escreva três frases sobre você e marque a mentira. A turma vota; quem acha ganha 100, e você ganha 50 por pessoa enganada. |
 | **Palavras-código** | 4+ | Dois times, um mestre de cada. O mestre vê as cores e dá uma dica de uma palavra e um número; o time aponta as cartas. Cuidado com a bomba. |
+
+## Tier List
+
+1. **Montar.** Quem abre escolhe um tema pronto ou **Começar do zero**. Todo
+   mundo vê a mesma tela e pode mexer junto: o título (toque nele), o nome de
+   cada faixa, a cor (o círculo ao lado), subir, descer ou tirar uma faixa
+   (de 2 a 8), o estilo dos nomes, a paleta e os itens (até 40, com um emoji
+   opcional). Se duas pessoas mexem ao mesmo tempo, as duas mudanças ficam.
+2. **Ranquear.** Cada um coloca os itens na própria lista: arraste com o
+   mouse ou com o dedo, ou toque no item e depois na faixa. No teclado, com o
+   item em foco, as teclas **1** a **8** escolhem a faixa e **0** devolve ao
+   banco. Em cima aparece o quanto cada um já colocou, nunca onde.
+3. **Revelar.** Quando todo mundo aperta **Pronto!** (ou alguém aperta
+   **Revelar agora**), as listas são publicadas e aparece a tier list da
+   galera, entrando de baixo para cima. Cada item cai na faixa da média (no
+   empate, na de baixo) e tem uma barrinha com a cor de cada voto. Toque num
+   item para ver quem pôs onde. Ao lado: a sua sintonia com a galera, o mais
+   polêmico, as unanimidades, as almas gêmeas e quem é do contra. As abas
+   mostram a lista de cada um.
+
+**Baixar imagem** gera um PNG pronto para o WhatsApp e **Copiar como texto**
+copia faixa por faixa. **Ranquear de novo** volta à montagem com os mesmos
+itens, e a rodada nova começa vazia.
 
 ## Quiz pelo celular (QuizzV)
 
@@ -64,7 +88,7 @@ mesmo menu. → [Jogos de equipe](Jogos-de-equipe)
 ## Segredos
 
 - A palavra do Desenha e Adivinha nunca sai do computador de quem desenha.
-- As respostas do Stop, os votos da Roda e a mentira das Duas verdades só
-  são publicados quando a rodada revela.
+- As respostas do Stop, os votos da Roda, a mentira das Duas verdades e a
+  lista de cada um na Tier List só são publicados quando a rodada revela.
 - São jogos entre amigos: algumas coisas (como a ordem das cartas da memória)
   estão no estado compartilhado e poderiam ser vistas pelo console.

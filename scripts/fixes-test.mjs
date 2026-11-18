@@ -34,6 +34,7 @@ import { tmpdir } from "node:os";
 import { join as juntar } from "node:path";
 import { Acordo, limpar, quadrosPara, tokensPara, wer } from "../public/js/features/whisper-nucleo.js";
 import { Codigo, Desenho, DuasVerdades, Mimica, QuemSouEu, Quiz, Roda, Stop as StopJogo, valida } from "../public/js/features/festa.js";
+import { TierList, resultadoTier, tintaPara } from "../public/js/features/tierlist.js";
 import { BOT, Forca, Lig4, Memoria, Sorteios, Velha, resultadoLig4, resultadoVelha } from "../public/js/features/tabuleiro.js";
 import { Chuva, Combo, ComboRemoto, DO_ANTIGO, REACOES, SINAIS, Sinais, validar as validarReacao } from "../public/js/features/reacoes.js";
 import { BARALHOS, Daily, EstadoJogos, Poker, Retro, compacto, daily, detalhesHistoria, historias, mesaPoker, resultado, retro } from "../public/js/features/jogos.js";
@@ -1668,6 +1669,79 @@ if (process.platform === "linux") {
     assert.equal(pl[nos[autor].eu], 50);
   }
 
+  /* Tier List */
+  {
+    const { nos, entregar, igual, pessoas } = mesa(["ana", "bia", "caio"]);
+    const tl = nos.map((n, i) => new TierList(n, { nome: () => pessoas[i].nome, agora }));
+    tl[0].nova("pizza", { estilo: "brasileiro", paleta: "neon" });
+    entregar();
+    const c = tl[2].cfg();
+    assert.equal(c.titulo, "Sabores de pizza");
+    assert.deepEqual(c.tiers.map((t) => t.n), ["Divino", "Top demais", "De boa", "Meh", "Nem a pau"]);
+    assert.equal(tl[1].itens().length, 12, "o tema traz os itens");
+    // A turma monta junto: um troca a paleta, outro põe um item, outro tira um.
+    tl[1].paleta("pastel");
+    tl[2].novoItem("Strogonoff", "fire");
+    assert.equal(tl[2].novoItem("strogonoff"), null, "item repetido não entra");
+    tl[0].removerItem(tl[0].itens().find((x) => x.t === "Atum").id);
+    tl[0].renomearFaixa(0, "Lendária");
+    entregar();
+    igual();
+    assert.equal(tl[0].cfg().tiers[0].c, "#ffadad", "paleta de quem mudou");
+    assert.equal(tl[0].cfg().tiers[0].n, "Lendária");
+    assert.ok(!tl[1].renomearFaixa(0, "x".repeat(5)) || tl[1].cfg().tiers[0].n.length <= 18);
+    entregar();
+    const itens = tl[0].itens();
+    assert.equal(itens.length, 12);
+    assert.ok(!itens.some((x) => x.t === "Atum") && itens.some((x) => x.t === "Strogonoff" && x.e === "fire"));
+    // Ranquear: cada um coloca na própria lista, escondida.
+    assert.ok(tl[1].comecar());
+    entregar();
+    assert.ok(!tl[0].novoItem("Tarde demais"), "na hora de ranquear não entra item novo");
+    const [a, b, ...resto] = itens.map((x) => x.id);
+    tl[0].colocar(a, 0);
+    tl[0].colocar(b, 0);
+    tl[1].colocar(a, 0);
+    tl[1].colocar(b, 4);
+    tl[2].colocar(a, 0);
+    tl[2].colocar(b, 2);
+    for (const id of resto) tl[0].colocar(id, 1);
+    assert.ok(!tl[0].colocar(a, 9), "faixa que não existe");
+    entregar();
+    for (const n of nos) assert.ok(![...n.com("tl/val/")].length, "lista escondida até revelar");
+    const prog = tl[2].vista(pessoas).progresso;
+    assert.deepEqual(prog.map((p) => p.k), [12, 2, 2], "só o progresso viaja");
+    tl.forEach((t) => t.pronto());
+    entregar();
+    tl.forEach((t) => t.manter(pessoas));
+    entregar();
+    entregar();
+    const v = tl[1].vista(pessoas);
+    assert.equal(v.fase, "revelada", "todos prontos: o líder revela");
+    assert.equal(v.listas.length, 3);
+    const ra = v.res.porItem.find((x) => x.id === a);
+    assert.equal(ra.tier, 0);
+    assert.equal(ra.desvio, 0);
+    assert.ok(v.res.unanimes.some((x) => x.id === a), "todos no topo: unanimidade");
+    assert.equal(v.res.polemico.id, b, "0, 4 e 2: o mais polêmico");
+    assert.equal(v.res.porItem.find((x) => x.id === b).tier, 2, "média 2");
+    assert.ok(v.res.almasGemeas && v.res.doContra);
+    assert.ok(!tl[0].colocar(a, 3), "revelada, não muda mais");
+    // Ranquear de novo: volta a montar e a rodada nova começa vazia.
+    tl[2].voltarAMontar();
+    entregar();
+    assert.ok(tl[2].comecar());
+    entregar();
+    assert.equal(tl[0].vista(pessoas).fase, "ranquear");
+    assert.equal(tl[0].vista(pessoas).colocados, 0, "rodada nova, lista nova");
+    // Resultado puro: empate cai para baixo, item sem voto fica de fora.
+    const r = resultadoTier([{ id: "x", t: "X" }, { id: "y", t: "Y" }], 3, [{ id: "1", nome: "Um", p: { x: 0 } }, { id: "2", nome: "Dois", p: { x: 1 } }]);
+    assert.equal(r.porItem[0].tier, 1);
+    assert.equal(r.semVoto.length, 1);
+    assert.equal(tintaPara("#ffff7f"), "#14121f");
+    assert.equal(tintaPara("#2a5d8f"), "#ffffff");
+  }
+
   /* Palavras-código */
   {
     const { nos, entregar, pessoas } = mesa(["ana", "bia", "caio", "duda"]);
@@ -1852,7 +1926,7 @@ if (process.platform === "linux") {
     const v = lg[0].vista(m.pessoas);
     assert.deepEqual([v.p1?.id, v.p2?.id], ["ana", "bia"], "lugares em chaves separadas não se apagam");
   }
-  ok("jogos de festa e tabuleiro: palavra, resposta e voto só saem na hora; placar, vez e computador certos");
+  ok("jogos de festa e tabuleiro: palavra, resposta e voto só saem na hora; placar, vez e computador certos; a Tier List de cada um só aparece revelada");
 }
 
 /* ------------------------------------------------------------------ *

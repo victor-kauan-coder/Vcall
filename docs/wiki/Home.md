@@ -29,7 +29,7 @@ em qualquer distribuição Linux e no navegador.
 | Algo não funciona | [Solução de problemas](Solucao-de-problemas) |
 | Entender o que é privado | [Segurança e privacidade](Seguranca-e-privacidade) |
 | Mexer no código, rodar os testes | [Para desenvolvedores](Para-desenvolvedores) |
-| Ver o que mudou | [Novidades da 3.24](Novidades-3.24) |
+| Ver o que mudou | [Novidades da 3.25](Novidades-3.25) |
 
 ## O que o Vcall faz
 

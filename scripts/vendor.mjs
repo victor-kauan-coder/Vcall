@@ -22,6 +22,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
+import { EMOJI_TIER } from "../public/js/features/tierlist.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const iconsDir = path.join(root, "node_modules", "lucide-static", "icons");
@@ -45,6 +46,8 @@ const ICONS = [
   // Moderação e anexos (3.1)
   "user-x",
   "user-check",
+  // Tier List (3.25)
+  "chart-bar-decreasing", "handshake", "heart-handshake", "image-down", "arrow-up", "arrow-down", "wand-sparkles",
   // Jogos de equipe
   "spade",
   "sticky-note",
@@ -205,6 +208,8 @@ export const EMOJIS = [
   "fire", "thinking-face", "crying-face", "folded-hands", "hundred-points", "rocket",
   "star-struck", "raising-hands", "eyes", "smiling-face-with-heart-eyes", "skull", "exploding-head",
 ];
+// Os itens da Tier List: os emoji dos temas prontos e os que dá para escolher (features/tierlist.js).
+for (const e of EMOJI_TIER) if (!EMOJIS.includes(e)) EMOJIS.push(e);
 
 async function buildEmoji() {
   const fonte = path.join(root, "node_modules", "@iconify-json", "fluent-emoji-flat", "icons.json");
